@@ -1,0 +1,7 @@
+{
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "typescript.preferences.excludeCodeActionsFromLibraries": true,
+  "files.exclude": {
+    "**/.next": true
+  }
+}
