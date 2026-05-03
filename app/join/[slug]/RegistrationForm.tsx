@@ -19,14 +19,8 @@ const DEFAULT_WAIVER_TITLE = 'Liability Waiver'
 const DEFAULT_WAIVER_TEXT = 'I acknowledge that participation in sports activities involves risk of injury. I voluntarily assume all risks and release the organizer from liability for any injuries sustained during participation.'
 
 export default function RegistrationForm({
-  organizationId,
-  seasonId,
-  leagueName,
-  primaryColor,
-  maxGuests = 1,
-  waiverTitle,
-  waiverText,
-  waiverId,
+  organizationId, seasonId, leagueName, primaryColor, maxGuests = 1,
+  waiverTitle, waiverText, waiverId,
 }: Props) {
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
@@ -121,7 +115,6 @@ export default function RegistrationForm({
       <h2 style={{ fontSize: '16px', fontWeight: '800', color: '#1a1a0a', marginBottom: '20px' }}>Register to Play</h2>
 
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-
         <div>
           <label style={labelStyle}>Full Name *</label>
           <input type="text" required placeholder="John Smith"
@@ -169,7 +162,7 @@ export default function RegistrationForm({
           </div>
         </div>
 
-        {/* Waiver — shows org's real waiver if set, falls back to default */}
+        {/* Waiver */}
         <div style={{ background: '#f8f6f0', border: '0.5px solid #d4c9a8', borderRadius: '8px', padding: '12px 14px' }}>
           <div style={{ fontSize: '11px', fontWeight: '700', color: '#9a8c6a', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '6px' }}>
             {displayWaiverTitle}
@@ -193,7 +186,7 @@ export default function RegistrationForm({
               <div>
                 <div style={{ fontSize: '12px', fontWeight: '700', color: '#1a1a0a' }}>Bringing guests?</div>
                 <div style={{ fontSize: '10px', color: '#9a8c6a', marginTop: '1px' }}>
-                  You can bring up to {maxGuests} guest{maxGuests > 1 ? 's' : ''}. Each guest must accept the waiver.
+                  Up to {maxGuests} guest{maxGuests > 1 ? 's' : ''}. Each must accept the waiver.
                 </div>
               </div>
               {guests.length < maxGuests && (
@@ -215,7 +208,7 @@ export default function RegistrationForm({
                   <input type="text" required placeholder="Guest full name"
                     value={guest.full_name} onChange={(e) => updateGuest(idx, 'full_name', e.target.value)}
                     style={{ ...inputStyle, fontSize: '12px', padding: '8px 12px' }} />
-                  <input type="email" placeholder="Guest email (for waiver)"
+                  <input type="email" placeholder="Guest email (optional)"
                     value={guest.email} onChange={(e) => updateGuest(idx, 'email', e.target.value)}
                     style={{ ...inputStyle, fontSize: '12px', padding: '8px 12px' }} />
                   <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
@@ -240,9 +233,11 @@ export default function RegistrationForm({
 
         <button type="submit" disabled={loading || !form.full_name || !waiverAccepted}
           style={{
-            width: '100%', background: loading || !form.full_name || !waiverAccepted ? '#9a8c6a' : accent,
+            width: '100%',
+            background: loading || !form.full_name || !waiverAccepted ? '#9a8c6a' : accent,
             color: 'white', border: 'none', borderRadius: '8px', padding: '12px',
-            fontSize: '14px', fontWeight: '700', cursor: loading || !form.full_name || !waiverAccepted ? 'not-allowed' : 'pointer',
+            fontSize: '14px', fontWeight: '700',
+            cursor: loading || !form.full_name || !waiverAccepted ? 'not-allowed' : 'pointer',
             fontFamily: 'inherit', transition: 'background 0.15s',
           }}>
           {loading ? 'Registering...' : `Register Now${guests.length > 0 ? ` + ${guests.length} Guest${guests.length > 1 ? 's' : ''}` : ''} →`}
