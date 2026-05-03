@@ -67,6 +67,10 @@ export default function GamesTab() {
     fetchData()
   }
 
+  function goToScoring(gameId: string) {
+    window.location.href = '/dashboard/games/' + gameId + '/scoring'
+  }
+
   const getTeam = (id: string | null) => teams.find(t => t.id === id)
 
   const filtered = games.filter(g => {
@@ -75,7 +79,6 @@ export default function GamesTab() {
     return statusMatch && seasonMatch
   })
 
-  // Group by date
   const grouped = filtered.reduce((acc, game) => {
     const date = game.scheduled_at
       ? new Date(game.scheduled_at).toLocaleDateString('en-CA', {
@@ -101,7 +104,6 @@ export default function GamesTab() {
 
   return (
     <div>
-      {/* Header */}
       <div className="page-header">
         <div>
           <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
@@ -109,16 +111,12 @@ export default function GamesTab() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          <button
-            onClick={() => setShowForm(!showForm)}
-            className="btn-primary"
-          >
+          <button onClick={() => setShowForm(!showForm)} className="btn-primary">
             + Add Games
           </button>
         </div>
       </div>
 
-      {/* Add Games Form */}
       {showForm && (
         <AddGamesForm
           onClose={() => setShowForm(false)}
@@ -126,9 +124,7 @@ export default function GamesTab() {
         />
       )}
 
-      {/* Filters */}
       <div style={{ display: 'flex', gap: '6px', marginBottom: '16px', flexWrap: 'wrap' }}>
-        {/* Status filters */}
         {(['all', 'scheduled', 'live', 'final'] as const).map((f) => (
           <button
             key={f}
@@ -138,7 +134,7 @@ export default function GamesTab() {
               borderRadius: '99px',
               fontSize: '12px',
               fontWeight: '600',
-              border: `1.5px solid ${filter === f ? 'var(--btn-primary-bg)' : 'var(--border)'}`,
+              border: filter === f ? '1.5px solid var(--btn-primary-bg)' : '1.5px solid var(--border)',
               cursor: 'pointer',
               background: filter === f ? 'var(--btn-primary-bg)' : 'transparent',
               color: filter === f ? 'var(--btn-primary-text)' : 'var(--text-primary)',
@@ -149,8 +145,6 @@ export default function GamesTab() {
             {f}
           </button>
         ))}
-
-        {/* Season filter */}
         <select
           value={selectedSeason}
           onChange={(e) => setSelectedSeason(e.target.value)}
@@ -164,7 +158,6 @@ export default function GamesTab() {
         </select>
       </div>
 
-      {/* Games list */}
       {loading ? (
         <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>
           Loading games...
@@ -173,35 +166,24 @@ export default function GamesTab() {
         <div className="empty-state">
           <div className="empty-state-icon">🎮</div>
           <div className="empty-state-title">No games yet</div>
-          <div className="empty-state-desc">
-            Click "+ Add Games" to schedule your first game.
-          </div>
+          <div className="empty-state-desc">Click "+ Add Games" to schedule your first game.</div>
         </div>
       ) : (
         Object.entries(grouped).map(([date, dateGames]) => (
           <div key={date} style={{ marginBottom: '20px' }}>
-            {/* Date divider */}
-            <div style={{
-              display: 'flex', alignItems: 'center',
-              gap: '10px', marginBottom: '10px',
-            }}>
-              <span style={{
-                fontSize: '11px', fontWeight: '700',
-                textTransform: 'uppercase', letterSpacing: '0.06em',
-                color: 'var(--text-muted)', whiteSpace: 'nowrap',
-              }}>{date}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+              <span style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                {date}
+              </span>
               <div style={{ flex: 1, height: '0.5px', background: 'var(--border)' }} />
             </div>
 
-            {/* Games for this date */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {dateGames.map((game) => {
                 const homeTeam = getTeam(game.home_team_id)
                 const awayTeam = getTeam(game.away_team_id)
                 const time = game.scheduled_at
-                  ? new Date(game.scheduled_at).toLocaleTimeString('en-CA', {
-                      hour: '2-digit', minute: '2-digit'
-                    })
+                  ? new Date(game.scheduled_at).toLocaleTimeString('en-CA', { hour: '2-digit', minute: '2-digit' })
                   : ''
 
                 return (
@@ -209,26 +191,17 @@ export default function GamesTab() {
                     key={game.id}
                     className="card-sm"
                     style={{
-                      borderColor: game.status === 'live' ? '#fecaca' :
-                        game.status === 'final' ? '#bbf7d0' : 'var(--border)',
+                      borderColor: game.status === 'live' ? '#fecaca' : game.status === 'final' ? '#bbf7d0' : 'var(--border)',
                       background: game.status === 'live' ? '#fff9f9' : 'var(--bg-surface)',
                     }}
                   >
-                    <div style={{
-                      display: 'flex', alignItems: 'center',
-                      gap: '12px', flexWrap: 'wrap',
-                    }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
 
-                      {/* Status + time */}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flexShrink: 0 }}>
                         <span style={{
                           ...statusStyle(game.status),
-                          borderRadius: '99px',
-                          fontSize: '10px',
-                          fontWeight: '700',
-                          padding: '2px 8px',
-                          display: 'inline-block',
-                          textAlign: 'center',
+                          borderRadius: '99px', fontSize: '10px', fontWeight: '700',
+                          padding: '2px 8px', display: 'inline-block', textAlign: 'center',
                         }}>
                           {statusLabel(game.status)}
                         </span>
@@ -244,165 +217,91 @@ export default function GamesTab() {
                         )}
                       </div>
 
-                      {/* Teams + score */}
-                      <div style={{
-                        flex: 1,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        justifyContent: 'center',
-                        minWidth: '200px',
-                      }}>
-                        {/* Home team */}
+                      <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center', minWidth: '200px' }}>
                         <div style={{ flex: 1, textAlign: 'right' }}>
-                          <div style={{
-                            display: 'flex', alignItems: 'center',
-                            gap: '6px', justifyContent: 'flex-end',
-                          }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-end' }}>
                             {homeTeam?.color && (
-                              <div style={{
-                                width: '8px', height: '8px',
-                                borderRadius: '2px',
-                                background: homeTeam.color,
-                                flexShrink: 0,
-                              }} />
+                              <div style={{ width: '8px', height: '8px', borderRadius: '2px', background: homeTeam.color, flexShrink: 0 }} />
                             )}
-                            <span style={{
-                              fontSize: '13px', fontWeight: '700',
-                              color: 'var(--text-primary)',
-                            }}>
+                            <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)' }}>
                               {homeTeam?.name || 'TBD'}
                             </span>
                           </div>
                         </div>
 
-                        {/* Score */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
                           {game.status !== 'scheduled' ? (
                             <>
-                              <div style={{
-                                background: 'var(--btn-primary-bg)',
-                                color: 'var(--btn-primary-text)',
-                                borderRadius: '6px',
-                                padding: '4px 10px',
-                                fontSize: '16px',
-                                fontWeight: '800',
-                                fontFamily: 'monospace',
-                                minWidth: '36px',
-                                textAlign: 'center',
-                              }}>
+                              <div style={{ background: 'var(--btn-primary-bg)', color: 'var(--btn-primary-text)', borderRadius: '6px', padding: '4px 10px', fontSize: '16px', fontWeight: '800', fontFamily: 'monospace', minWidth: '36px', textAlign: 'center' }}>
                                 {game.home_score}
                               </div>
-                              <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '600' }}>
-                                —
-                              </span>
-                              <div style={{
-                                background: 'var(--btn-primary-bg)',
-                                color: 'var(--btn-primary-text)',
-                                borderRadius: '6px',
-                                padding: '4px 10px',
-                                fontSize: '16px',
-                                fontWeight: '800',
-                                fontFamily: 'monospace',
-                                minWidth: '36px',
-                                textAlign: 'center',
-                              }}>
+                              <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '600' }}>—</span>
+                              <div style={{ background: 'var(--btn-primary-bg)', color: 'var(--btn-primary-text)', borderRadius: '6px', padding: '4px 10px', fontSize: '16px', fontWeight: '800', fontFamily: 'monospace', minWidth: '36px', textAlign: 'center' }}>
                                 {game.away_score}
                               </div>
                             </>
                           ) : (
                             <>
-                              <div style={{
-                                background: 'var(--bg-elevated)',
-                                color: 'var(--text-muted)',
-                                borderRadius: '6px',
-                                padding: '4px 10px',
-                                fontSize: '14px',
-                                fontWeight: '800',
-                                minWidth: '36px',
-                                textAlign: 'center',
-                              }}>—</div>
+                              <div style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)', borderRadius: '6px', padding: '4px 10px', fontSize: '14px', fontWeight: '800', minWidth: '36px', textAlign: 'center' }}>—</div>
                               <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '600' }}>vs</span>
-                              <div style={{
-                                background: 'var(--bg-elevated)',
-                                color: 'var(--text-muted)',
-                                borderRadius: '6px',
-                                padding: '4px 10px',
-                                fontSize: '14px',
-                                fontWeight: '800',
-                                minWidth: '36px',
-                                textAlign: 'center',
-                              }}>—</div>
+                              <div style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)', borderRadius: '6px', padding: '4px 10px', fontSize: '14px', fontWeight: '800', minWidth: '36px', textAlign: 'center' }}>—</div>
                             </>
                           )}
                         </div>
 
-                        {/* Away team */}
                         <div style={{ flex: 1 }}>
-                          <div style={{
-                            display: 'flex', alignItems: 'center', gap: '6px',
-                          }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                             {awayTeam?.color && (
-                              <div style={{
-                                width: '8px', height: '8px',
-                                borderRadius: '2px',
-                                background: awayTeam.color,
-                                flexShrink: 0,
-                              }} />
+                              <div style={{ width: '8px', height: '8px', borderRadius: '2px', background: awayTeam.color, flexShrink: 0 }} />
                             )}
-                            <span style={{
-                              fontSize: '13px', fontWeight: '700',
-                              color: 'var(--text-primary)',
-                            }}>
+                            <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)' }}>
                               {awayTeam?.name || 'TBD'}
                             </span>
                           </div>
                         </div>
                       </div>
 
-                      {/* Actions */}
-                      <div style={{
-                        display: 'flex', gap: '6px',
-                        flexShrink: 0, flexWrap: 'wrap',
-                      }}>
+                      <div style={{ display: 'flex', gap: '6px', flexShrink: 0, flexWrap: 'wrap', alignItems: 'center' }}>
+
                         {game.status === 'scheduled' && (
                           <button
                             onClick={() => updateStatus(game.id, 'live')}
-                            style={{
-                              background: '#dc2626', color: 'white',
-                              border: 'none', borderRadius: '6px',
-                              padding: '5px 10px', fontSize: '11px',
-                              fontWeight: '700', cursor: 'pointer',
-                              fontFamily: 'inherit',
-                            }}
+                            style={{ background: '#dc2626', color: 'white', border: 'none', borderRadius: '6px', padding: '5px 10px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit' }}
                           >
                             Start Live
                           </button>
                         )}
+
                         {game.status === 'live' && (
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <button
+                              onClick={() => goToScoring(game.id)}
+                              style={{ background: '#dc2626', color: 'white', border: 'none', borderRadius: '6px', padding: '5px 10px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '4px' }}
+                            >
+                              📊 Score
+                            </button>
+                            <button
+                              onClick={() => updateStatus(game.id, 'final')}
+                              style={{ background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', padding: '5px 10px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit' }}
+                            >
+                              End Game
+                            </button>
+                          </div>
+                        )}
+
+                        {game.status === 'final' && (
                           <button
-                            onClick={() => updateStatus(game.id, 'final')}
-                            style={{
-                              background: '#16a34a', color: 'white',
-                              border: 'none', borderRadius: '6px',
-                              padding: '5px 10px', fontSize: '11px',
-                              fontWeight: '700', cursor: 'pointer',
-                              fontFamily: 'inherit',
-                            }}
+                            onClick={() => goToScoring(game.id)}
+                            style={{ background: 'var(--bg-surface)', border: '0.5px solid var(--border)', borderRadius: '6px', padding: '5px 10px', fontSize: '11px', fontWeight: '600', color: 'var(--text-primary)', cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                           >
-                            End Game
+                            🏆 Highlights
                           </button>
                         )}
+
                         <button
                           onClick={() => deleteGame(game.id)}
                           disabled={deletingId === game.id}
-                          style={{
-                            background: 'transparent', border: 'none',
-                            color: '#dc2626', fontSize: '12px',
-                            fontWeight: '600', cursor: 'pointer',
-                            fontFamily: 'inherit',
-                            opacity: deletingId === game.id ? 0.5 : 1,
-                          }}
+                          style={{ background: 'transparent', border: 'none', color: '#dc2626', fontSize: '12px', fontWeight: '600', cursor: 'pointer', fontFamily: 'inherit', opacity: deletingId === game.id ? 0.5 : 1 }}
                         >
                           {deletingId === game.id ? '...' : 'Delete'}
                         </button>
