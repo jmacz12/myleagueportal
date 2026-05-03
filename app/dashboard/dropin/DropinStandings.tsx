@@ -206,7 +206,7 @@ export default function DropinStandings() {
                   {/* Point adjustment */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '10px', paddingTop: '10px', borderTop: '0.5px solid var(--border-light)', flexWrap: 'wrap' }}>
                     <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: '600', flexShrink: 0 }}>Adjust:</span>
-                    <button onClick={() => setAdjustForm(f => ({ ...f, action: 'remove' }))}
+                    <button
                       style={{ width: '24px', height: '24px', borderRadius: '5px', border: 'none', background: adjustingId === rep.id && adjustForm.action === 'remove' ? '#fecaca' : '#fef2f2', color: '#dc2626', fontSize: '14px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
                       onClick={() => { setAdjustingId(rep.id); setAdjustForm(f => ({ ...f, action: 'remove' })) }}>−</button>
                     <input type="number" value={adjustForm.amount} min="1" max="100"
