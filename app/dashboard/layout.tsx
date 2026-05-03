@@ -9,6 +9,8 @@ const navItems = [
   { href: '/dashboard/seasons', label: 'Seasons', icon: '◷' },
   { href: '/dashboard/teams', label: 'Teams', icon: '◈' },
   { href: '/dashboard/players', label: 'Players', icon: '◉' },
+  { href: '/dashboard/games', label: 'Games', icon: '🎮' },
+  { href: '/dashboard/dropin', label: 'Drop-ins', icon: '🎲' },
   { href: '/dashboard/settings', label: 'Settings', icon: '◎' },
 ]
 

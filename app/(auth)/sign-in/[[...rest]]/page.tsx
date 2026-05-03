@@ -34,7 +34,7 @@ export default function SignInPage() {
           fontSize: '32px', fontWeight: '800',
           color: 'var(--text-primary)', lineHeight: '1.2', marginBottom: '14px',
         }}>
-          The smarter way to run your league
+          The smarter way to run your league or team
         </h1>
         <p style={{
           fontSize: '15px', color: 'var(--text-secondary)',
