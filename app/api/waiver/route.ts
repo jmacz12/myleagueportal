@@ -19,14 +19,16 @@ export async function GET() {
 
   if (!org) return NextResponse.json({ error: 'No organization found' }, { status: 404 })
 
-  const { data: waiver } = await supabaseAdmin
+  const { data: waivers } = await supabaseAdmin
     .from('waivers')
-    .select('id, title, content, is_active')
+    .select('id, title, content, type, is_active')
     .eq('organization_id', org.id)
     .eq('is_active', true)
-    .single()
 
-  return NextResponse.json({ waiver: waiver || null })
+  const season = waivers?.find(w => w.type === 'season') || null
+  const dropin = waivers?.find(w => w.type === 'dropin') || null
+
+  return NextResponse.json({ season, dropin })
 }
 
 export async function PATCH(req: Request) {
@@ -41,21 +43,20 @@ export async function PATCH(req: Request) {
 
   if (!org) return NextResponse.json({ error: 'No organization found' }, { status: 404 })
 
-  const { title, content } = await req.json()
+  const { title, content, type, verified } = await req.json()
 
-  if (!title || !content) {
-    return NextResponse.json({ error: 'Title and content are required' }, { status: 400 })
+  if (!title || !content || !type) {
+    return NextResponse.json({ error: 'Title, content and type are required' }, { status: 400 })
   }
 
-  // Check if a waiver already exists for this org
   const { data: existing } = await supabaseAdmin
     .from('waivers')
     .select('id')
     .eq('organization_id', org.id)
-    .single()
+    .eq('type', type)
+    .maybeSingle()
 
   if (existing) {
-    // Update existing waiver
     const { error } = await supabaseAdmin
       .from('waivers')
       .update({ title, content, is_active: true })
@@ -63,12 +64,23 @@ export async function PATCH(req: Request) {
 
     if (error) return NextResponse.json({ error: 'Failed to save waiver' }, { status: 500 })
   } else {
-    // Create new waiver
     const { error } = await supabaseAdmin
       .from('waivers')
-      .insert({ organization_id: org.id, title, content, is_active: true })
+      .insert({ organization_id: org.id, title, content, type, is_active: true })
 
     if (error) return NextResponse.json({ error: 'Failed to save waiver' }, { status: 500 })
+  }
+
+  if (verified) {
+    try {
+      await supabaseAdmin.from('reputation_log').insert({
+        organization_id: org.id,
+        player_id: null,
+        points_change: 0,
+        reason: `${type} waiver verified and approved by host`,
+        created_by: userId,
+      })
+    } catch (_) {}
   }
 
   return NextResponse.json({ success: true })
