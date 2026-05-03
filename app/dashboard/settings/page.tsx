@@ -24,7 +24,16 @@ export default function SettingsPage() {
     primary_color: '#5a7a2a',
   })
 
-  useEffect(() => { fetchSettings() }, [])
+  // Waiver state
+  const [waiver, setWaiver] = useState<{ id?: string; title: string; content: string } | null>(null)
+  const [waiverSaving, setWaiverSaving] = useState(false)
+  const [waiverSuccess, setWaiverSuccess] = useState(false)
+  const [waiverForm, setWaiverForm] = useState({ title: 'Liability Waiver', content: '' })
+
+  useEffect(() => {
+    fetchSettings()
+    fetchWaiver()
+  }, [])
 
   async function fetchSettings() {
     const res = await fetch('/api/settings')
@@ -36,6 +45,15 @@ export default function SettingsPage() {
       primary_color: data.org?.primary_color || '#5a7a2a',
     })
     setLoading(false)
+  }
+
+  async function fetchWaiver() {
+    const res = await fetch('/api/waiver')
+    const data = await res.json()
+    if (data.waiver) {
+      setWaiver(data.waiver)
+      setWaiverForm({ title: data.waiver.title, content: data.waiver.content })
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -54,6 +72,21 @@ export default function SettingsPage() {
     setSaving(false)
     fetchSettings()
     setTimeout(() => setSuccess(false), 3000)
+  }
+
+  async function handleWaiverSave() {
+    setWaiverSaving(true)
+    const res = await fetch('/api/waiver', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(waiverForm),
+    })
+    if (res.ok) {
+      setWaiverSuccess(true)
+      fetchWaiver()
+      setTimeout(() => setWaiverSuccess(false), 3000)
+    }
+    setWaiverSaving(false)
   }
 
   async function handleUpgrade() {
@@ -94,7 +127,7 @@ export default function SettingsPage() {
 
       {/* Header */}
       <div style={{ marginBottom: '28px' }}>
-        <h1 className="page-title">Settings</h1>
+        <h1 className="page-title">⚙️ Settings</h1>
         <p className="page-subtitle">Manage your league profile and subscription</p>
       </div>
 
@@ -149,7 +182,6 @@ export default function SettingsPage() {
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
-          {/* Name */}
           <div>
             <label className="label">League Name</label>
             <input
@@ -161,7 +193,6 @@ export default function SettingsPage() {
             />
           </div>
 
-          {/* Slug */}
           <div>
             <label className="label">
               Registration URL
@@ -242,7 +273,6 @@ export default function SettingsPage() {
             </p>
           </div>
 
-          {/* Brand Color */}
           <div>
             <label className="label">
               Brand Color
@@ -280,28 +310,20 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* Feedback */}
           {success && (
             <div style={{
-              background: '#f0fdf4',
-              border: '0.5px solid #bbf7d0',
-              borderRadius: '8px',
-              padding: '12px 16px',
-              fontSize: '13px',
-              color: '#16a34a',
-              fontWeight: '600',
+              background: '#f0fdf4', border: '0.5px solid #bbf7d0',
+              borderRadius: '8px', padding: '12px 16px',
+              fontSize: '13px', color: '#16a34a', fontWeight: '600',
             }}>
               ✓ Settings saved successfully!
             </div>
           )}
           {error && (
             <div style={{
-              background: '#fef2f2',
-              border: '0.5px solid #fecaca',
-              borderRadius: '8px',
-              padding: '12px 16px',
-              fontSize: '13px',
-              color: '#dc2626',
+              background: '#fef2f2', border: '0.5px solid #fecaca',
+              borderRadius: '8px', padding: '12px 16px',
+              fontSize: '13px', color: '#dc2626',
             }}>
               {error}
             </div>
@@ -325,6 +347,68 @@ export default function SettingsPage() {
         <ThemeSelector plan={settings?.plan || 'basic'} />
       </div>
 
+      {/* Waiver */}
+      <div className="card" style={{ marginBottom: '16px' }}>
+        <div style={{ marginBottom: '16px' }}>
+          <span className="label">Liability Waiver</span>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '2px' }}>
+            Players must accept this before registering. If left blank, a default waiver is shown.
+          </p>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div>
+            <label className="label">Waiver Title</label>
+            <input
+              type="text"
+              className="input"
+              value={waiverForm.title}
+              onChange={(e) => setWaiverForm({ ...waiverForm, title: e.target.value })}
+              placeholder="e.g. Liability Waiver & Release"
+            />
+          </div>
+
+          <div>
+            <label className="label">Waiver Text</label>
+            <textarea
+              className="input"
+              rows={6}
+              value={waiverForm.content}
+              onChange={(e) => setWaiverForm({ ...waiverForm, content: e.target.value })}
+              placeholder="Write your waiver here. Players will see this text and must check a box to accept before registering."
+              style={{ resize: 'vertical', lineHeight: '1.6' }}
+            />
+          </div>
+
+          {waiverSuccess && (
+            <div style={{
+              background: '#f0fdf4', border: '0.5px solid #bbf7d0',
+              borderRadius: '8px', padding: '12px 16px',
+              fontSize: '13px', color: '#16a34a', fontWeight: '600',
+            }}>
+              ✓ Waiver saved! Players will see this on the registration page.
+            </div>
+          )}
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <button
+              type="button"
+              className="btn-primary"
+              disabled={waiverSaving || !waiverForm.content}
+              onClick={handleWaiverSave}
+              style={{ alignSelf: 'flex-start' }}
+            >
+              {waiverSaving ? 'Saving...' : 'Save Waiver'}
+            </button>
+            {waiver && (
+              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                ✓ Active — showing on your registration page
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Danger Zone */}
       <div style={{
         background: 'var(--bg-surface)',
@@ -346,6 +430,7 @@ export default function SettingsPage() {
           Delete League & Account
         </button>
       </div>
+
     </div>
   )
 }

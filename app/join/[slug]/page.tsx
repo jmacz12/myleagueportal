@@ -23,7 +23,9 @@ export default async function JoinPage({ params }: { params: Promise<{ slug: str
     .select('id, name')
     .eq('organization_id', org.id)
     .eq('is_active', true)
-    .single()
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
 
   const { count: playerCount } = await supabaseAdmin
     .from('players')
@@ -31,9 +33,17 @@ export default async function JoinPage({ params }: { params: Promise<{ slug: str
     .eq('organization_id', org.id)
     .eq('season_id', season?.id ?? '')
 
+  const { data: waiver } = await supabaseAdmin
+    .from('waivers')
+    .select('id, title, content')
+    .eq('organization_id', org.id)
+    .eq('is_active', true)
+    .maybeSingle()
+
   const limit = org.plan === 'basic' ? 50 : org.plan === 'pro' ? 150 : 99999
   const isFull = (playerCount ?? 0) >= limit
   const accent = org.primary_color || '#5a7a2a'
+  const maxGuests = org.plan === 'basic' ? 1 : org.plan === 'pro' ? 5 : 999
 
   return (
     <div style={{ minHeight: '100vh', background: '#f2ead6' }}>
@@ -123,10 +133,13 @@ export default async function JoinPage({ params }: { params: Promise<{ slug: str
             seasonId={season.id}
             leagueName={org.name}
             primaryColor={accent}
+            maxGuests={maxGuests}
+            waiverTitle={waiver?.title || null}
+            waiverText={waiver?.content || null}
+            waiverId={waiver?.id || null}
           />
         )}
 
-        {/* Footer */}
         <div style={{ textAlign: 'center', marginTop: '16px' }}>
           <span style={{ fontSize: '11px', color: '#c8b98a' }}>
             Powered by{' '}

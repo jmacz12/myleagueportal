@@ -8,11 +8,26 @@ interface Props {
   leagueName: string
   primaryColor?: string
   maxGuests?: number
+  waiverTitle?: string | null
+  waiverText?: string | null
+  waiverId?: string | null
 }
 
 const POSITIONS = ['PG', 'SG', 'SF', 'PF', 'C']
 
-export default function RegistrationForm({ organizationId, seasonId, leagueName, primaryColor, maxGuests = 1 }: Props) {
+const DEFAULT_WAIVER_TITLE = 'Liability Waiver'
+const DEFAULT_WAIVER_TEXT = 'I acknowledge that participation in sports activities involves risk of injury. I voluntarily assume all risks and release the organizer from liability for any injuries sustained during participation.'
+
+export default function RegistrationForm({
+  organizationId,
+  seasonId,
+  leagueName,
+  primaryColor,
+  maxGuests = 1,
+  waiverTitle,
+  waiverText,
+  waiverId,
+}: Props) {
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState('')
@@ -22,9 +37,10 @@ export default function RegistrationForm({ organizationId, seasonId, leagueName,
   })
   const [guests, setGuests] = useState<{ full_name: string; email: string; waiver_accepted: boolean }[]>([])
   const [waiverAccepted, setWaiverAccepted] = useState(false)
-  const [showAddGuest, setShowAddGuest] = useState(false)
 
   const accent = primaryColor || '#5a7a2a'
+  const displayWaiverTitle = waiverTitle || DEFAULT_WAIVER_TITLE
+  const displayWaiverText = waiverText || DEFAULT_WAIVER_TEXT
 
   function togglePosition(pos: string) {
     setForm(f => ({
@@ -38,7 +54,6 @@ export default function RegistrationForm({ organizationId, seasonId, leagueName,
   function addGuest() {
     if (guests.length >= maxGuests) return
     setGuests([...guests, { full_name: '', email: '', waiver_accepted: false }])
-    setShowAddGuest(true)
   }
 
   function updateGuest(idx: number, field: string, value: string | boolean) {
@@ -66,6 +81,7 @@ export default function RegistrationForm({ organizationId, seasonId, leagueName,
           organization_id: organizationId,
           season_id: seasonId,
           waiver_accepted: waiverAccepted,
+          waiver_id: waiverId || null,
           guests,
         }),
       })
@@ -153,13 +169,13 @@ export default function RegistrationForm({ organizationId, seasonId, leagueName,
           </div>
         </div>
 
-        {/* Waiver */}
+        {/* Waiver — shows org's real waiver if set, falls back to default */}
         <div style={{ background: '#f8f6f0', border: '0.5px solid #d4c9a8', borderRadius: '8px', padding: '12px 14px' }}>
           <div style={{ fontSize: '11px', fontWeight: '700', color: '#9a8c6a', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '6px' }}>
-            Liability Waiver
+            {displayWaiverTitle}
           </div>
-          <div style={{ fontSize: '11px', color: '#6b5e3a', lineHeight: '1.5', marginBottom: '10px', maxHeight: '80px', overflowY: 'auto' }}>
-            I acknowledge that participation in sports activities involves risk of injury. I voluntarily assume all risks and release the organizer from liability for any injuries sustained during participation.
+          <div style={{ fontSize: '11px', color: '#6b5e3a', lineHeight: '1.5', marginBottom: '10px', maxHeight: '120px', overflowY: 'auto' }}>
+            {displayWaiverText}
           </div>
           <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
             <input type="checkbox" checked={waiverAccepted} onChange={(e) => setWaiverAccepted(e.target.checked)}
@@ -170,7 +186,7 @@ export default function RegistrationForm({ organizationId, seasonId, leagueName,
           </label>
         </div>
 
-        {/* Guests section */}
+        {/* Guests */}
         {maxGuests > 0 && (
           <div style={{ border: '0.5px solid #d4c9a8', borderRadius: '8px', overflow: 'hidden' }}>
             <div style={{ background: '#f8f6f0', padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
