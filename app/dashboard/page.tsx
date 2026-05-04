@@ -33,7 +33,6 @@ export default async function DashboardPage() {
 
   return (
     <div style={{ maxWidth: '860px' }}>
-
       {/* Header */}
       <div style={{ marginBottom: '28px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>

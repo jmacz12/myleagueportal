@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { notFound } from 'next/navigation'
 import RegistrationForm from './RegistrationForm'
+import NewsBanner from '@/components/NewsBanner'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -12,7 +13,7 @@ export default async function JoinPage({ params }: { params: Promise<{ slug: str
 
   const { data: org } = await supabaseAdmin
     .from('organizations')
-    .select('id, name, primary_color, logo_url, plan')
+    .select('id, name, primary_color, logo_url, plan, news_banner')
     .eq('slug', slug)
     .single()
 
@@ -47,6 +48,9 @@ export default async function JoinPage({ params }: { params: Promise<{ slug: str
 
   return (
     <div style={{ minHeight: '100vh', background: '#f2ead6' }}>
+      
+      {/* News Banner */}
+      <NewsBanner message={org.news_banner} />
 
       {/* League Header */}
       <div style={{
