@@ -70,6 +70,8 @@ export default function SettingsPage() {
   const [dropinExtracting, setDropinExtracting] = useState(false)
   const [dropinNeedsVerification, setDropinNeedsVerification] = useState(false)
   const [dropinExtractError, setDropinExtractError] = useState('')
+  const [waiverExporting, setWaiverExporting] = useState(false)
+  const [waiverExportError, setWaiverExportError] = useState('')
 
   useEffect(() => { fetchSettings(); fetchWaivers() }, [])
 
@@ -86,6 +88,51 @@ export default function SettingsPage() {
       league_timezone: data.org?.league_timezone || 'America/Vancouver',
     })
     setLoading(false)
+  }
+
+  async function downloadWaiverSignatureLog() {
+    setWaiverExporting(true)
+    setWaiverExportError('')
+    try {
+      const res = await fetch('/api/waiver/signatures')
+      const data = await res.json()
+      if (!res.ok) {
+        setWaiverExportError(data.error || 'Failed to load signatures')
+        return
+      }
+      const rows = (data.signatures || []) as Array<{
+        id: string
+        full_name: string
+        email: string
+        signed_at: string
+        ip_address: string | null
+        waiver_id: string | null
+        waiver_title: string
+      }>
+      const header = ['signed_at', 'full_name', 'email', 'waiver_title', 'waiver_id', 'signature_id', 'ip_address']
+      const escape = (s: string | null | undefined) => {
+        const v = String(s ?? '')
+        if (/[",\n\r]/.test(v)) return `"${v.replace(/"/g, '""')}"`
+        return v
+      }
+      const lines = [
+        header.join(','),
+        ...rows.map((r) =>
+          [r.signed_at, r.full_name, r.email, r.waiver_title, r.waiver_id, r.id, r.ip_address]
+            .map(escape)
+            .join(',')
+        ),
+      ]
+      const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `waiver-signatures-${new Date().toISOString().slice(0, 10)}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+    } finally {
+      setWaiverExporting(false)
+    }
   }
 
   async function fetchWaivers() {
@@ -530,6 +577,24 @@ export default function SettingsPage() {
               color: activeWaiverTab === 'dropin' ? 'white' : 'var(--text-muted)',
             }}>Drop-in</button>
           </div>
+        </div>
+
+        <div style={{ marginTop: '12px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
+          <button
+            type="button"
+            className="btn-secondary"
+            disabled={waiverExporting}
+            onClick={() => void downloadWaiverSignatureLog()}
+            style={{ fontSize: '12px', padding: '7px 14px' }}
+          >
+            {waiverExporting ? 'Preparing…' : 'Download signed waiver log (CSV)'}
+          </button>
+          <span style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: 1.45 }}>
+            Exports every waiver acceptance for your league (season and drop-in), with name, email, time, and waiver title.
+          </span>
+          {waiverExportError && (
+            <span style={{ fontSize: '12px', color: '#dc2626', width: '100%' }}>{waiverExportError}</span>
+          )}
         </div>
 
         {activeWaiverTab !== null && (

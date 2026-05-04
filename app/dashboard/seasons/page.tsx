@@ -7,10 +7,21 @@ import { CalendarDays } from 'lucide-react'
 interface Season {
   id: string
   name: string
-  type: string
   is_active: boolean
   start_date: string | null
   end_date: string | null
+  /** Competitive seasons only: controls public /join season signup */
+  allow_online_registration?: boolean
+  online_registration_opens_at?: string | null
+  online_registration_closes_at?: string | null
+}
+
+function isoToDatetimeLocal(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
 interface OrgInfo {
@@ -26,7 +37,17 @@ export default function SeasonsPage() {
   const [submitting, setSubmitting] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [error, setError] = useState('')
-  const [form, setForm] = useState({ name: '', type: 'season', start_date: '', end_date: '' })
+  const [form, setForm] = useState({
+    name: '',
+    start_date: '',
+    end_date: '',
+    allow_online_registration: false,
+    online_registration_opens_at: '',
+    online_registration_closes_at: '',
+  })
+  const [windowEditId, setWindowEditId] = useState<string | null>(null)
+  const [windowDraft, setWindowDraft] = useState({ opens: '', closes: '' })
+  const [windowSaving, setWindowSaving] = useState(false)
 
   useEffect(() => { fetchSeasons() }, [])
 
@@ -45,11 +66,31 @@ export default function SeasonsPage() {
     const res = await fetch('/api/seasons', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
+      body: JSON.stringify({
+        name: form.name,
+        start_date: form.start_date,
+        end_date: form.end_date,
+        allow_online_registration: form.allow_online_registration,
+        online_registration_opens_at:
+          form.allow_online_registration && form.online_registration_opens_at
+            ? new Date(form.online_registration_opens_at).toISOString()
+            : null,
+        online_registration_closes_at:
+          form.allow_online_registration && form.online_registration_closes_at
+            ? new Date(form.online_registration_closes_at).toISOString()
+            : null,
+      }),
     })
     const data = await res.json()
     if (!res.ok) { setError(data.error || 'Something went wrong'); setSubmitting(false); return }
-    setForm({ name: '', type: 'season', start_date: '', end_date: '' })
+    setForm({
+      name: '',
+      start_date: '',
+      end_date: '',
+      allow_online_registration: false,
+      online_registration_opens_at: '',
+      online_registration_closes_at: '',
+    })
     setShowForm(false)
     fetchSeasons()
     setSubmitting(false)
@@ -61,6 +102,31 @@ export default function SeasonsPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ season_id: seasonId, is_active: !currentStatus }),
     })
+    fetchSeasons()
+  }
+
+  async function toggleOnlineSignup(seasonId: string, current: boolean) {
+    await fetch('/api/seasons', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ season_id: seasonId, allow_online_registration: !current }),
+    })
+    fetchSeasons()
+  }
+
+  async function saveSignupWindow(seasonId: string) {
+    setWindowSaving(true)
+    await fetch('/api/seasons', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        season_id: seasonId,
+        online_registration_opens_at: windowDraft.opens ? new Date(windowDraft.opens).toISOString() : null,
+        online_registration_closes_at: windowDraft.closes ? new Date(windowDraft.closes).toISOString() : null,
+      }),
+    })
+    setWindowSaving(false)
+    setWindowEditId(null)
     fetchSeasons()
   }
 
@@ -85,7 +151,13 @@ export default function SeasonsPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Seasons</h1>
-          <p className="page-subtitle">Manage your competitive seasons and drop-in periods</p>
+          <p className="page-subtitle">
+            Competitive league seasons. For pickup or between-season play, use{' '}
+            <Link href="/dashboard/dropin" style={{ color: 'var(--accent)', fontWeight: 600 }}>
+              Drop-ins
+            </Link>
+            .
+          </p>
         </div>
         <button
           onClick={() => !atLimit && setShowForm(!showForm)}
@@ -133,34 +205,6 @@ export default function SeasonsPage() {
                 className="input" />
             </div>
 
-            <div>
-              <label className="label">Season Type *</label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                {[
-                  { id: 'season', label: 'Competitive season', desc: 'Standings, playoffs, full stats' },
-                  { id: 'dropin', label: 'Drop-in / off-season', desc: 'Casual play, no standings' },
-                ].map((opt) => (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => setForm({ ...form, type: opt.id })}
-                    style={{
-                      padding: '12px',
-                      borderRadius: '8px',
-                      border: `1.5px solid ${form.type === opt.id ? 'var(--accent)' : 'var(--border)'}`,
-                      background: form.type === opt.id ? 'var(--accent-muted)' : 'var(--bg-surface)',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      transition: 'all 0.15s',
-                    }}
-                  >
-                    <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '2px' }}>{opt.label}</div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{opt.desc}</div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <div>
                 <label className="label">Start Date</label>
@@ -174,6 +218,73 @@ export default function SeasonsPage() {
                   onChange={(e) => setForm({ ...form, end_date: e.target.value })}
                   className="input" />
               </div>
+            </div>
+
+            <div
+              style={{
+                padding: '10px 12px',
+                borderRadius: '8px',
+                border: '1px solid var(--border)',
+                background: 'var(--bg-elevated)',
+              }}
+            >
+              <label style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={form.allow_online_registration}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      allow_online_registration: e.target.checked,
+                      ...(e.target.checked
+                        ? {}
+                        : { online_registration_opens_at: '', online_registration_closes_at: '' }),
+                    })
+                  }
+                  style={{ marginTop: '2px', width: '16px', height: '16px', accentColor: 'var(--accent)', flexShrink: 0 }}
+                />
+                <span style={{ minWidth: 0 }}>
+                  <span style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                    Public season signup
+                  </span>
+                  <span style={{ display: 'block', fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.45, marginTop: '3px' }}>
+                    Show “Join the season” on your join link while this season is active.
+                  </span>
+                </span>
+              </label>
+
+              {form.allow_online_registration && (
+                <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '6px' }}>
+                    When can people sign up?
+                  </div>
+                  <p style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.45, margin: '0 0 10px' }}>
+                    Optional. Leave opens blank to allow signup as soon as this season is active. Leave closes blank for no deadline.
+                  </p>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '10px' }}>
+                    <div>
+                      <label className="label" style={{ fontSize: '11px' }}>Opens</label>
+                      <input
+                        type="datetime-local"
+                        className="input"
+                        value={form.online_registration_opens_at}
+                        onChange={(e) => setForm({ ...form, online_registration_opens_at: e.target.value })}
+                        style={{ marginTop: '4px', fontSize: '13px' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="label" style={{ fontSize: '11px' }}>Closes</label>
+                      <input
+                        type="datetime-local"
+                        className="input"
+                        value={form.online_registration_closes_at}
+                        onChange={(e) => setForm({ ...form, online_registration_closes_at: e.target.value })}
+                        style={{ marginTop: '4px', fontSize: '13px' }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {error && (
@@ -201,7 +312,13 @@ export default function SeasonsPage() {
         <div className="empty-state">
           <div className="empty-state-icon"><CalendarDays size={32} strokeWidth={1.5} /></div>
           <div className="empty-state-title">No seasons yet</div>
-          <div className="empty-state-desc">Create your first season or drop-in period to get started.</div>
+          <div className="empty-state-desc">
+            Create your first league season. For pickup sessions, open{' '}
+            <Link href="/dashboard/dropin" style={{ color: 'var(--accent)', fontWeight: 600 }}>
+              Drop-ins
+            </Link>
+            .
+          </div>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -210,9 +327,6 @@ export default function SeasonsPage() {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
                   <span style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-primary)' }}>{season.name}</span>
-                  <span className={`badge ${season.type === 'dropin' ? 'badge-dropin' : 'badge-season'}`}>
-                    {season.type === 'dropin' ? 'Drop-in' : 'Competitive'}
-                  </span>
                   {season.is_active && <span className="badge badge-active">Active</span>}
                 </div>
                 {(season.start_date || season.end_date) && (
@@ -222,8 +336,100 @@ export default function SeasonsPage() {
                     {season.end_date && new Date(season.end_date).toLocaleDateString()}
                   </p>
                 )}
+                {season.allow_online_registration && windowEditId !== season.id && (
+                  <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', lineHeight: 1.45 }}>
+                    Signup:{' '}
+                    {season.online_registration_opens_at
+                      ? new Date(season.online_registration_opens_at).toLocaleString()
+                      : 'Anytime (when active)'}
+                    {' → '}
+                    {season.online_registration_closes_at
+                      ? new Date(season.online_registration_closes_at).toLocaleString()
+                      : 'No close date'}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setWindowEditId(season.id)
+                        setWindowDraft({
+                          opens: isoToDatetimeLocal(season.online_registration_opens_at),
+                          closes: isoToDatetimeLocal(season.online_registration_closes_at),
+                        })
+                      }}
+                      style={{
+                        marginLeft: '8px',
+                        background: 'none',
+                        border: 'none',
+                        padding: 0,
+                        cursor: 'pointer',
+                        color: 'var(--accent)',
+                        fontWeight: 700,
+                        fontSize: '11px',
+                        fontFamily: 'inherit',
+                      }}
+                    >
+                      Edit
+                    </button>
+                  </p>
+                )}
+                {season.allow_online_registration && windowEditId === season.id && (
+                  <div
+                    style={{
+                      marginTop: '10px',
+                      padding: '10px',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border)',
+                      background: 'var(--bg-elevated)',
+                    }}
+                  >
+                    <div style={{ fontSize: '11px', fontWeight: 700, marginBottom: '8px' }}>Signup schedule</div>
+                    <div style={{ display: 'grid', gap: '8px' }}>
+                      <input
+                        type="datetime-local"
+                        className="input"
+                        value={windowDraft.opens}
+                        onChange={(e) => setWindowDraft((d) => ({ ...d, opens: e.target.value }))}
+                        style={{ fontSize: '12px' }}
+                      />
+                      <input
+                        type="datetime-local"
+                        className="input"
+                        value={windowDraft.closes}
+                        onChange={(e) => setWindowDraft((d) => ({ ...d, closes: e.target.value }))}
+                        style={{ fontSize: '12px' }}
+                      />
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        <button
+                          type="button"
+                          className="btn-primary"
+                          disabled={windowSaving}
+                          style={{ fontSize: '11px', padding: '6px 12px' }}
+                          onClick={() => void saveSignupWindow(season.id)}
+                        >
+                          {windowSaving ? 'Saving…' : 'Save'}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          style={{ fontSize: '11px', padding: '6px 12px' }}
+                          onClick={() => setWindowEditId(null)}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
-              <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', flexShrink: 0, justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  title="Toggle public signup on your join link"
+                  onClick={() => toggleOnlineSignup(season.id, !!season.allow_online_registration)}
+                  className="btn-secondary"
+                  style={{ fontSize: '11px', padding: '6px 10px', fontWeight: 700 }}
+                >
+                  {season.allow_online_registration ? 'Online: on' : 'Online: off'}
+                </button>
                 <button
                   onClick={() => toggleActive(season.id, season.is_active)}
                   className="btn-secondary"

@@ -11,9 +11,11 @@ export async function GET() {
   const { userId } = await auth()
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: orgWithTz, error: orgWithTzError } = await supabaseAdmin
+  let { data: orgWithTz, error: orgWithTzError } = await supabaseAdmin
     .from('organizations')
-    .select('id, name, slug, primary_color, plan, stripe_customer_id, stripe_subscription_id, news_banner, news_banner_color, league_timezone')
+    .select(
+      'id, name, slug, primary_color, plan, stripe_customer_id, stripe_subscription_id, news_banner, news_banner_color, league_timezone'
+    )
     .eq('clerk_user_id', userId)
     .single()
 
@@ -68,7 +70,7 @@ export async function PATCH(req: Request) {
 
   // Allow update of name, slug, and news_banner
   const updateData: any = { name, slug, news_banner, news_banner_color, league_timezone: league_timezone || null }
-  
+
   // Only allow color change on pro/enterprise
   if (org.plan !== 'basic') {
     updateData.primary_color = primary_color
@@ -80,8 +82,9 @@ export async function PATCH(req: Request) {
     .eq('id', org.id)
 
   if (error) {
+    const msg = String(error.message || '')
     // Backward compatibility: retry without league_timezone if column does not exist yet.
-    if (String(error.message || '').includes('league_timezone')) {
+    if (msg.includes('league_timezone')) {
       const fallbackUpdate = { ...updateData }
       delete fallbackUpdate.league_timezone
 

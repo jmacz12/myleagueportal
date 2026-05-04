@@ -64,6 +64,29 @@ export default function PlayersPage() {
     fetchData()
   }
 
+  async function updateJersey(playerId: string, current: number | null, el: HTMLInputElement) {
+    const raw = el.value
+    const n = raw === '' ? null : parseInt(raw, 10)
+    if (n !== null && (Number.isNaN(n) || n < 0 || n > 99)) {
+      alert('Jersey number must be between 0 and 99.')
+      el.value = current === null ? '' : String(current)
+      return
+    }
+    if ((n === null && current === null) || n === current) return
+    const res = await fetch('/api/players', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ player_id: playerId, jersey_number: n }),
+    })
+    const data = await res.json()
+    if (!res.ok) {
+      alert(data.error || 'Could not update jersey number.')
+      el.value = current === null ? '' : String(current)
+      return
+    }
+    fetchData()
+  }
+
   const filteredPlayers = players.filter(p => {
     const seasonMatch = selectedSeason === 'all' || p.season_id === selectedSeason
     const teamMatch = selectedTeam === 'all'
@@ -176,11 +199,27 @@ export default function PlayersPage() {
                 </div>
 
                 <div style={{ textAlign: 'center' }}>
-                  {player.jersey_number !== null ? (
-                    <span style={{ fontFamily: 'monospace', fontWeight: '700', color: 'var(--text-primary)', fontSize: '13px' }}>
-                      #{player.jersey_number}
-                    </span>
-                  ) : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                  <input
+                    type="number"
+                    min={0}
+                    max={99}
+                    title="Jersey # — must be unique per season"
+                    aria-label={`Jersey number for ${player.full_name}`}
+                    defaultValue={player.jersey_number ?? ''}
+                    key={`${player.id}-${player.jersey_number ?? 'x'}`}
+                    onBlur={(e) => {
+                      void updateJersey(player.id, player.jersey_number, e.currentTarget)
+                    }}
+                    className="input"
+                    style={{
+                      width: '56px',
+                      textAlign: 'center',
+                      fontSize: '12px',
+                      padding: '5px 6px',
+                      fontFamily: 'monospace',
+                      fontWeight: 700,
+                    }}
+                  />
                 </div>
 
                 <div style={{ textAlign: 'center' }}>

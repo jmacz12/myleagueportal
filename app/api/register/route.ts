@@ -13,7 +13,6 @@ export async function POST(req: Request) {
       full_name,
       email,
       phone,
-      jersey_number,
       positions,
       organization_id,
       season_id,
@@ -163,7 +162,8 @@ export async function POST(req: Request) {
         full_name,
         email: email || null,
         phone: phone || null,
-        jersey_number: jersey_number ? parseInt(jersey_number) : null,
+        /** Assigned later by organizer (dashboard) or future team jersey poll */
+        jersey_number: null,
         positions: positions ?? [],
         organization_id,
         season_id,
