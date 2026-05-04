@@ -9,6 +9,7 @@ interface OrgSettings {
   primary_color: string
   plan: string
   news_banner?: string | null
+  news_banner_color?: string | null
 }
 
 interface WaiverData {
@@ -25,7 +26,13 @@ export default function SettingsPage() {
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
   const [upgrading, setUpgrading] = useState(false)
-  const [form, setForm] = useState({ name: '', slug: '', primary_color: '#5a7a2a', news_banner: '' })
+  const [form, setForm] = useState({ 
+    name: '', 
+    slug: '', 
+    primary_color: '#5a7a2a', 
+    news_banner: '',
+    news_banner_color: '#5a7a2a' 
+  })
   const [activeWaiverTab, setActiveWaiverTab] = useState<'season' | 'dropin' | null>(null)
 
   // Season waiver state
@@ -59,6 +66,7 @@ export default function SettingsPage() {
       slug: data.org?.slug || '',
       primary_color: data.org?.primary_color || '#5a7a2a',
       news_banner: data.org?.news_banner || '',
+      news_banner_color: data.org?.news_banner_color || '#5a7a2a'
     })
     setLoading(false)
   }
@@ -405,20 +413,32 @@ export default function SettingsPage() {
             </div>
           </div>
           
-          {/* NEWS BANNER INPUT ADDED HERE */}
           <div>
             <label className="label">League News Banner</label>
-            <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px' }}>
-              This message will appear at the top of your Public Registration page and Organizer Dashboard.
-            </p>
-            <textarea 
-              className="input" 
-              rows={3} 
-              value={form.news_banner || ''}
-              onChange={(e) => setForm({ ...form, news_banner: e.target.value })}
-              placeholder="e.g., Registration for Summer 2026 is now open! Early bird ends May 15th."
-              style={{ resize: 'vertical', lineHeight: '1.6' }} 
-            />
+            <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
+              <div style={{ flex: 1 }}>
+                 <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                   Message to display at the top of your portal. Clear to hide.
+                 </p>
+                 <textarea 
+                   className="input" 
+                   rows={2} 
+                   value={form.news_banner || ''}
+                   onChange={(e) => setForm({ ...form, news_banner: e.target.value })}
+                   placeholder="e.g., Summer Registration is live!"
+                   style={{ resize: 'vertical' }}
+                 />
+              </div>
+              <div style={{ width: '100px' }}>
+                <label className="label" style={{ fontSize: '11px' }}>Banner Color</label>
+                <input 
+                  type="color" 
+                  value={form.news_banner_color || '#5a7a2a'} 
+                  onChange={(e) => setForm({ ...form, news_banner_color: e.target.value })}
+                  style={{ width: '100%', height: '38px', borderRadius: '6px', border: '1.5px solid var(--border)', cursor: 'pointer', background: 'none', padding: '2px' }} 
+                />
+              </div>
+            </div>
           </div>
 
           {success && <div style={{ background: '#f0fdf4', border: '0.5px solid #bbf7d0', borderRadius: '8px', padding: '12px 16px', fontSize: '13px', color: '#16a34a', fontWeight: '600' }}>✓ Settings saved successfully!</div>}
