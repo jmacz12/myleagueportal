@@ -107,7 +107,7 @@ export default function PlayersPage() {
           <select value={selectedTeam} onChange={(e) => setSelectedTeam(e.target.value)}
             className="input" style={{ marginTop: '4px' }}>
             <option value="all">All Teams</option>
-            <option value="unassigned">⚠️ Unassigned</option>
+            <option value="unassigned">Unassigned</option>
             {teamsForFilter.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
         </div>
@@ -212,7 +212,7 @@ export default function PlayersPage() {
                       color: !player.team_id ? '#92400e' : 'var(--text-primary)',
                     }}
                   >
-                    <option value="">⚠️ Unassigned</option>
+                    <option value="">Unassigned</option>
                     {getSeasonTeams(player.season_id).map(team => (
                       <option key={team.id} value={team.id}>{team.name}</option>
                     ))}

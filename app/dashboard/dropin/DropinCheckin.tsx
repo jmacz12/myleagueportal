@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { Users } from 'lucide-react'
 
 interface Registration {
   id: string
@@ -44,7 +45,7 @@ export default function DropinCheckin({ sessionId, registrations, onRefresh }: P
 
   if (registrations.length === 0) return (
     <div className="empty-state">
-      <div className="empty-state-icon">👥</div>
+      <div className="empty-state-icon"><Users size={32} strokeWidth={1.5} /></div>
       <div className="empty-state-title">No registrations yet</div>
       <div className="empty-state-desc">Players will appear here once they sign up.</div>
     </div>
@@ -84,7 +85,7 @@ export default function DropinCheckin({ sessionId, registrations, onRefresh }: P
               </div>
               <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
                 {reg.checked_in ? (
-                  <span style={{ background: '#f0fdf4', color: '#16a34a', border: '0.5px solid #bbf7d0', borderRadius: '6px', fontSize: '11px', fontWeight: '700', padding: '5px 10px' }}>✓ Here</span>
+                  <span style={{ background: '#f0fdf4', color: '#16a34a', border: '0.5px solid #bbf7d0', borderRadius: '6px', fontSize: '11px', fontWeight: '700', padding: '5px 10px' }}>Here</span>
                 ) : (
                   <>
                     <button onClick={() => toggleCheckin(reg.id, reg.checked_in)} disabled={updatingId === reg.id}
@@ -121,7 +122,7 @@ export default function DropinCheckin({ sessionId, registrations, onRefresh }: P
                 </div>
                 <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
                   {guest.checked_in ? (
-                    <span style={{ background: '#f0fdf4', color: '#16a34a', border: '0.5px solid #bbf7d0', borderRadius: '6px', fontSize: '10px', fontWeight: '700', padding: '4px 8px' }}>✓ Here</span>
+                    <span style={{ background: '#f0fdf4', color: '#16a34a', border: '0.5px solid #bbf7d0', borderRadius: '6px', fontSize: '10px', fontWeight: '700', padding: '4px 8px' }}>Here</span>
                   ) : (
                     <>
                       <button onClick={() => toggleCheckin(guest.id, guest.checked_in)} disabled={updatingId === guest.id}

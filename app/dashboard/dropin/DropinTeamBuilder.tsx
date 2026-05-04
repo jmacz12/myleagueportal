@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { Shield } from 'lucide-react'
 
 interface Registration {
   id: string
@@ -91,7 +92,7 @@ export default function DropinTeamBuilder({ sessionId, registrations, onRefresh 
   if (activePlayers.length === 0) {
     return (
       <div className="empty-state">
-        <div className="empty-state-icon">🛡️</div>
+        <div className="empty-state-icon"><Shield size={32} strokeWidth={1.5} /></div>
         <div className="empty-state-title">No checked-in players yet</div>
         <div className="empty-state-desc">Check in players first before building teams.</div>
       </div>
@@ -128,7 +129,7 @@ export default function DropinTeamBuilder({ sessionId, registrations, onRefresh 
         </div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           <button onClick={autoBuildTeams} className="btn-primary">
-            ⚡ Auto-build Teams
+            Auto-build teams
           </button>
           {built && (
             <button onClick={autoBuildTeams} className="btn-s" style={{ fontSize: '12px' }}>

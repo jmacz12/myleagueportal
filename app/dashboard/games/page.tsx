@@ -28,8 +28,8 @@ export default function GamesPage() {
         width: 'fit-content',
       }}>
         {[
-          { id: 'games', label: '🏆 Season Games' },
-          { id: 'dropin', label: '🎲 Drop-in Sessions' },
+          { id: 'games', label: 'Season games' },
+          { id: 'dropin', label: 'Drop-in sessions' },
         ].map((tab) => (
           <button
             key={tab.id}

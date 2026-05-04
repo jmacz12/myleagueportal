@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { AlertTriangle, Archive, ChevronDown, ClipboardList } from 'lucide-react'
 
 interface Session {
   id: string
@@ -69,7 +70,7 @@ export default function DropinHistory() {
 
   if (sessions.length === 0) return (
     <div className="empty-state">
-      <div className="empty-state-icon">📋</div>
+      <div className="empty-state-icon"><ClipboardList size={32} strokeWidth={1.5} /></div>
       <div className="empty-state-title">No session history yet</div>
       <div className="empty-state-desc">
         Sessions auto-archive at midnight and appear here.
@@ -86,8 +87,9 @@ export default function DropinHistory() {
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         flexWrap: 'wrap', gap: '8px',
       }}>
-        <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-          📦 History kept for <strong>30 days</strong> on Basic · <strong>1 year</strong> on Pro · <strong>Forever</strong> on Enterprise
+        <span style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+          <Archive size={14} strokeWidth={1.5} style={{ flexShrink: 0 }} aria-hidden />
+          <span>History kept for <strong>30 days</strong> on Basic · <strong>1 year</strong> on Pro · <strong>Forever</strong> on Enterprise</span>
         </span>
         <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
           {sessions.length} session{sessions.length !== 1 ? 's' : ''} archived
@@ -132,11 +134,11 @@ export default function DropinHistory() {
                   </span>
                 </div>
                 <span style={{
-                  fontSize: '11px', color: 'var(--text-muted)',
-                  transition: 'transform 0.15s', display: 'inline-block',
+                  color: 'var(--text-muted)',
+                  transition: 'transform 0.15s', display: 'inline-flex',
                   transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
                   flexShrink: 0,
-                }}>▼</span>
+                }} aria-hidden><ChevronDown size={16} strokeWidth={2} /></span>
               </button>
 
               {/* Session rows — only when expanded */}
@@ -167,8 +169,9 @@ export default function DropinHistory() {
                             {collected > 0 && ` · $${collected} collected`}
                           </div>
                           {sessionExpiring && (
-                            <div style={{ fontSize: '10px', color: '#92400e', fontWeight: '600', marginTop: '2px' }}>
-                              ⚠️ Deletes in {daysLeft} day{daysLeft !== 1 ? 's' : ''} — upgrade to Pro to keep
+                            <div style={{ fontSize: '10px', color: '#92400e', fontWeight: '600', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <AlertTriangle size={12} strokeWidth={2} aria-hidden />
+                              Deletes in {daysLeft} day{daysLeft !== 1 ? 's' : ''} — upgrade to Pro to keep
                             </div>
                           )}
                         </div>

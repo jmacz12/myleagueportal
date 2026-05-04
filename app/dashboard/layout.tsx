@@ -3,15 +3,25 @@
 import { UserButton } from '@clerk/nextjs'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import {
+  type LucideIcon,
+  LayoutDashboard,
+  CalendarDays,
+  Users,
+  UserCircle,
+  Trophy,
+  Timer,
+  Settings,
+} from 'lucide-react'
 
-const navItems = [
-  { href: '/dashboard', label: 'Overview', icon: '▣' },
-  { href: '/dashboard/seasons', label: 'Seasons', icon: '◷' },
-  { href: '/dashboard/teams', label: 'Teams', icon: '◈' },
-  { href: '/dashboard/players', label: 'Players', icon: '◉' },
-  { href: '/dashboard/games', label: 'Games', icon: '🎮' },
-  { href: '/dashboard/dropin', label: 'Drop-ins', icon: '🎲' },
-  { href: '/dashboard/settings', label: 'Settings', icon: '◎' },
+const navItems: { href: string; label: string; Icon: LucideIcon }[] = [
+  { href: '/dashboard', label: 'Overview', Icon: LayoutDashboard },
+  { href: '/dashboard/seasons', label: 'Seasons', Icon: CalendarDays },
+  { href: '/dashboard/teams', label: 'Teams', Icon: Users },
+  { href: '/dashboard/players', label: 'Players', Icon: UserCircle },
+  { href: '/dashboard/games', label: 'Games', Icon: Trophy },
+  { href: '/dashboard/dropin', label: 'Drop-ins', Icon: Timer },
+  { href: '/dashboard/settings', label: 'Settings', Icon: Settings },
 ]
 
 export default function DashboardLayout({
@@ -57,9 +67,15 @@ export default function DashboardLayout({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: '13px',
               flexShrink: 0,
-            }}>⚡</div>
+            }}>
+              <span style={{
+                fontSize: '10px',
+                fontWeight: '800',
+                color: 'var(--btn-primary-text)',
+                letterSpacing: '0.06em',
+              }}>ML</span>
+            </div>
             <div>
               <div style={{
                 fontSize: '12px',
@@ -83,10 +99,10 @@ export default function DashboardLayout({
 
         {/* Nav */}
         <nav style={{ flex: 1, padding: '10px 8px' }}>
-          {navItems.map((item) => (
+          {navItems.map(({ href, label, Icon }) => (
             <Link
-              key={item.href}
-              href={item.href}
+              key={href}
+              href={href}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -96,21 +112,21 @@ export default function DashboardLayout({
                 marginBottom: '2px',
                 textDecoration: 'none',
                 fontSize: '13px',
-                fontWeight: isActive(item.href) ? '700' : '400',
-                color: isActive(item.href)
+                fontWeight: isActive(href) ? '700' : '400',
+                color: isActive(href)
                   ? 'var(--sidebar-text-active)'
                   : 'var(--sidebar-text)',
-                background: isActive(item.href)
+                background: isActive(href)
                   ? 'var(--sidebar-active-bg)'
                   : 'transparent',
-                borderLeft: isActive(item.href)
+                borderLeft: isActive(href)
                   ? '2px solid var(--sidebar-active-border)'
                   : '2px solid transparent',
                 transition: 'all 0.15s',
               }}
             >
-              <span style={{ fontSize: '13px', opacity: 0.8 }}>{item.icon}</span>
-              {item.label}
+              <Icon size={16} strokeWidth={2} style={{ opacity: 0.85, flexShrink: 0 }} />
+              {label}
             </Link>
           ))}
         </nav>
@@ -146,10 +162,10 @@ export default function DashboardLayout({
 
       {/* Mobile Bottom Nav */}
       <nav className="mobile-nav">
-        {navItems.map((item) => (
+        {navItems.map(({ href, label, Icon }) => (
           <Link
-            key={item.href}
-            href={item.href}
+            key={href}
+            href={href}
             style={{
               flex: 1,
               display: 'flex',
@@ -158,16 +174,16 @@ export default function DashboardLayout({
               gap: '3px',
               padding: '8px 4px',
               textDecoration: 'none',
-              color: isActive(item.href)
+              color: isActive(href)
                 ? 'var(--sidebar-active-border)'
                 : 'var(--sidebar-text)',
               fontSize: '10px',
-              fontWeight: isActive(item.href) ? '700' : '400',
+              fontWeight: isActive(href) ? '700' : '400',
               transition: 'color 0.15s',
             }}
           >
-            <span style={{ fontSize: '18px' }}>{item.icon}</span>
-            {item.label}
+            <Icon size={18} strokeWidth={2} style={{ opacity: 0.9 }} />
+            {label}
           </Link>
         ))}
       </nav>

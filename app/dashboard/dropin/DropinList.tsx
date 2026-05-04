@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { CalendarDays, ChevronDown } from 'lucide-react'
 
 interface Session {
   id: string
@@ -116,10 +117,10 @@ export default function DropinList({ onSelectSession }: Props) {
   }
 
   const signupOptions = [
-    { value: 'open_now', icon: '🟢', title: 'Open now', sub: 'Sign up immediately' },
-    { value: 'closed', icon: '🔒', title: 'Keep closed', sub: 'Open manually later' },
-    { value: 'scheduled', icon: '⏰', title: 'Schedule opening', sub: 'X days before session' },
-    { value: 'custom', icon: '📆', title: 'Custom date & time', sub: 'Pick exact open time' },
+    { value: 'open_now', title: 'Open now', sub: 'Sign up immediately' },
+    { value: 'closed', title: 'Keep closed', sub: 'Open manually later' },
+    { value: 'scheduled', title: 'Schedule opening', sub: 'X days before session' },
+    { value: 'custom', title: 'Custom date & time', sub: 'Pick exact open time' },
   ]
 
   // Sort all sessions by date
@@ -182,8 +183,8 @@ export default function DropinList({ onSelectSession }: Props) {
         <div className="card" style={{ marginBottom: '20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
             <div style={{ fontWeight: '700', fontSize: '15px', color: 'var(--text-primary)' }}>New Drop-in Session</div>
-            <button onClick={() => { setShowForm(false); resetForm() }}
-              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '20px', cursor: 'pointer', padding: '0' }}>×</button>
+            <button type="button" onClick={() => { setShowForm(false); resetForm() }}
+              className="modal-close" aria-label="Close form">×</button>
           </div>
 
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
@@ -268,7 +269,6 @@ export default function DropinList({ onSelectSession }: Props) {
                       background: signupOption === opt.value ? 'var(--accent-muted)' : 'var(--bg-surface)',
                       cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', transition: 'all 0.15s',
                     }}>
-                    <div style={{ fontSize: '14px', marginBottom: '3px' }}>{opt.icon}</div>
                     <div style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-primary)' }}>{opt.title}</div>
                     <div style={{ fontSize: '9px', color: 'var(--text-muted)', marginTop: '1px' }}>{opt.sub}</div>
                   </button>
@@ -319,7 +319,7 @@ export default function DropinList({ onSelectSession }: Props) {
 
             {form.is_recurring && (
               <div style={{ background: 'var(--bg-surface)', border: '0.5px solid var(--accent)', borderRadius: '8px', padding: '14px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--accent-text)' }}>⚡ Recurring Schedule</div>
+                <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--accent-text)' }}>Recurring schedule</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div>
                     <label className="label">Repeat every</label>
@@ -361,7 +361,7 @@ export default function DropinList({ onSelectSession }: Props) {
         <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>Loading sessions...</div>
       ) : sessions.length === 0 ? (
         <div className="empty-state">
-          <div className="empty-state-icon">🎲</div>
+          <div className="empty-state-icon"><CalendarDays size={32} strokeWidth={1.5} /></div>
           <div className="empty-state-title">No active sessions</div>
           <div className="empty-state-desc">Create your first drop-in session to get started.</div>
         </div>
@@ -391,7 +391,7 @@ export default function DropinList({ onSelectSession }: Props) {
                           </span>
                           {session.is_recurring && (
                             <span style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)', border: '0.5px solid var(--border)', borderRadius: '99px', fontSize: '10px', fontWeight: '600', padding: '2px 8px' }}>
-                              🔄 Recurring
+                              Recurring
                             </span>
                           )}
                         </div>
@@ -420,35 +420,15 @@ export default function DropinList({ onSelectSession }: Props) {
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flexShrink: 0 }}>
                         <button onClick={() => onSelectSession(session.id)} className="btn-primary" style={{ fontSize: '12px' }}>
-                          Manage →
+                          Manage
                         </button>
                         <button
                           onClick={() => onSelectSession(session.id, 'teams')}
-                          style={{
-                            fontSize: '11px', padding: '5px 10px',
-                            background: 'transparent',
-                            border: '1px solid var(--accent)',
-                            borderRadius: '6px',
-                            color: 'var(--accent)',
-                            fontWeight: '600',
-                            cursor: 'pointer',
-                            fontFamily: 'inherit',
-                          }}
+                          className="dropin-action-btn dropin-action-btn-primary"
                         >
-                          ⚡ Build Teams
+                          Build Teams
                         </button>
-                        <button onClick={() => deleteSession(session.id)}
-                          style={{
-                            background: 'transparent',
-                            border: '1px solid #fecaca',
-                            borderRadius: '6px',
-                            color: '#dc2626',
-                            fontSize: '11px',
-                            fontWeight: '600',
-                            cursor: 'pointer',
-                            fontFamily: 'inherit',
-                            padding: '5px 10px',
-                          }}>
+                        <button type="button" onClick={() => deleteSession(session.id)} className="dropin-action-btn dropin-action-btn-danger">
                           Delete
                         </button>
                       </div>
@@ -480,9 +460,7 @@ export default function DropinList({ onSelectSession }: Props) {
                     {remainingSessions.length}
                   </span>
                 </div>
-                <span style={{ fontSize: '12px', color: 'var(--text-muted)', transition: 'transform 0.15s', display: 'inline-block', transform: upcomingExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>
-                  ▼
-                </span>
+                <ChevronDown size={16} strokeWidth={2} style={{ color: 'var(--text-muted)', flexShrink: 0, transition: 'transform 0.15s', transform: upcomingExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }} aria-hidden />
               </button>
 
               {upcomingExpanded && (
@@ -524,7 +502,7 @@ export default function DropinList({ onSelectSession }: Props) {
                             </span>
                             {isRecurring && (
                               <span style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)', border: '0.5px solid var(--border)', borderRadius: '99px', fontSize: '9px', fontWeight: '600', padding: '1px 6px', flexShrink: 0 }}>
-                                🔄 Recurring
+                                Recurring
                               </span>
                             )}
                           </div>
@@ -536,22 +514,24 @@ export default function DropinList({ onSelectSession }: Props) {
                         </div>
 
                         {/* Actions */}
-                        <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                        <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
                           {groupExists && (
                             <button
                               onClick={() => { setEditingGroup(baseName); setSelectedToDelete([]) }}
-                              className="btn-s"
-                              style={{ fontSize: '10px', padding: '4px 8px' }}
+                              className="dropin-action-btn"
                             >
                               Edit
                             </button>
                           )}
-                          <button onClick={() => onSelectSession(session.id)} className="btn-s" style={{ fontSize: '10px', padding: '4px 8px' }}>
+                          <button
+                            onClick={() => onSelectSession(session.id)}
+                            className="dropin-action-btn dropin-action-btn-primary"
+                          >
                             Manage
                           </button>
                           <button onClick={() => deleteSession(session.id)}
-                            style={{ background: 'transparent', border: 'none', color: '#dc2626', fontSize: '11px', fontWeight: '600', cursor: 'pointer', fontFamily: 'inherit' }}>
-                            ×
+                            className="dropin-action-btn dropin-action-btn-danger">
+                            Delete
                           </button>
                         </div>
                       </div>
@@ -575,15 +555,15 @@ export default function DropinList({ onSelectSession }: Props) {
               <div style={{ fontSize: '14px', fontWeight: '800', color: 'var(--text-primary)' }}>
                 Edit — {editingGroup}
               </div>
-              <button onClick={() => { setEditingGroup(null); setSelectedToDelete([]) }}
-                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '20px', cursor: 'pointer', padding: '0', fontWeight: '700' }}>×</button>
+              <button type="button" onClick={() => { setEditingGroup(null); setSelectedToDelete([]) }}
+                className="modal-close" aria-label="Close dialog">×</button>
             </div>
             <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '14px' }}>
               Check sessions to cancel — e.g. when the gym is unavailable
             </div>
 
             {/* Select all + delete selected */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', background: 'var(--bg-elevated)', borderRadius: '6px', marginBottom: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: 'var(--bg-elevated)', border: '0.5px solid var(--border)', borderRadius: '8px', marginBottom: '10px' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: '700', color: 'var(--text-primary)' }}>
                 <input
                   type="checkbox"
@@ -594,8 +574,7 @@ export default function DropinList({ onSelectSession }: Props) {
                 Select all
               </label>
               {selectedToDelete.length > 0 && (
-                <button onClick={deleteSelected}
-                  style={{ background: 'transparent', border: 'none', color: '#dc2626', fontSize: '11px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit' }}>
+                <button onClick={deleteSelected} className="dropin-action-btn dropin-action-btn-danger">
                   Delete {selectedToDelete.length} selected
                 </button>
               )}

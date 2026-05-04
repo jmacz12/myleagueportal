@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { Check } from 'lucide-react'
 import { useTheme } from '@/lib/theme'
 
 const themes = [
@@ -136,7 +137,7 @@ export default function ThemeSelector({ plan }: Props) {
                   </span>
                 )}
                 {active && unlocked && (
-                  <span style={{ fontSize: '12px', color: 'var(--accent)', fontWeight: '700' }}>✓</span>
+                  <Check size={14} strokeWidth={2.5} style={{ color: 'var(--accent)', flexShrink: 0 }} aria-hidden />
                 )}
               </div>
             )

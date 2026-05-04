@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { AlertTriangle, Check, Lock, Trophy } from 'lucide-react'
 
 interface PlayerRep {
   id: string
@@ -116,13 +117,17 @@ export default function DropinStandings() {
     <div>
       {/* Private notice */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-        <span style={{ fontSize: '12px', color: 'var(--text-muted)', background: 'var(--bg-elevated)', border: '0.5px solid var(--border)', borderRadius: '6px', padding: '4px 10px' }}>
-          🔒 Private — only you can see player standings
+        <span style={{ fontSize: '12px', color: 'var(--text-muted)', background: 'var(--bg-elevated)', border: '0.5px solid var(--border)', borderRadius: '6px', padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+          <Lock size={12} strokeWidth={2} aria-hidden />
+          Private — only you can see player standings
         </span>
         {inactive.length > 0 && (
           <span style={{ background: '#fef2f2', color: '#dc2626', border: '0.5px solid #fecaca', borderRadius: '6px', fontSize: '12px', fontWeight: '700', padding: '4px 10px', cursor: 'pointer' }}
             onClick={() => setActiveTab('inactive')}>
-            ⚠️ {inactive.length} inactive
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+              <AlertTriangle size={12} strokeWidth={2} aria-hidden />
+              {inactive.length} inactive
+            </span>
           </span>
         )}
       </div>
@@ -172,7 +177,7 @@ export default function DropinStandings() {
 
           {filtered.length === 0 ? (
             <div className="empty-state">
-              <div className="empty-state-icon">🏅</div>
+              <div className="empty-state-icon"><Trophy size={32} strokeWidth={1.5} /></div>
               <div className="empty-state-title">No standings yet</div>
               <div className="empty-state-desc">Standings build up as players attend and pay for sessions.</div>
             </div>
@@ -242,7 +247,7 @@ export default function DropinStandings() {
         <div>
           {inactive.length === 0 ? (
             <div className="empty-state">
-              <div className="empty-state-icon">✓</div>
+              <div className="empty-state-icon"><Check size={32} strokeWidth={1.5} /></div>
               <div className="empty-state-title">No inactive players</div>
               <div className="empty-state-desc">Players who miss {settings?.inactive_threshold || 15}+ sessions will appear here.</div>
             </div>

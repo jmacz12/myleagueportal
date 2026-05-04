@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { Users } from 'lucide-react'
 
 interface Team {
   id: string
@@ -196,7 +197,7 @@ export default function TeamsPage() {
         </div>
       ) : filteredTeams.length === 0 ? (
         <div className="empty-state">
-          <div className="empty-state-icon">◈</div>
+          <div className="empty-state-icon"><Users size={32} strokeWidth={1.5} /></div>
           <div className="empty-state-title">No teams yet</div>
           <div className="empty-state-desc">
             {selectedSeason === 'all' ? 'Create your first team to get started.' : 'No teams in this season yet.'}

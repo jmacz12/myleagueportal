@@ -118,16 +118,16 @@ export default async function DashboardPage() {
         <span className="label" style={{ display: 'block', marginBottom: '14px' }}>Quick Actions</span>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
           <Link href="/dashboard/seasons" style={{ textDecoration: 'none' }}>
-            <button className="btn-secondary">📅 Seasons</button>
+            <button className="btn-secondary">Seasons</button>
           </Link>
           <Link href="/dashboard/teams" style={{ textDecoration: 'none' }}>
-            <button className="btn-secondary">◈ Teams</button>
+            <button className="btn-secondary">Teams</button>
           </Link>
           <Link href="/dashboard/players" style={{ textDecoration: 'none' }}>
-            <button className="btn-secondary">◉ Players</button>
+            <button className="btn-secondary">Players</button>
           </Link>
           <Link href="/dashboard/settings" style={{ textDecoration: 'none' }}>
-            <button className="btn-secondary">⚙️ Settings</button>
+            <button className="btn-secondary">Settings</button>
           </Link>
         </div>
       </div>

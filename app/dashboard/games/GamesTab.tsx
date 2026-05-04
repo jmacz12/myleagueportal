@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { BarChart3, CalendarDays, Trophy } from 'lucide-react'
 import AddGamesForm from './AddGamesForm'
 
 interface Game {
@@ -97,8 +98,8 @@ export default function GamesTab() {
   }
 
   const statusLabel = (status: string) => {
-    if (status === 'live') return '● Live'
-    if (status === 'final') return '✓ Final'
+    if (status === 'live') return 'Live'
+    if (status === 'final') return 'Final'
     return 'Scheduled'
   }
 
@@ -164,7 +165,7 @@ export default function GamesTab() {
         </div>
       ) : filtered.length === 0 ? (
         <div className="empty-state">
-          <div className="empty-state-icon">🎮</div>
+          <div className="empty-state-icon"><CalendarDays size={32} strokeWidth={1.5} /></div>
           <div className="empty-state-title">No games yet</div>
           <div className="empty-state-desc">Click "+ Add Games" to schedule your first game.</div>
         </div>
@@ -278,7 +279,8 @@ export default function GamesTab() {
                               onClick={() => goToScoring(game.id)}
                               style={{ background: '#dc2626', color: 'white', border: 'none', borderRadius: '6px', padding: '5px 10px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '4px' }}
                             >
-                              📊 Score
+                              <BarChart3 size={14} strokeWidth={2} aria-hidden />
+                              Score
                             </button>
                             <button
                               onClick={() => updateStatus(game.id, 'final')}
@@ -294,7 +296,8 @@ export default function GamesTab() {
                             onClick={() => goToScoring(game.id)}
                             style={{ background: 'var(--bg-surface)', border: '0.5px solid var(--border)', borderRadius: '6px', padding: '5px 10px', fontSize: '11px', fontWeight: '600', color: 'var(--text-primary)', cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                           >
-                            🏆 Highlights
+                            <Trophy size={14} strokeWidth={2} aria-hidden />
+                            Highlights
                           </button>
                         )}
 

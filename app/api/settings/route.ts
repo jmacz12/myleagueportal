@@ -11,11 +11,22 @@ export async function GET() {
   const { userId } = await auth()
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: org } = await supabaseAdmin
+  const { data: orgWithTz, error: orgWithTzError } = await supabaseAdmin
     .from('organizations')
-    .select('id, name, slug, primary_color, plan, stripe_customer_id, stripe_subscription_id, news_banner')
+    .select('id, name, slug, primary_color, plan, stripe_customer_id, stripe_subscription_id, news_banner, news_banner_color, league_timezone')
     .eq('clerk_user_id', userId)
     .single()
+
+  // Backward compatibility for databases that do not yet have league_timezone.
+  const { data: orgWithoutTz } = orgWithTzError
+    ? await supabaseAdmin
+        .from('organizations')
+        .select('id, name, slug, primary_color, plan, stripe_customer_id, stripe_subscription_id, news_banner, news_banner_color')
+        .eq('clerk_user_id', userId)
+        .single()
+    : { data: null as any }
+
+  const org = orgWithTz || (orgWithoutTz ? { ...orgWithoutTz, league_timezone: null } : null)
 
   if (!org) return NextResponse.json({ error: 'No organization found' }, { status: 404 })
 
@@ -34,7 +45,7 @@ export async function PATCH(req: Request) {
 
   if (!org) return NextResponse.json({ error: 'No organization found' }, { status: 404 })
 
-  const { name, slug, primary_color, news_banner } = await req.json()
+  const { name, slug, primary_color, news_banner, news_banner_color, league_timezone } = await req.json()
 
   if (!name || !slug) {
     return NextResponse.json({ error: 'Name and slug are required' }, { status: 400 })
@@ -56,7 +67,7 @@ export async function PATCH(req: Request) {
   }
 
   // Allow update of name, slug, and news_banner
-  const updateData: any = { name, slug, news_banner }
+  const updateData: any = { name, slug, news_banner, news_banner_color, league_timezone: league_timezone || null }
   
   // Only allow color change on pro/enterprise
   if (org.plan !== 'basic') {
@@ -68,7 +79,25 @@ export async function PATCH(req: Request) {
     .update(updateData)
     .eq('id', org.id)
 
-  if (error) return NextResponse.json({ error: 'Failed to save settings' }, { status: 500 })
+  if (error) {
+    // Backward compatibility: retry without league_timezone if column does not exist yet.
+    if (String(error.message || '').includes('league_timezone')) {
+      const fallbackUpdate = { ...updateData }
+      delete fallbackUpdate.league_timezone
+
+      const { error: fallbackError } = await supabaseAdmin
+        .from('organizations')
+        .update(fallbackUpdate)
+        .eq('id', org.id)
+
+      if (fallbackError) return NextResponse.json({ error: 'Failed to save settings' }, { status: 500 })
+      return NextResponse.json({
+        success: true,
+        warning: 'Saved, but league timezone is not available until the database column is added.',
+      })
+    }
+    return NextResponse.json({ error: 'Failed to save settings' }, { status: 500 })
+  }
 
   return NextResponse.json({ success: true })
 }

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@supabase/supabase-js'
-import { ChevronLeft, CheckCircle, Clock, MapPin, DollarSign } from 'lucide-react'
+import { CalendarDays, ChevronLeft, CheckCircle, Clock, DollarSign } from 'lucide-react'
 import Link from 'next/link'
 import NewsBanner from '@/components/NewsBanner'
 import { useParams } from 'next/navigation'
@@ -29,24 +29,13 @@ export default function DropinsPage() {
 
   useEffect(() => {
     async function loadData() {
-      // 1. Get Org
-      const { data: orgData } = await supabase.from('organizations').select('*').eq('slug', slug).single()
-      
+      const res = await fetch(`/api/join/${slug}/sessions`)
+      const json = await res.json().catch(() => ({}))
+      setSessions(Array.isArray(json.sessions) ? json.sessions : [])
+
+      const orgData = json.organization
       if (orgData) {
         setOrg(orgData)
-        
-        // 2. Fetch Sessions (Comparing current UTC time)
-        const { data: sessData } = await supabase
-          .from('sessions')
-          .select('*')
-          .eq('organization_id', orgData.id)
-          .eq('is_active', true)
-          .gte('start_time', new Date().toISOString()) // Fetch only future sessions
-          .order('start_time', { ascending: true })
-        
-        setSessions(sessData || [])
-        
-        // 3. Fetch Drop-in Waiver
         const { data: wData } = await supabase
           .from('waivers')
           .select('*')
@@ -56,17 +45,20 @@ export default function DropinsPage() {
           .maybeSingle()
         setWaiver(wData)
       }
+
       setLoading(false)
     }
     loadData()
   }, [slug])
 
   const formatLocalTime = (dateStr: string) => {
-    const date = new Date(dateStr);
+    const date = new Date(dateStr)
+    const timeZone = org?.league_timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
     return {
-      day: date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }),
-      time: date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-    };
+      day: date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', timeZone }),
+      time: date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone }),
+      zone: date.toLocaleTimeString('en-US', { timeZoneName: 'short', timeZone }).split(' ').pop() || '',
+    }
   }
 
   async function handleJoin(e: React.FormEvent) {
@@ -74,10 +66,17 @@ export default function DropinsPage() {
     if (waiver && !agreedToWaiver) return alert('You must agree to the waiver.')
     setSubmitting(true)
 
-    const res = await fetch('/api/dropin/public-register', {
+    const res = await fetch('/api/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...formData, sessionId: selectedSession.id, organizationId: org.id })
+      body: JSON.stringify({
+        session_id: selectedSession.id,
+        organization_id: org.id,
+        full_name: `${formData.firstName} ${formData.lastName}`.trim(),
+        email: formData.email,
+        waiver_accepted: agreedToWaiver,
+        waiver_id: waiver?.id ?? null,
+      }),
     })
 
     if (res.ok) setRegistered(true)
@@ -85,7 +84,7 @@ export default function DropinsPage() {
     setSubmitting(false)
   }
 
-  if (loading) return <div className="min-h-screen bg-[#f2ead6] flex items-center justify-center text-[#1a1a0a] font-bold">LOADING SESSIONS...</div>
+  if (loading) return <div className="min-h-screen bg-[#f2ead6] flex items-center justify-center text-[#1a1a0a] text-sm font-semibold">Loading sessions…</div>
 
   return (
     <div style={{ minHeight: '100vh', background: '#f2ead6', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
@@ -104,23 +103,25 @@ export default function DropinsPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {sessions.length === 0 ? (
                 <div style={{ padding: '60px 24px', textAlign: 'center', background: 'white', borderRadius: '20px', border: '1px solid #d4c9a8' }}>
-                  <div style={{ fontSize: '40px', marginBottom: '16px' }}>🗓️</div>
-                  <h3 style={{ color: '#1a1a0a', margin: '0 0 8px' }}>No Sessions Scheduled</h3>
+                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px', color: '#5a7a2a' }}>
+                    <CalendarDays size={40} strokeWidth={1.25} aria-hidden />
+                  </div>
+                  <h3 style={{ color: '#1a1a0a', margin: '0 0 8px' }}>No sessions scheduled</h3>
                   <p style={{ color: '#9a8c6a', margin: 0, fontSize: '14px' }}>Check back soon for new dates.</p>
                 </div>
               ) : (
                 sessions.map((s) => {
-                  const local = formatLocalTime(s.start_time);
+                  const local = formatLocalTime(s.scheduled_at);
                   return (
                     <div key={s.id} style={{ background: 'white', padding: '24px', borderRadius: '20px', border: '1px solid #d4c9a8', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
                       <div>
-                        <h3 style={{ margin: '0 0 8px', fontSize: '18px', fontWeight: '800', color: '#1a1a0a' }}>{s.title}</h3>
+                        <h3 style={{ margin: '0 0 8px', fontSize: '18px', fontWeight: '800', color: '#1a1a0a' }}>{s.name}</h3>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#5a7a2a', fontSize: '13px', fontWeight: '700' }}>
-                            <Clock size={14} /> {local.day} @ {local.time}
+                            <Clock size={14} /> {local.day} @ {local.time} {local.zone}
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#9a8c6a', fontSize: '13px' }}>
-                            <DollarSign size={14} /> ${s.price} per person
+                            <DollarSign size={14} /> ${s.fee_amount} per person
                           </div>
                         </div>
                       </div>
@@ -136,8 +137,8 @@ export default function DropinsPage() {
             <CheckCircle size={64} color="#5a7a2a" style={{ margin: '0 auto 20px' }} />
             <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#1a1a0a', marginBottom: '12px' }}>Spot Reserved!</h2>
             <p style={{ color: '#9a8c6a', lineHeight: '1.6', marginBottom: '32px' }}>
-              You are registered for <strong>{selectedSession.title}</strong>. <br/>
-              Payment of <strong>${selectedSession.price}</strong> will be collected at the venue.
+              You are registered for <strong>{selectedSession.name}</strong>. <br/>
+              Payment of <strong>${selectedSession.fee_amount}</strong> will be collected at the venue.
             </p>
             <button onClick={() => window.location.href = `/join/${slug}/dropins`} style={{ background: '#1a1a0a', color: '#d4c97a', border: 'none', width: '100%', padding: '16px', borderRadius: '12px', fontWeight: '800', cursor: 'pointer' }}>DONE</button>
           </div>
@@ -145,7 +146,7 @@ export default function DropinsPage() {
           <div style={{ background: 'white', padding: '32px', borderRadius: '24px', border: '1px solid #d4c9a8', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}>
             <button onClick={() => setSelectedSession(null)} style={{ background: 'none', border: 'none', color: '#9a8c6a', cursor: 'pointer', fontSize: '13px', padding: 0, marginBottom: '24px', fontWeight: '700' }}>← Change Session</button>
             <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#1a1a0a', marginBottom: '4px', letterSpacing: '-0.02em' }}>Register Now</h2>
-            <p style={{ color: '#5a7a2a', fontSize: '14px', fontWeight: '700', marginBottom: '24px' }}>{selectedSession.title}</p>
+            <p style={{ color: '#5a7a2a', fontSize: '14px', fontWeight: '700', marginBottom: '24px' }}>{selectedSession.name}</p>
             
             <form onSubmit={handleJoin} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
@@ -169,7 +170,7 @@ export default function DropinsPage() {
               )}
 
               <button type="submit" disabled={submitting} style={{ background: '#1a1a0a', color: '#d4c97a', border: 'none', padding: '18px', borderRadius: '12px', fontWeight: '800', cursor: 'pointer', marginTop: '8px', fontSize: '14px', letterSpacing: '0.05em' }}>
-                {submitting ? 'RESERVING...' : `CONFIRM REGISTRATION — $${selectedSession.price}`}
+                {submitting ? 'RESERVING...' : `CONFIRM REGISTRATION — $${selectedSession.fee_amount}`}
               </button>
             </form>
           </div>

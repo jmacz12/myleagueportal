@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
+import { Link2, Trophy } from 'lucide-react'
 import GameHighlights from '../../GameHighlights'
 
 const supabase = createClient(
@@ -256,7 +257,7 @@ export default function ScoringPage() {
               border: `0.5px solid ${game.status === 'live' ? '#fecaca' : '#bbf7d0'}`,
               borderRadius: '99px', fontSize: '11px', fontWeight: '700', padding: '3px 10px',
             }}>
-              {game.status === 'live' ? '● LIVE' : '✓ Final'}
+              {game.status === 'live' ? 'Live' : 'Final'}
             </span>
             {game.status === 'live' && (
               <button onClick={endGame}
@@ -318,7 +319,7 @@ export default function ScoringPage() {
                   fontSize: '11px', fontWeight: '700',
                   cursor: 'pointer', fontFamily: 'inherit',
                 }}>
-                {clockRunning ? '⏸ Pause' : '▶ Start'}
+                {clockRunning ? 'Pause' : 'Start'}
               </button>
               <button onClick={updateClock} className="btn-s" style={{ fontSize: '11px', padding: '4px 10px' }}>
                 Save
@@ -465,8 +466,8 @@ export default function ScoringPage() {
               <div style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-primary)' }}>
                 Game Summary
               </div>
-              <button onClick={() => setShowHighlights(false)}
-                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '20px', cursor: 'pointer', padding: '0', fontWeight: '700' }}>×</button>
+              <button type="button" onClick={() => setShowHighlights(false)}
+                className="modal-close" aria-label="Close">×</button>
             </div>
             <GameHighlights
               stats={Object.entries(stats).map(([pid, s]) => {
@@ -496,11 +497,13 @@ export default function ScoringPage() {
       {game.status === 'final' && !showHighlights && (
         <div style={{ marginBottom: '16px' }}>
           <button
+            type="button"
             onClick={() => setShowHighlights(true)}
             className="btn-primary"
-            style={{ fontSize: '13px' }}
+            style={{ fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
           >
-            🏆 View Game Highlights
+            <Trophy size={16} strokeWidth={2} aria-hidden />
+            View game highlights
           </button>
         </div>
       )}
@@ -512,9 +515,11 @@ export default function ScoringPage() {
           <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Share this link so fans can watch the score live</div>
         </div>
         <button
+          type="button"
           onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/games/${gameId}/scoreboard`) }}
-          className="btn-s" style={{ fontSize: '11px', padding: '6px 12px', flexShrink: 0 }}>
-          📋 Copy Link
+          className="btn-s" style={{ fontSize: '11px', padding: '6px 12px', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+          <Link2 size={14} strokeWidth={2} aria-hidden />
+          Copy link
         </button>
       </div>
     </div>

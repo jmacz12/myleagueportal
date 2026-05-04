@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { CreditCard, Lock, Users } from 'lucide-react'
 
 interface Registration {
   id: string
@@ -156,7 +157,7 @@ export default function DropinDetail({ sessionId, onBack }: Props) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {registrations.length === 0 ? (
             <div className="empty-state">
-              <div className="empty-state-icon">👥</div>
+              <div className="empty-state-icon"><Users size={32} strokeWidth={1.5} /></div>
               <div className="empty-state-title">No registrations yet</div>
               <div className="empty-state-desc">Players will appear here once they sign up.</div>
             </div>
@@ -193,7 +194,7 @@ export default function DropinDetail({ sessionId, onBack }: Props) {
               <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
                 {reg.checked_in ? (
                   <span style={{ background: '#f0fdf4', color: '#16a34a', border: '0.5px solid #bbf7d0', borderRadius: '6px', fontSize: '11px', fontWeight: '700', padding: '5px 10px' }}>
-                    ✓ Here
+                    Here
                   </span>
                 ) : (
                   <>
@@ -239,8 +240,9 @@ export default function DropinDetail({ sessionId, onBack }: Props) {
           </div>
 
           {session?.etransfer_info && (
-            <div style={{ background: 'var(--bg-elevated)', border: '0.5px solid var(--border)', borderRadius: '8px', padding: '10px 14px', marginBottom: '14px', fontSize: '13px', color: 'var(--text-secondary)' }}>
-              💳 E-transfer info: <strong>{session.etransfer_info}</strong>
+            <div style={{ background: 'var(--bg-elevated)', border: '0.5px solid var(--border)', borderRadius: '8px', padding: '10px 14px', marginBottom: '14px', fontSize: '13px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+              <CreditCard size={16} strokeWidth={1.5} style={{ flexShrink: 0, marginTop: '2px' }} aria-hidden />
+              <span><strong style={{ fontWeight: 600 }}>E-transfer:</strong> <strong>{session.etransfer_info}</strong></span>
             </div>
           )}
 
@@ -265,7 +267,7 @@ export default function DropinDetail({ sessionId, onBack }: Props) {
                   border: `0.5px solid ${reg.payment_status === 'paid' ? '#bbf7d0' : reg.payment_status === 'partial' ? '#fde68a' : '#fecaca'}`,
                   borderRadius: '4px', fontSize: '10px', fontWeight: '700', padding: '2px 8px',
                 }}>
-                  {reg.payment_status === 'paid' ? '✓ Paid' : reg.payment_status === 'partial' ? 'Partial' : '✗ Unpaid'}
+                  {reg.payment_status === 'paid' ? 'Paid' : reg.payment_status === 'partial' ? 'Partial' : 'Unpaid'}
                 </span>
                 {reg.payment_status !== 'paid' && (
                   <button
@@ -295,8 +297,9 @@ export default function DropinDetail({ sessionId, onBack }: Props) {
       {/* STANDINGS TAB */}
       {activeTab === 'standings' && (
         <div>
-          <div style={{ background: 'var(--bg-elevated)', border: '0.5px solid var(--border)', borderRadius: '8px', padding: '12px 16px', marginBottom: '14px', fontSize: '13px', color: 'var(--text-secondary)' }}>
-            🔒 Only you can see player standings. Players are ranked by reputation points across all sessions.
+          <div style={{ background: 'var(--bg-elevated)', border: '0.5px solid var(--border)', borderRadius: '8px', padding: '12px 16px', marginBottom: '14px', fontSize: '13px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+            <Lock size={14} strokeWidth={2} style={{ flexShrink: 0, marginTop: '2px' }} aria-hidden />
+            <span>Only you can see player standings. Players are ranked by reputation points across all sessions.</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {registrations
@@ -324,9 +327,9 @@ export default function DropinDetail({ sessionId, onBack }: Props) {
                       {reg.full_name}
                     </div>
                     <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                      {reg.checked_in ? '✓ Attended' : '✗ No-show'}
+                      {reg.checked_in ? 'Attended' : 'No-show'}
                       {' · '}
-                      {reg.payment_status === 'paid' ? '✓ Paid' : '✗ Unpaid'}
+                      {reg.payment_status === 'paid' ? 'Paid' : 'Unpaid'}
                     </div>
                   </div>
                   <span style={{

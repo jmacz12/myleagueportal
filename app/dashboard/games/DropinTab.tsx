@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { CalendarDays } from 'lucide-react'
 import DropinDetail from './DropinDetail'
 
 interface DropinSession {
@@ -347,7 +348,7 @@ export default function DropinTab() {
                 gap: '12px',
               }}>
                 <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--accent-text)' }}>
-                  ⚡ Recurring Schedule
+                  Recurring schedule
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div>
@@ -403,7 +404,7 @@ export default function DropinTab() {
         </div>
       ) : sessions.length === 0 ? (
         <div className="empty-state">
-          <div className="empty-state-icon">🎲</div>
+          <div className="empty-state-icon"><CalendarDays size={32} strokeWidth={1.5} /></div>
           <div className="empty-state-title">No drop-in sessions yet</div>
           <div className="empty-state-desc">Create your first drop-in session to get started.</div>
         </div>
@@ -430,7 +431,7 @@ export default function DropinTab() {
                         border: `0.5px solid ${session.status === 'upcoming' ? '#8aaa4a' : '#cbd5e1'}`,
                         borderRadius: '99px', fontSize: '10px', fontWeight: '700', padding: '2px 8px',
                       }}>
-                        {session.status === 'upcoming' ? '● Open' : session.status}
+                        {session.status === 'upcoming' ? 'Open' : session.status}
                       </span>
                     </div>
                     <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px' }}>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { CreditCard } from 'lucide-react'
 
 interface Registration {
   id: string
@@ -63,8 +64,9 @@ export default function DropinPayments({ sessionId, session, registrations, onRe
       </div>
 
       {session?.etransfer_info && (
-        <div style={{ background: 'var(--bg-elevated)', border: '0.5px solid var(--border)', borderRadius: '8px', padding: '10px 14px', marginBottom: '14px', fontSize: '13px', color: 'var(--text-secondary)' }}>
-          💳 E-transfer info: <strong>{session.etransfer_info}</strong>
+        <div style={{ background: 'var(--bg-elevated)', border: '0.5px solid var(--border)', borderRadius: '8px', padding: '10px 14px', marginBottom: '14px', fontSize: '13px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+          <CreditCard size={16} strokeWidth={1.5} style={{ flexShrink: 0, marginTop: '2px' }} aria-hidden />
+          <span><strong style={{ fontWeight: 600 }}>E-transfer:</strong> <strong>{session.etransfer_info}</strong></span>
         </div>
       )}
 
@@ -90,7 +92,7 @@ export default function DropinPayments({ sessionId, session, registrations, onRe
               border: `0.5px solid ${reg.payment_status === 'paid' ? '#bbf7d0' : reg.payment_status === 'partial' ? '#fde68a' : '#fecaca'}`,
               borderRadius: '4px', fontSize: '10px', fontWeight: '700', padding: '2px 8px',
             }}>
-              {reg.payment_status === 'paid' ? '✓ Paid' : reg.payment_status === 'partial' ? 'Partial' : '✗ Unpaid'}
+              {reg.payment_status === 'paid' ? 'Paid' : reg.payment_status === 'partial' ? 'Partial' : 'Unpaid'}
             </span>
             {reg.payment_status !== 'paid' ? (
               <button onClick={() => updatePayment(reg.id, 'paid')} disabled={updatingId === reg.id}

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { CalendarDays } from 'lucide-react'
 
 interface Season {
   id: string
@@ -101,7 +102,7 @@ export default function SeasonsPage() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
             <div>
               <div style={{ fontWeight: '700', color: 'var(--accent-text)', marginBottom: '2px', fontSize: '14px' }}>
-                🔒 Season Limit Reached
+                Season limit reached
               </div>
               <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
                 Your <strong>{orgInfo?.plan}</strong> plan allows {orgInfo?.seasonLimit} season{orgInfo?.seasonLimit === 1 ? '' : 's'}.
@@ -110,7 +111,7 @@ export default function SeasonsPage() {
             </div>
             <Link href="/dashboard/settings" style={{ textDecoration: 'none' }}>
               <button className="btn-primary" style={{ fontSize: '12px', padding: '7px 14px' }}>
-                Upgrade Plan →
+                Upgrade plan
               </button>
             </Link>
           </div>
@@ -136,8 +137,8 @@ export default function SeasonsPage() {
               <label className="label">Season Type *</label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 {[
-                  { id: 'season', label: '🏆 Competitive Season', desc: 'Standings, playoffs, full stats' },
-                  { id: 'dropin', label: '🎲 Drop-in / Off Season', desc: 'Casual play, no standings' },
+                  { id: 'season', label: 'Competitive season', desc: 'Standings, playoffs, full stats' },
+                  { id: 'dropin', label: 'Drop-in / off-season', desc: 'Casual play, no standings' },
                 ].map((opt) => (
                   <button
                     key={opt.id}
@@ -198,7 +199,7 @@ export default function SeasonsPage() {
         <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>Loading seasons...</div>
       ) : seasons.length === 0 ? (
         <div className="empty-state">
-          <div className="empty-state-icon">📅</div>
+          <div className="empty-state-icon"><CalendarDays size={32} strokeWidth={1.5} /></div>
           <div className="empty-state-title">No seasons yet</div>
           <div className="empty-state-desc">Create your first season or drop-in period to get started.</div>
         </div>
@@ -210,9 +211,9 @@ export default function SeasonsPage() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
                   <span style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-primary)' }}>{season.name}</span>
                   <span className={`badge ${season.type === 'dropin' ? 'badge-dropin' : 'badge-season'}`}>
-                    {season.type === 'dropin' ? '🎲 Drop-in' : '🏆 Competitive'}
+                    {season.type === 'dropin' ? 'Drop-in' : 'Competitive'}
                   </span>
-                  {season.is_active && <span className="badge badge-active">● Active</span>}
+                  {season.is_active && <span className="badge badge-active">Active</span>}
                 </div>
                 {(season.start_date || season.end_date) && (
                   <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>

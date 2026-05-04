@@ -98,11 +98,7 @@ export default function AddGamesForm({ onClose, onSuccess }: Props) {
         <div style={{ fontWeight: '700', fontSize: '15px', color: 'var(--text-primary)' }}>
           Add Games
         </div>
-        <button onClick={onClose} style={{
-          background: 'none', border: 'none',
-          color: 'var(--text-muted)', fontSize: '18px',
-          cursor: 'pointer', padding: '0',
-        }}>×</button>
+        <button type="button" onClick={onClose} className="modal-close" aria-label="Close">×</button>
       </div>
 
       {/* Season selector */}
@@ -208,13 +204,12 @@ export default function AddGamesForm({ onClose, onSuccess }: Props) {
               />
 
               <button
+                type="button"
                 onClick={() => removeRow(index)}
-                style={{
-                  background: 'none', border: 'none',
-                  color: rows.length === 1 ? 'var(--text-muted)' : '#dc2626',
-                  fontSize: '18px', cursor: rows.length === 1 ? 'not-allowed' : 'pointer',
-                  padding: '0', fontWeight: '700',
-                }}
+                disabled={rows.length === 1}
+                className="modal-close"
+                aria-label="Remove row"
+                style={{ color: rows.length === 1 ? 'var(--text-muted)' : undefined, cursor: rows.length === 1 ? 'not-allowed' : 'pointer', opacity: rows.length === 1 ? 0.45 : 1 }}
               >×</button>
             </div>
           ))}

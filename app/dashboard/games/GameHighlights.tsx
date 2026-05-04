@@ -1,5 +1,7 @@
 'use client'
 
+import { Handshake, Trophy } from 'lucide-react'
+
 interface PlayerStat {
   player_id: string
   full_name: string
@@ -78,13 +80,15 @@ export default function GameHighlights({
         </div>
         <div style={{ textAlign: 'right' }}>
           {winner && (
-            <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--btn-primary-text)' }}>
-              🏆 {winner} wins
+            <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--btn-primary-text)', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px' }}>
+              <Trophy size={15} strokeWidth={2} aria-hidden />
+              {winner} wins
             </div>
           )}
           {!winner && (
-            <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--btn-primary-text)' }}>
-              🤝 Tie game
+            <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--btn-primary-text)', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px' }}>
+              <Handshake size={15} strokeWidth={2} aria-hidden />
+              Tie game
             </div>
           )}
           <div style={{ fontSize: '11px', color: 'var(--btn-primary-text)', opacity: 0.7 }}>
@@ -101,8 +105,9 @@ export default function GameHighlights({
         padding: '16px',
         marginBottom: '16px',
       }}>
-        <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--accent)', marginBottom: '12px' }}>
-          🏆 Player of the Game
+        <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--accent)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <Trophy size={14} strokeWidth={2} aria-hidden />
+          Player of the Game
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           <div style={{

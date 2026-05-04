@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@supabase/supabase-js'
-import { Bell, ChevronLeft, CheckCircle } from 'lucide-react'
+import { CalendarDays, ChevronLeft, CheckCircle } from 'lucide-react'
 import Link from 'next/link'
 import NewsBanner from '@/components/NewsBanner'
 import { useParams } from 'next/navigation'
@@ -30,12 +30,13 @@ export default function DropinsPage() {
 
   useEffect(() => {
     async function loadData() {
-      const { data: orgData } = await supabase.from('organizations').select('*').eq('slug', slug).single()
+      const res = await fetch(`/api/join/${slug}/sessions`)
+      const json = await res.json().catch(() => ({}))
+      setSessions(Array.isArray(json.sessions) ? json.sessions : [])
+
+      const orgData = json.organization
       if (orgData) {
         setOrg(orgData)
-        const { data: sessData } = await supabase.from('sessions').select('*').eq('organization_id', orgData.id).eq('is_active', true).gte('start_time', new Date().toISOString()).order('start_time', { ascending: true })
-        setSessions(sessData || [])
-        
         const { data: wData } = await supabase.from('waivers').select('*').eq('organization_id', orgData.id).eq('type', 'dropin').eq('is_active', true).maybeSingle()
         setWaiver(wData)
       }
@@ -44,15 +45,32 @@ export default function DropinsPage() {
     loadData()
   }, [slug])
 
+  const formatLocalTime = (dateStr: string) => {
+    const date = new Date(dateStr)
+    const timeZone = org?.league_timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
+    return {
+      day: date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', timeZone }),
+      time: date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone }),
+      zone: date.toLocaleTimeString('en-US', { timeZoneName: 'short', timeZone }).split(' ').pop() || '',
+    }
+  }
+
   async function handleJoin(e: React.FormEvent) {
     e.preventDefault()
-    if (!agreedToWaiver) return alert('You must agree to the waiver.')
+    if (waiver && !agreedToWaiver) return alert('You must agree to the waiver.')
     setSubmitting(true)
 
-    const res = await fetch('/api/dropin/public-register', {
+    const res = await fetch('/api/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...formData, sessionId: selectedSession.id, organizationId: org.id })
+      body: JSON.stringify({
+        session_id: selectedSession.id,
+        organization_id: org.id,
+        full_name: `${formData.firstName} ${formData.lastName}`.trim(),
+        email: formData.email,
+        waiver_accepted: agreedToWaiver,
+        waiver_id: waiver?.id ?? null,
+      }),
     })
 
     if (res.ok) setRegistered(true)
@@ -79,21 +97,28 @@ export default function DropinsPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {sessions.length === 0 ? (
                 <div style={{ padding: '40px', textAlign: 'center', background: 'white', borderRadius: '12px', border: '1px solid #d4c9a8' }}>
-                  <p style={{ color: '#1a1a0a', fontWeight: '700' }}>No upcoming sessions found.</p>
+                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px', color: '#5a7a2a' }}>
+                    <CalendarDays size={36} strokeWidth={1.25} aria-hidden />
+                  </div>
+                  <p style={{ color: '#1a1a0a', fontWeight: '700', margin: 0 }}>No upcoming sessions</p>
+                  <p style={{ color: '#9a8c6a', fontSize: '14px', margin: '8px 0 0' }}>Check back soon for new dates.</p>
                 </div>
               ) : (
-                sessions.map((s) => (
-                  <div key={s.id} style={{ background: 'white', padding: '24px', borderRadius: '16px', border: '1px solid #d4c9a8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <h3 style={{ margin: 0, fontSize: '17px', fontWeight: '800', color: '#1a1a0a' }}>{s.title}</h3>
-                      <p style={{ margin: '4px 0', fontSize: '13px', color: '#9a8c6a' }}>
-                        {new Date(s.start_time).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })} @ {new Date(s.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                      <p style={{ margin: 0, fontSize: '15px', fontWeight: '700', color: '#5a7a2a' }}>${s.price}</p>
+                sessions.map((s) => {
+                  const local = formatLocalTime(s.scheduled_at)
+                  return (
+                    <div key={s.id} style={{ background: 'white', padding: '24px', borderRadius: '16px', border: '1px solid #d4c9a8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <h3 style={{ margin: 0, fontSize: '17px', fontWeight: '800', color: '#1a1a0a' }}>{s.name}</h3>
+                        <p style={{ margin: '4px 0', fontSize: '13px', color: '#9a8c6a' }}>
+                          {local.day} @ {local.time} {local.zone}
+                        </p>
+                        <p style={{ margin: 0, fontSize: '15px', fontWeight: '700', color: '#5a7a2a' }}>${s.fee_amount}</p>
+                      </div>
+                      <button onClick={() => setSelectedSession(s)} style={{ background: '#1a1a0a', color: '#d4c97a', border: 'none', padding: '12px 24px', borderRadius: '10px', fontWeight: '800', cursor: 'pointer', fontSize: '12px', letterSpacing: '0.05em' }}>JOIN</button>
                     </div>
-                    <button onClick={() => setSelectedSession(s)} style={{ background: '#1a1a0a', color: '#d4c97a', border: 'none', padding: '12px 24px', borderRadius: '10px', fontWeight: '800', cursor: 'pointer', fontSize: '12px', letterSpacing: '0.05em' }}>JOIN</button>
-                  </div>
-                ))
+                  )
+                })
               )}
             </div>
           </>
@@ -102,7 +127,7 @@ export default function DropinsPage() {
             <CheckCircle size={64} color="#5a7a2a" style={{ margin: '0 auto 20px' }} />
             <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#1a1a0a', marginBottom: '12px' }}>Spot Reserved!</h2>
             <p style={{ color: '#9a8c6a', lineHeight: '1.6', marginBottom: '32px' }}>
-              You are registered for <strong>{selectedSession.title}</strong>. Please bring <strong>${selectedSession.price}</strong> to the session.
+              You are registered for <strong>{selectedSession.name}</strong>. Please bring <strong>${selectedSession.fee_amount}</strong> to the session.
             </p>
             <button onClick={() => window.location.reload()} style={{ background: '#1a1a0a', color: '#d4c97a', border: 'none', width: '100%', padding: '16px', borderRadius: '12px', fontWeight: '800', cursor: 'pointer' }}>DONE</button>
           </div>
@@ -110,7 +135,7 @@ export default function DropinsPage() {
           <div style={{ background: 'white', padding: '32px', borderRadius: '20px', border: '1px solid #d4c9a8' }}>
             <button onClick={() => setSelectedSession(null)} style={{ background: 'none', border: 'none', color: '#9a8c6a', cursor: 'pointer', fontSize: '13px', padding: 0, marginBottom: '20px' }}>← Cancel</button>
             <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#1a1a0a', marginBottom: '4px' }}>Register for Session</h2>
-            <p style={{ color: '#9a8c6a', fontSize: '14px', marginBottom: '24px' }}>{selectedSession.title}</p>
+            <p style={{ color: '#9a8c6a', fontSize: '14px', marginBottom: '24px' }}>{selectedSession.name}</p>
             
             <form onSubmit={handleJoin} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <input type="text" placeholder="First Name" required className="input" style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #d4c9a8' }} 
@@ -132,7 +157,7 @@ export default function DropinsPage() {
               )}
 
               <button type="submit" disabled={submitting} style={{ background: '#1a1a0a', color: '#d4c97a', border: 'none', padding: '16px', borderRadius: '12px', fontWeight: '800', cursor: 'pointer', marginTop: '8px' }}>
-                {submitting ? 'RESERVING...' : `CONFIRM SPOT — $${selectedSession.price}`}
+                {submitting ? 'RESERVING...' : `CONFIRM SPOT — $${selectedSession.fee_amount}`}
               </button>
             </form>
           </div>

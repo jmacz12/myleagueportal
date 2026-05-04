@@ -66,8 +66,8 @@ export default function DropinPage() {
               <div style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-primary)' }}>
                 Drop-in Sessions — Full Guide
               </div>
-              <button onClick={() => setShowHelp(false)}
-                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '20px', cursor: 'pointer', padding: '0', fontWeight: '700' }}>×</button>
+              <button type="button" onClick={() => setShowHelp(false)}
+                className="modal-close" aria-label="Close help">×</button>
             </div>
 
             {/* Section 1 — What is a drop-in */}
@@ -87,11 +87,10 @@ export default function DropinPage() {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 {[
-                  { icon: '📅', title: 'One-time', desc: 'A single session on a specific date' },
-                  { icon: '🔄', title: 'Recurring', desc: 'Auto-creates weekly, biweekly or monthly sessions up to 52 weeks ahead' },
+                  { title: 'One-time', desc: 'A single session on a specific date' },
+                  { title: 'Recurring', desc: 'Auto-creates weekly, biweekly or monthly sessions up to 52 weeks ahead' },
                 ].map((item) => (
                   <div key={item.title} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', background: 'var(--bg-elevated)', borderRadius: '8px', padding: '10px 12px' }}>
-                    <span style={{ fontSize: '16px', flexShrink: 0 }}>{item.icon}</span>
                     <div>
                       <div style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-primary)' }}>{item.title}</div>
                       <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '1px' }}>{item.desc}</div>
@@ -108,14 +107,13 @@ export default function DropinPage() {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                 {[
-                  { icon: '🟢', label: 'Open now', desc: 'Players can sign up immediately' },
-                  { icon: '🔒', label: 'Keep closed', desc: 'You open it manually when ready' },
-                  { icon: '⏰', label: 'Schedule opening', desc: 'Auto-opens X days before session' },
-                  { icon: '📆', label: 'Custom date & time', desc: 'Opens at an exact date and time' },
+                  { label: 'Open now', desc: 'Players can sign up immediately' },
+                  { label: 'Keep closed', desc: 'You open it manually when ready' },
+                  { label: 'Schedule opening', desc: 'Auto-opens X days before session' },
+                  { label: 'Custom date & time', desc: 'Opens at an exact date and time' },
                 ].map((opt) => (
-                  <div key={opt.label} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--text-secondary)' }}>
-                    <span style={{ flexShrink: 0 }}>{opt.icon}</span>
-                    <span><strong style={{ color: 'var(--text-primary)' }}>{opt.label}</strong> — {opt.desc}</span>
+                  <div key={opt.label} style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                    <strong style={{ color: 'var(--text-primary)' }}>{opt.label}</strong> — {opt.desc}
                   </div>
                 ))}
               </div>
@@ -201,13 +199,12 @@ export default function DropinPage() {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                 {[
-                  { icon: '🎲', label: 'Random', desc: 'Shuffle players evenly across teams' },
-                  { icon: '🏀', label: 'By position', desc: 'Balance PGs, bigs, etc. across courts' },
-                  { icon: '🏅', label: 'By tier', desc: 'Spread Gold players so games are competitive' },
+                  { label: 'Random', desc: 'Shuffle players evenly across teams' },
+                  { label: 'By position', desc: 'Balance PGs, bigs, etc. across courts' },
+                  { label: 'By tier', desc: 'Spread Gold players so games are competitive' },
                 ].map((m) => (
-                  <div key={m.label} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--text-secondary)' }}>
-                    <span style={{ flexShrink: 0 }}>{m.icon}</span>
-                    <span><strong style={{ color: 'var(--text-primary)' }}>{m.label}</strong> — {m.desc}</span>
+                  <div key={m.label} style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                    <strong style={{ color: 'var(--text-primary)' }}>{m.label}</strong> — {m.desc}
                   </div>
                 ))}
               </div>
@@ -238,7 +235,7 @@ export default function DropinPage() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                       {p.features.map(f => (
                         <div key={f} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--text-secondary)' }}>
-                          <span style={{ color: 'var(--accent)', fontWeight: '700', flexShrink: 0 }}>✓</span>
+                          <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>•</span>
                           {f}
                         </div>
                       ))}
@@ -264,9 +261,9 @@ export default function DropinPage() {
         marginBottom: '24px', width: 'fit-content',
       }}>
         {[
-          { id: 'sessions', label: '🎲 Sessions' },
-          { id: 'standings', label: '🏅 Standings' },
-          { id: 'history', label: '📋 History' },
+          { id: 'sessions', label: 'Sessions' },
+          { id: 'standings', label: 'Standings' },
+          { id: 'history', label: 'History' },
         ].map((tab) => (
           <button
             key={tab.id}

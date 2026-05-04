@@ -10,7 +10,22 @@ interface OrgSettings {
   plan: string
   news_banner?: string | null
   news_banner_color?: string | null
+  league_timezone?: string | null
 }
+
+const TIMEZONE_OPTIONS = [
+  'America/Vancouver',
+  'America/Edmonton',
+  'America/Winnipeg',
+  'America/Toronto',
+  'America/Halifax',
+  'America/St_Johns',
+  'America/New_York',
+  'America/Chicago',
+  'America/Denver',
+  'America/Los_Angeles',
+  'UTC',
+]
 
 interface WaiverData {
   id?: string
@@ -31,7 +46,8 @@ export default function SettingsPage() {
     slug: '', 
     primary_color: '#5a7a2a', 
     news_banner: '',
-    news_banner_color: '#5a7a2a' 
+    news_banner_color: '#5a7a2a',
+    league_timezone: 'America/Vancouver',
   })
   const [activeWaiverTab, setActiveWaiverTab] = useState<'season' | 'dropin' | null>(null)
 
@@ -66,7 +82,8 @@ export default function SettingsPage() {
       slug: data.org?.slug || '',
       primary_color: data.org?.primary_color || '#5a7a2a',
       news_banner: data.org?.news_banner || '',
-      news_banner_color: data.org?.news_banner_color || '#5a7a2a'
+      news_banner_color: data.org?.news_banner_color || '#5a7a2a',
+      league_timezone: data.org?.league_timezone || 'America/Vancouver',
     })
     setLoading(false)
   }
@@ -221,26 +238,26 @@ export default function SettingsPage() {
                 border: mode === 'type' ? '1.5px solid var(--accent)' : '0.5px solid var(--border)',
                 background: mode === 'type' ? 'var(--accent)' : 'transparent',
                 color: mode === 'type' ? 'white' : 'var(--text-muted)',
-              }}>✏️ Type</button>
+              }}>Type</button>
               <button type="button" onClick={() => setMode('upload')} style={{
                 padding: '5px 12px', fontSize: '11px', fontWeight: '700', borderRadius: '6px',
                 cursor: 'pointer', fontFamily: 'inherit',
                 border: mode === 'upload' ? '1.5px solid var(--accent)' : '0.5px solid var(--border)',
                 background: mode === 'upload' ? 'var(--accent)' : 'transparent',
                 color: mode === 'upload' ? 'white' : 'var(--text-muted)',
-              }}>📄 Upload PDF</button>
+              }}>Upload PDF</button>
             </div>
           )}
         </div>
 
         <div style={{ background: '#fffbeb', border: '0.5px solid #fcd34d', borderRadius: '8px', padding: '10px 14px', marginBottom: '14px', fontSize: '11px', color: '#92400e', lineHeight: '1.5' }}>
-          ⚠️ <strong>Legal Notice:</strong> MyLeaguePortal provides document processing tools for convenience and is not a provider of legal advice. The enforceability of your waiver is the sole responsibility of the League Host.
+          <strong>Legal notice:</strong> MyLeaguePortal provides document processing tools for convenience and is not a provider of legal advice. The enforceability of your waiver is the sole responsibility of the League Host.
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {isPro && mode === 'upload' && (
             <div style={{ border: '1px dashed var(--border)', borderRadius: '8px', padding: '24px', textAlign: 'center' }}>
-              <div style={{ fontSize: '28px', marginBottom: '8px' }}>📄</div>
+              <div style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>PDF</div>
               <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '12px' }}>
                 Upload your existing PDF waiver — we'll extract the text for you to review
               </p>
@@ -271,7 +288,7 @@ export default function SettingsPage() {
               Waiver Text
               {needsVerification && (
                 <span style={{ marginLeft: '8px', fontSize: '10px', color: '#d97706', fontWeight: '700' }}>
-                  ⚠️ Scroll through and verify before approving
+                  Review carefully before approving
                 </span>
               )}
             </label>
@@ -283,7 +300,7 @@ export default function SettingsPage() {
 
           {success && (
             <div style={{ background: '#f0fdf4', border: '0.5px solid #bbf7d0', borderRadius: '8px', padding: '12px 16px', fontSize: '13px', color: '#16a34a', fontWeight: '600' }}>
-              ✓ Waiver saved! Players will see this on the registration page.
+              Waiver saved. Players will see this on the registration page.
             </div>
           )}
 
@@ -296,7 +313,7 @@ export default function SettingsPage() {
                   background: '#d97706', color: 'white',
                   opacity: saving || !waiverForm.content ? 0.6 : 1,
                 }}>
-                {saving ? 'Saving...' : '✓ Verify & Approve Waiver'}
+                {saving ? 'Saving...' : 'Verify and approve waiver'}
               </button>
             ) : (
               <button type="button" className="btn-primary" disabled={saving || !waiverForm.content} onClick={onSave}>
@@ -304,13 +321,13 @@ export default function SettingsPage() {
               </button>
             )}
             {waiver && !needsVerification && (
-              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>✓ Active — showing on registration page</span>
+              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Active — on registration page</span>
             )}
           </div>
 
           {!isPro && (
             <div style={{ background: 'var(--bg-elevated)', border: '0.5px solid var(--border)', borderRadius: '8px', padding: '12px 14px', fontSize: '12px', color: 'var(--text-muted)' }}>
-              🔒 <strong>Pro/Enterprise:</strong> Upload an existing PDF waiver and we'll extract the text automatically.
+              <strong>Pro/Enterprise:</strong> Upload an existing PDF waiver and we will extract the text automatically.
             </div>
           )}
         </div>
@@ -326,7 +343,7 @@ export default function SettingsPage() {
     <div style={{ maxWidth: '640px' }}>
 
       <div style={{ marginBottom: '28px' }}>
-        <h1 className="page-title">⚙️ Settings</h1>
+        <h1 className="page-title">Settings</h1>
         <p className="page-subtitle">Manage your league profile and subscription</p>
       </div>
 
@@ -360,7 +377,7 @@ export default function SettingsPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             {planFeatures[settings?.plan || 'basic'].map((f, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>
-                <span style={{ color: 'var(--accent)', fontWeight: '700' }}>✓</span>{f}
+                <span style={{ color: 'var(--text-muted)', fontWeight: '700' }}>•</span>{f}
               </div>
             ))}
           </div>
@@ -390,11 +407,11 @@ export default function SettingsPage() {
               <input type="text" required value={form.slug} readOnly={settings?.plan === 'basic'}
                 onChange={(e) => { if (settings?.plan === 'basic') return; setForm({ ...form, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') }) }}
                 style={{ flex: 1, padding: '9px 12px', fontSize: '13px', color: 'var(--text-primary)', background: 'transparent', border: 'none', outline: 'none', fontFamily: 'inherit' }} />
-              {settings?.plan === 'basic' && <span style={{ padding: '0 12px', color: 'var(--text-muted)', fontSize: '13px' }}>🔒</span>}
+              {settings?.plan === 'basic' && <span style={{ padding: '0 12px', color: 'var(--text-muted)', fontSize: '11px', fontWeight: '700' }}>Locked</span>}
             </div>
             <button type="button" onClick={() => { navigator.clipboard.writeText(`myleagueportal.com/join/${form.slug}`); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
               style={{ marginTop: '6px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', color: 'var(--accent)', fontWeight: '600', padding: 0, display: 'flex', alignItems: 'center', gap: '4px' }}>
-              {copied ? '✓ Copied!' : '📋 Copy registration link'}
+              {copied ? 'Copied' : 'Copy registration link'}
             </button>
             <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
               {settings?.plan === 'basic' ? 'Upgrade to Pro to set a custom, memorable URL' : `Players register at: myleagueportal.com/join/${form.slug}`}
@@ -413,6 +430,36 @@ export default function SettingsPage() {
             </div>
           </div>
           
+          <div>
+            <label className="label">League Time Zone</label>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <select
+                className="input"
+                value={form.league_timezone}
+                onChange={(e) => setForm({ ...form, league_timezone: e.target.value })}
+                style={{ flex: 1, minWidth: '220px' }}
+              >
+                {TIMEZONE_OPTIONS.map((tz) => (
+                  <option key={tz} value={tz}>{tz}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => {
+                  const detected = Intl.DateTimeFormat().resolvedOptions().timeZone
+                  if (detected) setForm({ ...form, league_timezone: detected })
+                }}
+                style={{ padding: '8px 10px', fontSize: '12px' }}
+              >
+                Use my current timezone
+              </button>
+            </div>
+            <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
+              Public drop-in times are displayed in this league timezone.
+            </p>
+          </div>
+
           <div>
             <label className="label">League News Banner</label>
             <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
@@ -441,7 +488,7 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {success && <div style={{ background: '#f0fdf4', border: '0.5px solid #bbf7d0', borderRadius: '8px', padding: '12px 16px', fontSize: '13px', color: '#16a34a', fontWeight: '600' }}>✓ Settings saved successfully!</div>}
+          {success && <div style={{ background: '#f0fdf4', border: '0.5px solid #bbf7d0', borderRadius: '8px', padding: '12px 16px', fontSize: '13px', color: '#16a34a', fontWeight: '600' }}>Settings saved.</div>}
           {error && <div style={{ background: '#fef2f2', border: '0.5px solid #fecaca', borderRadius: '8px', padding: '12px 16px', fontSize: '13px', color: '#dc2626' }}>{error}</div>}
           <button type="submit" disabled={saving} className="btn-primary" style={{ alignSelf: 'flex-start' }}>
             {saving ? 'Saving...' : 'Save Changes'}
@@ -474,14 +521,14 @@ export default function SettingsPage() {
               border: activeWaiverTab === 'season' ? '1.5px solid var(--accent)' : '0.5px solid var(--border)',
               background: activeWaiverTab === 'season' ? 'var(--accent)' : 'transparent',
               color: activeWaiverTab === 'season' ? 'white' : 'var(--text-muted)',
-            }}>📅 Season</button>
+            }}>Season</button>
             <button type="button" onClick={() => setActiveWaiverTab(activeWaiverTab === 'dropin' ? null : 'dropin')} style={{
               padding: '6px 14px', fontSize: '12px', fontWeight: '700', borderRadius: '6px',
               cursor: 'pointer', fontFamily: 'inherit',
               border: activeWaiverTab === 'dropin' ? '1.5px solid var(--accent)' : '0.5px solid var(--border)',
               background: activeWaiverTab === 'dropin' ? 'var(--accent)' : 'transparent',
               color: activeWaiverTab === 'dropin' ? 'white' : 'var(--text-muted)',
-            }}>🎲 Drop-in</button>
+            }}>Drop-in</button>
           </div>
         </div>
 
