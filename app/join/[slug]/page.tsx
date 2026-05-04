@@ -1,64 +1,179 @@
+'use client'
+
+import { useState, useEffect } from 'react'
 import { createClient } from '@supabase/supabase-js'
-import { notFound } from 'next/navigation'
+import { ChevronLeft, CheckCircle, Clock, MapPin, DollarSign } from 'lucide-react'
 import Link from 'next/link'
 import NewsBanner from '@/components/NewsBanner'
+import { useParams } from 'next/navigation'
 
-const supabaseAdmin = createClient(
+const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
-export default async function LeagueHomePage({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params
+export default function DropinsPage() {
+  const params = useParams()
+  const slug = params.slug as string
 
-  const { data: org } = await supabaseAdmin
-    .from('organizations')
-    .select('id, name, primary_color, logo_url, news_banner')
-    .eq('slug', slug)
-    .single()
+  const [org, setOrg] = useState<any>(null)
+  const [sessions, setSessions] = useState<any[]>([])
+  const [waiver, setWaiver] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  
+  const [selectedSession, setSelectedSession] = useState<any>(null)
+  const [formData, setForm] = useState({ firstName: '', lastName: '', email: '' })
+  const [agreedToWaiver, setAgreed] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [registered, setRegistered] = useState(false)
 
-  if (!org) return notFound()
+  useEffect(() => {
+    async function loadData() {
+      // 1. Get Org
+      const { data: orgData } = await supabase.from('organizations').select('*').eq('slug', slug).single()
+      
+      if (orgData) {
+        setOrg(orgData)
+        
+        // 2. Fetch Sessions (Comparing current UTC time)
+        const { data: sessData } = await supabase
+          .from('sessions')
+          .select('*')
+          .eq('organization_id', orgData.id)
+          .eq('is_active', true)
+          .gte('start_time', new Date().toISOString()) // Fetch only future sessions
+          .order('start_time', { ascending: true })
+        
+        setSessions(sessData || [])
+        
+        // 3. Fetch Drop-in Waiver
+        const { data: wData } = await supabase
+          .from('waivers')
+          .select('*')
+          .eq('organization_id', orgData.id)
+          .eq('type', 'dropin')
+          .eq('is_active', true)
+          .maybeSingle()
+        setWaiver(wData)
+      }
+      setLoading(false)
+    }
+    loadData()
+  }, [slug])
 
-  const accent = org.primary_color || '#5a7a2a'
+  const formatLocalTime = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return {
+      day: date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }),
+      time: date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+    };
+  }
+
+  async function handleJoin(e: React.FormEvent) {
+    e.preventDefault()
+    if (waiver && !agreedToWaiver) return alert('You must agree to the waiver.')
+    setSubmitting(true)
+
+    const res = await fetch('/api/dropin/public-register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...formData, sessionId: selectedSession.id, organizationId: org.id })
+    })
+
+    if (res.ok) setRegistered(true)
+    else alert('Registration failed. The session might be full.')
+    setSubmitting(false)
+  }
+
+  if (loading) return <div className="min-h-screen bg-[#f2ead6] flex items-center justify-center text-[#1a1a0a] font-bold">LOADING SESSIONS...</div>
 
   return (
     <div style={{ minHeight: '100vh', background: '#f2ead6', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-      
-      <NewsBanner message={org.news_banner} />
+      <NewsBanner message={org?.news_banner} color={org?.news_banner_color} />
 
-      {/* Hero Header */}
-      <div style={{ padding: '60px 24px', textAlign: 'center' }}>
-        {org.logo_url ? (
-          <img src={org.logo_url} alt={org.name} style={{ height: '80px', margin: '0 auto 20px', objectFit: 'contain' }} />
+      <div style={{ maxWidth: '600px', margin: '0 auto', padding: '40px 20px' }}>
+        {!selectedSession ? (
+          <>
+            <Link href={`/join/${slug}`} style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#5a7a2a', textDecoration: 'none', fontSize: '14px', fontWeight: '700' }}>
+              <ChevronLeft size={16} /> Back to Home
+            </Link>
+            
+            <h1 style={{ fontSize: '32px', fontWeight: '800', color: '#1a1a0a', marginTop: '20px', marginBottom: '8px', letterSpacing: '-0.02em' }}>Available Drop-ins</h1>
+            <p style={{ color: '#9a8c6a', marginBottom: '32px' }}>Reserve your spot for upcoming games.</p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {sessions.length === 0 ? (
+                <div style={{ padding: '60px 24px', textAlign: 'center', background: 'white', borderRadius: '20px', border: '1px solid #d4c9a8' }}>
+                  <div style={{ fontSize: '40px', marginBottom: '16px' }}>🗓️</div>
+                  <h3 style={{ color: '#1a1a0a', margin: '0 0 8px' }}>No Sessions Scheduled</h3>
+                  <p style={{ color: '#9a8c6a', margin: 0, fontSize: '14px' }}>Check back soon for new dates.</p>
+                </div>
+              ) : (
+                sessions.map((s) => {
+                  const local = formatLocalTime(s.start_time);
+                  return (
+                    <div key={s.id} style={{ background: 'white', padding: '24px', borderRadius: '20px', border: '1px solid #d4c9a8', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                      <div>
+                        <h3 style={{ margin: '0 0 8px', fontSize: '18px', fontWeight: '800', color: '#1a1a0a' }}>{s.title}</h3>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#5a7a2a', fontSize: '13px', fontWeight: '700' }}>
+                            <Clock size={14} /> {local.day} @ {local.time}
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#9a8c6a', fontSize: '13px' }}>
+                            <DollarSign size={14} /> ${s.price} per person
+                          </div>
+                        </div>
+                      </div>
+                      <button onClick={() => setSelectedSession(s)} style={{ background: '#1a1a0a', color: '#d4c97a', border: 'none', padding: '12px 24px', borderRadius: '12px', fontWeight: '800', cursor: 'pointer', fontSize: '12px', transition: 'all 0.2s' }}>JOIN</button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </>
+        ) : registered ? (
+          <div style={{ textAlign: 'center', background: 'white', padding: '48px 32px', borderRadius: '24px', border: '1px solid #d4c9a8', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}>
+            <CheckCircle size={64} color="#5a7a2a" style={{ margin: '0 auto 20px' }} />
+            <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#1a1a0a', marginBottom: '12px' }}>Spot Reserved!</h2>
+            <p style={{ color: '#9a8c6a', lineHeight: '1.6', marginBottom: '32px' }}>
+              You are registered for <strong>{selectedSession.title}</strong>. <br/>
+              Payment of <strong>${selectedSession.price}</strong> will be collected at the venue.
+            </p>
+            <button onClick={() => window.location.href = `/join/${slug}/dropins`} style={{ background: '#1a1a0a', color: '#d4c97a', border: 'none', width: '100%', padding: '16px', borderRadius: '12px', fontWeight: '800', cursor: 'pointer' }}>DONE</button>
+          </div>
         ) : (
-          <div style={{ width: '80px', height: '80px', background: '#e6dcc0', borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '40px', margin: '0 auto 20px' }}>🏟️</div>
+          <div style={{ background: 'white', padding: '32px', borderRadius: '24px', border: '1px solid #d4c9a8', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}>
+            <button onClick={() => setSelectedSession(null)} style={{ background: 'none', border: 'none', color: '#9a8c6a', cursor: 'pointer', fontSize: '13px', padding: 0, marginBottom: '24px', fontWeight: '700' }}>← Change Session</button>
+            <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#1a1a0a', marginBottom: '4px', letterSpacing: '-0.02em' }}>Register Now</h2>
+            <p style={{ color: '#5a7a2a', fontSize: '14px', fontWeight: '700', marginBottom: '24px' }}>{selectedSession.title}</p>
+            
+            <form onSubmit={handleJoin} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <input type="text" placeholder="First Name" required style={{ padding: '14px', borderRadius: '10px', border: '1px solid #d4c9a8', fontSize: '14px' }} 
+                  onChange={e => setForm({...formData, firstName: e.target.value})} />
+                <input type="text" placeholder="Last Name" required style={{ padding: '14px', borderRadius: '10px', border: '1px solid #d4c9a8', fontSize: '14px' }} 
+                  onChange={e => setForm({...formData, lastName: e.target.value})} />
+              </div>
+              <input type="email" placeholder="Email Address" required style={{ padding: '14px', borderRadius: '10px', border: '1px solid #d4c9a8', fontSize: '14px' }} 
+                onChange={e => setForm({...formData, email: e.target.value})} />
+              
+              {waiver && (
+                <div style={{ background: '#f9f7f0', padding: '20px', borderRadius: '12px', border: '1px solid #e6dcc0' }}>
+                  <h4 style={{ margin: '0 0 10px', fontSize: '12px', fontWeight: '800', textTransform: 'uppercase', color: '#1a1a0a' }}>{waiver.title}</h4>
+                  <div style={{ height: '120px', overflowY: 'auto', fontSize: '12px', color: '#9a8c6a', marginBottom: '16px', lineHeight: '1.6', paddingRight: '8px' }}>{waiver.content}</div>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', fontWeight: '700', color: '#1a1a0a', cursor: 'pointer' }}>
+                    <input type="checkbox" required checked={agreedToWaiver} onChange={e => setAgreed(e.target.checked)} style={{ width: '18px', height: '18px' }} />
+                    I agree to the liability waiver
+                  </label>
+                </div>
+              )}
+
+              <button type="submit" disabled={submitting} style={{ background: '#1a1a0a', color: '#d4c97a', border: 'none', padding: '18px', borderRadius: '12px', fontWeight: '800', cursor: 'pointer', marginTop: '8px', fontSize: '14px', letterSpacing: '0.05em' }}>
+                {submitting ? 'RESERVING...' : `CONFIRM REGISTRATION — $${selectedSession.price}`}
+              </button>
+            </form>
+          </div>
         )}
-        <h1 style={{ fontSize: '32px', fontWeight: '800', color: '#1a1a0a', marginBottom: '8px' }}>{org.name}</h1>
-        <p style={{ color: '#9a8c6a', fontSize: '16px' }}>Welcome to our official league portal.</p>
-      </div>
-
-      {/* Navigation Cards */}
-      <div style={{ maxWidth: '600px', margin: '0 auto', padding: '0 20px 60px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        
-        <Link href={`/join/${slug}/register`} style={{ textDecoration: 'none' }}>
-          <div style={{ background: '#1a1a0a', padding: '32px', borderRadius: '16px', border: `2px solid ${accent}`, cursor: 'pointer', transition: 'transform 0.2s' }}>
-            <h2 style={{ color: '#d4c97a', fontSize: '20px', fontWeight: '800', marginBottom: '8px', textTransform: 'uppercase' }}>🏆 Full Season Registration</h2>
-            <p style={{ color: '#f2ead6', opacity: 0.8, fontSize: '14px', margin: 0 }}>Join a team, view standings, and play the full schedule.</p>
-          </div>
-        </Link>
-
-        <Link href={`/join/${slug}/dropins`} style={{ textDecoration: 'none' }}>
-          <div style={{ background: 'white', padding: '32px', borderRadius: '16px', border: '1px solid #d4c9a8', cursor: 'pointer' }}>
-            <h2 style={{ color: '#1a1a0a', fontSize: '20px', fontWeight: '800', marginBottom: '8px', textTransform: 'uppercase' }}>🎲 Single Drop-ins</h2>
-            <p style={{ color: '#9a8c6a', fontSize: '14px', margin: 0 }}>Quick games, no commitment. Book your spot for an upcoming session.</p>
-          </div>
-        </Link>
-
-        <div style={{ textAlign: 'center', marginTop: '40px' }}>
-          <span style={{ fontSize: '12px', color: '#c8b98a' }}>
-            Powered by <span style={{ fontWeight: '700', color: '#9a8c6a' }}>MyLeaguePortal</span>
-          </span>
-        </div>
       </div>
     </div>
   )
