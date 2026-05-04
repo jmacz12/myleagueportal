@@ -1,4 +1,5 @@
 import { SignIn } from '@clerk/nextjs'
+import { Check } from 'lucide-react'
 
 export default function SignInPage() {
   return (
@@ -23,8 +24,10 @@ export default function SignInPage() {
             background: 'var(--logo-bg)',
             borderRadius: '8px',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: '16px', flexShrink: 0,
-          }}>⚡</div>
+            flexShrink: 0,
+          }}>
+            <span style={{ fontSize: '11px', fontWeight: '800', color: 'var(--btn-primary-text)', letterSpacing: '0.06em' }}>ML</span>
+          </div>
           <span style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-primary)', letterSpacing: '0.02em' }}>
             MYLEAGUEPORTAL
           </span>
@@ -57,8 +60,10 @@ export default function SignInPage() {
                 border: '0.5px solid var(--accent)',
                 borderRadius: '99px',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: '10px', color: 'var(--accent)', fontWeight: '700', flexShrink: 0,
-              }}>✓</div>
+                flexShrink: 0,
+              }}>
+                <Check size={12} strokeWidth={2.5} style={{ color: 'var(--accent)' }} aria-hidden />
+              </div>
               <span style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>{item}</span>
             </div>
           ))}

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useUser } from '@clerk/nextjs'
+import { Lock } from 'lucide-react'
 
 export default function OnboardingPage() {
   const { user, isLoaded } = useUser()
@@ -72,8 +73,10 @@ export default function OnboardingPage() {
             background: 'var(--logo-bg)',
             borderRadius: '6px',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: '12px', flexShrink: 0,
-          }}>⚡</div>
+            flexShrink: 0,
+          }}>
+            <span style={{ fontSize: '10px', fontWeight: '800', color: 'var(--btn-primary-text)', letterSpacing: '0.06em' }}>ML</span>
+          </div>
           <span style={{
             fontSize: '12px', fontWeight: '800',
             color: 'var(--sidebar-text-active)',
@@ -89,7 +92,7 @@ export default function OnboardingPage() {
             fontSize: '20px', fontWeight: '800',
             color: 'var(--text-primary)', marginBottom: '6px',
           }}>
-            Welcome to MyLeaguePortal! Let's set up your league 🏀
+            Welcome to MyLeaguePortal. Let&apos;s set up your league.
           </h1>
           <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '24px' }}>
             This takes less than a minute.
@@ -136,7 +139,9 @@ export default function OnboardingPage() {
                   color: 'var(--text-muted)',
                   flex: 1,
                 }}>auto-assigned on Basic plan</span>
-                <span style={{ padding: '0 12px', color: 'var(--text-muted)' }}>🔒</span>
+                <span style={{ padding: '0 12px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center' }} aria-hidden>
+                  <Lock size={14} strokeWidth={2} />
+                </span>
               </div>
               <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
                 Upgrade to Pro to set a custom, memorable URL

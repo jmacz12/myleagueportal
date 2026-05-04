@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { Trophy } from 'lucide-react'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -114,7 +115,7 @@ export default async function PublicScoreboard({
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center', marginTop: '8px' }}>
                 {game.status === 'live' && (
-                  <span style={{ background: '#dc2626', color: 'white', borderRadius: '99px', fontSize: '10px', fontWeight: '700', padding: '2px 8px' }}>● LIVE</span>
+                  <span style={{ background: '#dc2626', color: 'white', borderRadius: '99px', fontSize: '10px', fontWeight: '700', padding: '2px 8px' }}>Live</span>
                 )}
                 <span style={{ color: '#9a8c6a', fontSize: '12px' }}>
                   Q{game.period} · {game.game_clock}
@@ -177,8 +178,9 @@ export default async function PublicScoreboard({
 
           return (
             <div style={{ marginTop: '24px' }}>
-              <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#9a8c6a', marginBottom: '12px' }}>
-                🏆 Game Highlights
+              <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#9a8c6a', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Trophy size={14} strokeWidth={2} aria-hidden />
+                Game highlights
               </div>
 
               {/* POTG */}

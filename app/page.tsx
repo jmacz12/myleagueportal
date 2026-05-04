@@ -1,6 +1,16 @@
 import { auth } from '@clerk/nextjs/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import {
+  CalendarDays,
+  Check,
+  Dices,
+  FileText,
+  Shield,
+  Users,
+  Zap,
+  type LucideIcon,
+} from 'lucide-react'
 
 export default async function HomePage() {
   const { userId } = await auth()
@@ -49,7 +59,7 @@ export default async function HomePage() {
       {/* Sports strip */}
       <section style={{ background: '#1a1a0a', padding: '12px 24px' }}>
         <div style={{ maxWidth: '800px', margin: '0 auto', display: 'flex', justifyContent: 'center', gap: '28px', flexWrap: 'wrap' }}>
-          {['⚽ Soccer', '🏀 Basketball', '🏈 Football', '🏒 Hockey', '🎾 Tennis', '🏐 Volleyball', '+ More'].map((sport) => (
+          {['Soccer', 'Basketball', 'Football', 'Hockey', 'Tennis', 'Volleyball', 'More'].map((sport) => (
             <span key={sport} style={{ fontSize: '12px', fontWeight: '700', color: '#d4c97a', letterSpacing: '0.03em' }}>{sport}</span>
           ))}
         </div>
@@ -67,18 +77,20 @@ export default async function HomePage() {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '14px' }}>
-          {[
-            { icon: '📅', title: 'Season & Schedule Management', desc: 'Create seasons, schedule multiple games at once, and manage your full calendar in minutes.' },
-            { icon: '⚡', title: 'Live Game Scoring', desc: 'Real-time scoring with a built-in game clock, period tracker, and per-player stat tracking.' },
-            { icon: '🎲', title: 'Drop-in Session Management', desc: 'Schedule drop-ins, manage check-ins, collect payments, and auto-build balanced teams.' },
-            { icon: '👥', title: 'Player Registration', desc: 'Share a public link. Players sign up, accept your waiver, and you\'re done.' },
-            { icon: '📄', title: 'Digital Waiver System', desc: 'Upload your PDF waiver or type one. Every signature is recorded with timestamp and IP.' },
-            { icon: '🛡️', title: 'Player Reputation Tracking', desc: 'Track attendance, payments, and reliability. Gold, Silver, and Bronze tiers keep your roster accountable.' },
-          ].map((feature) => (
-            <div key={feature.title} style={{ background: 'white', border: '0.5px solid #d4c9a8', borderRadius: '12px', padding: '22px' }}>
-              <div style={{ fontSize: '24px', marginBottom: '10px' }}>{feature.icon}</div>
-              <h3 style={{ fontSize: '14px', fontWeight: '800', color: '#1a1a0a', marginBottom: '6px' }}>{feature.title}</h3>
-              <p style={{ fontSize: '13px', color: '#6b5e3a', lineHeight: '1.6', margin: 0 }}>{feature.desc}</p>
+          {([
+            { Icon: CalendarDays, title: 'Season & schedule management', desc: 'Create seasons, schedule multiple games at once, and manage your full calendar in minutes.' },
+            { Icon: Zap, title: 'Live game scoring', desc: 'Real-time scoring with a built-in game clock, period tracker, and per-player stat tracking.' },
+            { Icon: Dices, title: 'Drop-in session management', desc: 'Schedule drop-ins, manage check-ins, collect payments, and auto-build balanced teams.' },
+            { Icon: Users, title: 'Player registration', desc: 'Share a public link. Players sign up, accept your waiver, and you\'re done.' },
+            { Icon: FileText, title: 'Digital waiver system', desc: 'Upload your PDF waiver or type one. Every signature is recorded with timestamp and IP.' },
+            { Icon: Shield, title: 'Player reputation tracking', desc: 'Track attendance, payments, and reliability. Gold, Silver, and Bronze tiers keep your roster accountable.' },
+          ] satisfies { Icon: LucideIcon; title: string; desc: string }[]).map(({ Icon, title, desc }) => (
+            <div key={title} style={{ background: 'white', border: '0.5px solid #d4c9a8', borderRadius: '12px', padding: '22px' }}>
+              <div style={{ color: '#5a7a2a', marginBottom: '10px', display: 'flex' }}>
+                <Icon size={26} strokeWidth={1.5} aria-hidden />
+              </div>
+              <h3 style={{ fontSize: '14px', fontWeight: '800', color: '#1a1a0a', marginBottom: '6px' }}>{title}</h3>
+              <p style={{ fontSize: '13px', color: '#6b5e3a', lineHeight: '1.6', margin: 0 }}>{desc}</p>
             </div>
           ))}
         </div>
@@ -147,7 +159,8 @@ export default async function HomePage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '7px', marginBottom: '20px' }}>
                   {plan.features.map((f) => (
                     <div key={f} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#1a1a0a' }}>
-                      <span style={{ color: plan.color, fontWeight: '700', flexShrink: 0 }}>✓</span>{f}
+                      <Check size={14} strokeWidth={2.5} style={{ color: plan.color, flexShrink: 0 }} aria-hidden />
+                      {f}
                     </div>
                   ))}
                 </div>

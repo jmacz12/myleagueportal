@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { CheckCircle2, X } from 'lucide-react'
 
 interface Props {
   organizationId: string
@@ -101,8 +102,10 @@ export default function RegistrationForm({
 
   if (success) return (
     <div style={{ background: 'white', border: '0.5px solid #d4c9a8', borderRadius: '14px', padding: '40px 24px', textAlign: 'center', marginBottom: '24px' }}>
-      <div style={{ fontSize: '48px', marginBottom: '16px' }}>🎉</div>
-      <h2 style={{ fontSize: '18px', fontWeight: '800', color: '#1a1a0a', marginBottom: '8px' }}>You're registered!</h2>
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px', color: accent }}>
+        <CheckCircle2 size={48} strokeWidth={1.5} aria-hidden />
+      </div>
+      <h2 style={{ fontSize: '18px', fontWeight: '800', color: '#1a1a0a', marginBottom: '8px' }}>You&apos;re registered</h2>
       <p style={{ fontSize: '14px', color: '#9a8c6a', lineHeight: '1.6' }}>
         Welcome to {leagueName}! The organizer will be in touch with next steps.
         {guests.length > 0 && ` Your ${guests.length} guest${guests.length > 1 ? 's are' : ' is'} also registered.`}
@@ -201,8 +204,14 @@ export default function RegistrationForm({
               <div key={idx} style={{ padding: '12px 14px', borderTop: '0.5px solid #d4c9a8', background: 'white' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
                   <span style={{ fontSize: '12px', fontWeight: '700', color: '#1a1a0a' }}>Guest {idx + 1}</span>
-                  <button type="button" onClick={() => removeGuest(idx)}
-                    style={{ background: 'none', border: 'none', color: '#dc2626', fontSize: '16px', cursor: 'pointer', padding: '0', fontWeight: '700' }}>×</button>
+                  <button type="button" onClick={() => removeGuest(idx)} aria-label="Remove guest"
+                    style={{
+                      background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer',
+                      padding: '4px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                      borderRadius: '6px',
+                    }}>
+                    <X size={16} strokeWidth={2} aria-hidden />
+                  </button>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <input type="text" required placeholder="Guest full name"

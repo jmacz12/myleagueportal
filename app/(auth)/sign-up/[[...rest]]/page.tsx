@@ -20,8 +20,10 @@ export default function SignUpPage() {
               background: 'var(--logo-bg)',
               borderRadius: '6px',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: '12px', flexShrink: 0,
-            }}>⚡</div>
+              flexShrink: 0,
+            }}>
+              <span style={{ fontSize: '10px', fontWeight: '800', color: 'var(--btn-primary-text)', letterSpacing: '0.06em' }}>ML</span>
+            </div>
             <span style={{
               fontSize: '13px', fontWeight: '800',
               color: 'var(--text-primary)', letterSpacing: '0.02em',
