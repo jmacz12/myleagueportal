@@ -13,7 +13,7 @@ export async function GET() {
 
   const { data: org } = await supabaseAdmin
     .from('organizations')
-    .select('id, name, slug, primary_color, plan, stripe_customer_id, stripe_subscription_id')
+    .select('id, name, slug, primary_color, plan, stripe_customer_id, stripe_subscription_id, news_banner')
     .eq('clerk_user_id', userId)
     .single()
 
@@ -34,7 +34,7 @@ export async function PATCH(req: Request) {
 
   if (!org) return NextResponse.json({ error: 'No organization found' }, { status: 404 })
 
-  const { name, slug, primary_color } = await req.json()
+  const { name, slug, primary_color, news_banner } = await req.json()
 
   if (!name || !slug) {
     return NextResponse.json({ error: 'Name and slug are required' }, { status: 400 })
@@ -55,8 +55,10 @@ export async function PATCH(req: Request) {
     )
   }
 
+  // Allow update of name, slug, and news_banner
+  const updateData: any = { name, slug, news_banner }
+  
   // Only allow color change on pro/enterprise
-  const updateData: any = { name, slug }
   if (org.plan !== 'basic') {
     updateData.primary_color = primary_color
   }

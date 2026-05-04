@@ -8,6 +8,7 @@ interface OrgSettings {
   slug: string
   primary_color: string
   plan: string
+  news_banner?: string | null
 }
 
 interface WaiverData {
@@ -24,7 +25,7 @@ export default function SettingsPage() {
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
   const [upgrading, setUpgrading] = useState(false)
-  const [form, setForm] = useState({ name: '', slug: '', primary_color: '#5a7a2a' })
+  const [form, setForm] = useState({ name: '', slug: '', primary_color: '#5a7a2a', news_banner: '' })
   const [activeWaiverTab, setActiveWaiverTab] = useState<'season' | 'dropin' | null>(null)
 
   // Season waiver state
@@ -57,6 +58,7 @@ export default function SettingsPage() {
       name: data.org?.name || '',
       slug: data.org?.slug || '',
       primary_color: data.org?.primary_color || '#5a7a2a',
+      news_banner: data.org?.news_banner || '',
     })
     setLoading(false)
   }
@@ -402,6 +404,23 @@ export default function SettingsPage() {
               <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Applied to your public registration page</span>
             </div>
           </div>
+          
+          {/* NEWS BANNER INPUT ADDED HERE */}
+          <div>
+            <label className="label">League News Banner</label>
+            <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px' }}>
+              This message will appear at the top of your Public Registration page and Organizer Dashboard.
+            </p>
+            <textarea 
+              className="input" 
+              rows={3} 
+              value={form.news_banner || ''}
+              onChange={(e) => setForm({ ...form, news_banner: e.target.value })}
+              placeholder="e.g., Registration for Summer 2026 is now open! Early bird ends May 15th."
+              style={{ resize: 'vertical', lineHeight: '1.6' }} 
+            />
+          </div>
+
           {success && <div style={{ background: '#f0fdf4', border: '0.5px solid #bbf7d0', borderRadius: '8px', padding: '12px 16px', fontSize: '13px', color: '#16a34a', fontWeight: '600' }}>✓ Settings saved successfully!</div>}
           {error && <div style={{ background: '#fef2f2', border: '0.5px solid #fecaca', borderRadius: '8px', padding: '12px 16px', fontSize: '13px', color: '#dc2626' }}>{error}</div>}
           <button type="submit" disabled={saving} className="btn-primary" style={{ alignSelf: 'flex-start' }}>
