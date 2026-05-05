@@ -18,10 +18,17 @@ interface Player {
 interface Team { id: string; name: string; color: string | null; season_id: string }
 interface Season { id: string; name: string }
 
+interface JerseyPollSummary {
+  team_id: string
+  status: string
+  responses: { player_id: string; preferred_number: number }[]
+}
+
 export default function PlayersPage() {
   const [players, setPlayers] = useState<Player[]>([])
   const [teams, setTeams] = useState<Team[]>([])
   const [seasons, setSeasons] = useState<Season[]>([])
+  const [jerseyPolls, setJerseyPolls] = useState<JerseyPollSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedSeason, setSelectedSeason] = useState<string>('all')
   const [selectedTeam, setSelectedTeam] = useState<string>('all')
@@ -31,13 +38,18 @@ export default function PlayersPage() {
   useEffect(() => { fetchData() }, [])
 
   async function fetchData() {
-    const [playersRes, teamsRes, seasonsRes] = await Promise.all([
-      fetch('/api/players'), fetch('/api/teams'), fetch('/api/seasons')
+    const [playersRes, teamsRes, seasonsRes, pollsRes] = await Promise.all([
+      fetch('/api/players'),
+      fetch('/api/teams'),
+      fetch('/api/seasons'),
+      fetch('/api/jersey-polls'),
     ])
     const [pd, td, sd] = await Promise.all([playersRes.json(), teamsRes.json(), seasonsRes.json()])
+    const pollsData = pollsRes.ok ? await pollsRes.json() : { polls: [] }
     setPlayers(pd.players || [])
     setTeams(td.teams || [])
     setSeasons(sd.seasons || [])
+    setJerseyPolls(pollsData.polls || [])
     setLoading(false)
   }
 
@@ -95,6 +107,29 @@ export default function PlayersPage() {
     return seasonMatch && teamMatch
   })
 
+  const pollPreferenceByPlayer = new Map<string, number>()
+  const openPollTeamIds = new Set<string>()
+  for (const pol of jerseyPolls) {
+    if (pol.status !== 'open') continue
+    openPollTeamIds.add(pol.team_id)
+    for (const r of pol.responses) {
+      pollPreferenceByPlayer.set(r.player_id, r.preferred_number)
+    }
+  }
+
+  function pollPreferenceCell(player: Player) {
+    if (!player.team_id || !openPollTeamIds.has(player.team_id)) {
+      return <span style={{ color: 'var(--text-muted)' }}>—</span>
+    }
+    const n = pollPreferenceByPlayer.get(player.id)
+    if (n === undefined) {
+      return <span style={{ fontSize: '11px', color: '#b45309', fontWeight: 600 }}>Pending</span>
+    }
+    return (
+      <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '13px' }}>{n}</span>
+    )
+  }
+
   const teamsForFilter = selectedSeason === 'all' ? teams : teams.filter(t => t.season_id === selectedSeason)
   const getSeasonTeams = (seasonId: string) => teams.filter(t => t.season_id === seasonId)
 
@@ -151,12 +186,13 @@ export default function PlayersPage() {
           {/* Table Header */}
           <div className="table-header" style={{
             display: 'grid',
-            gridTemplateColumns: '3fr 2fr 1fr 1fr 3fr 1fr',
+            gridTemplateColumns: '3fr 2fr 1fr 1fr 1fr 3fr 1fr',
             gap: '8px',
           }}>
             <span>Player</span>
             <span>Contact</span>
-            <span style={{ textAlign: 'center' }}>#</span>
+            <span style={{ textAlign: 'center' }} title="Assigned jersey (organizer)">#</span>
+            <span style={{ textAlign: 'center' }} title="Open team jersey poll">Poll</span>
             <span style={{ textAlign: 'center' }}>Pos</span>
             <span>Team</span>
             <span></span>
@@ -170,7 +206,7 @@ export default function PlayersPage() {
                 className="table-row"
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: '3fr 2fr 1fr 1fr 3fr 1fr',
+                  gridTemplateColumns: '3fr 2fr 1fr 1fr 1fr 3fr 1fr',
                   gap: '8px',
                   alignItems: 'center',
                 }}
@@ -220,6 +256,10 @@ export default function PlayersPage() {
                       fontWeight: 700,
                     }}
                   />
+                </div>
+
+                <div style={{ textAlign: 'center' }}>
+                  {pollPreferenceCell(player)}
                 </div>
 
                 <div style={{ textAlign: 'center' }}>

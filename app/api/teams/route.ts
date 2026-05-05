@@ -13,7 +13,7 @@ export async function GET() {
 
   const { data: org } = await supabaseAdmin
     .from('organizations')
-    .select('id')
+    .select('id, slug')
     .eq('clerk_user_id', userId)
     .single()
 
@@ -25,7 +25,23 @@ export async function GET() {
     .eq('organization_id', org.id)
     .order('created_at', { ascending: false })
 
-  return NextResponse.json({ teams: teams || [] })
+  const list = teams || []
+  const teamIds = list.map((t) => t.id)
+  const counts: Record<string, number> = {}
+  if (teamIds.length > 0) {
+    const { data: rosterRows } = await supabaseAdmin
+      .from('players')
+      .select('team_id')
+      .in('team_id', teamIds)
+    for (const row of rosterRows || []) {
+      if (row.team_id) counts[row.team_id] = (counts[row.team_id] || 0) + 1
+    }
+  }
+
+  return NextResponse.json({
+    teams: list.map((t) => ({ ...t, player_count: counts[t.id] || 0 })),
+    org_slug: org.slug,
+  })
 }
 
 export async function POST(req: Request) {
