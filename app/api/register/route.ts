@@ -47,6 +47,34 @@ export async function POST(req: Request) {
 
     // ─── DROP-IN REGISTRATION PATH ────────────────────────────────────────────
     if (session_id) {
+      const { data: sessionRow, error: sessionLookupErr } = await supabaseAdmin
+        .from('dropin_sessions')
+        .select('id, organization_id, status, max_players')
+        .eq('id', session_id)
+        .single()
+
+      if (sessionLookupErr || !sessionRow) {
+        return NextResponse.json({ error: 'This session is not available for registration.' }, { status: 400 })
+      }
+      if (sessionRow.organization_id !== organization_id) {
+        return NextResponse.json({ error: 'Session does not belong to this league.' }, { status: 400 })
+      }
+      if (sessionRow.status !== 'upcoming') {
+        return NextResponse.json({ error: 'This session is no longer open for sign-ups.' }, { status: 400 })
+      }
+
+      const maxPlayers = Number(sessionRow.max_players) || 0
+      if (maxPlayers > 0) {
+        const { count: hostCount } = await supabaseAdmin
+          .from('dropin_registrations')
+          .select('*', { count: 'exact', head: true })
+          .eq('session_id', session_id)
+          .eq('is_guest', false)
+        if (hostCount != null && hostCount >= maxPlayers) {
+          return NextResponse.json({ error: 'This session is full.' }, { status: 400 })
+        }
+      }
+
       if (email) {
         const { data: existing } = await supabaseAdmin
           .from('dropin_registrations')
@@ -71,7 +99,7 @@ export async function POST(req: Request) {
           organization_id,
           full_name,
           email: email || null,
-          positions: positions ?? [],
+          positions: Array.isArray(positions) ? positions : [],
           waiver_accepted: waiver_accepted ?? false,
           is_guest: false,
           checked_in: false,
@@ -82,8 +110,19 @@ export async function POST(req: Request) {
 
       if (hostError || !hostRow) {
         console.error('Drop-in host insert error:', hostError)
+        const code = (hostError as { code?: string } | null)?.code
+        const msg = (hostError as { message?: string } | null)?.message || ''
+        if (code === '23505' || /duplicate|unique/i.test(msg)) {
+          return NextResponse.json(
+            { error: 'You are already registered for this session (or this email is already on the list).' },
+            { status: 400 }
+          )
+        }
         return NextResponse.json(
-          { error: 'Failed to register. Please try again.' },
+          {
+            error: 'Failed to register. Please try again.',
+            detail: process.env.NODE_ENV === 'development' ? msg : undefined,
+          },
           { status: 500 }
         )
       }

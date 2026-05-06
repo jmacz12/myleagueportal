@@ -2,12 +2,16 @@
 
 import { useState } from 'react'
 import { CheckCircle2, X } from 'lucide-react'
+import type { ThemePreset } from '@/lib/leagueTheme'
+import { contrastTextForAccent } from '@/lib/leagueTheme'
 
 interface Props {
   organizationId: string
   seasonId: string
   leagueName: string
   primaryColor?: string
+  /** When set, form chrome matches league home / join hub theme tokens */
+  preset?: ThemePreset | null
   /** Season registration: false — each player registers individually */
   showGuests?: boolean
   /** Long waivers: read full text in a modal with Accept / Decline */
@@ -27,6 +31,7 @@ export default function RegistrationForm({
   seasonId,
   leagueName,
   primaryColor,
+  preset,
   showGuests = true,
   waiverLayout = 'inline',
   waiverTitle,
@@ -44,7 +49,13 @@ export default function RegistrationForm({
   const [waiverAccepted, setWaiverAccepted] = useState(false)
   const [waiverModalOpen, setWaiverModalOpen] = useState(false)
 
-  const accent = primaryColor || '#5a7a2a'
+  const accent = preset?.accent ?? primaryColor ?? '#5a7a2a'
+  const surfaceBorder = preset?.surfaceBorder ?? '#d4c9a8'
+  const headingCol = preset?.heading ?? '#1a1a0a'
+  const mutedCol = preset?.muted ?? '#9a8c6a'
+  const bodyCol = preset?.body ?? '#6b5e3a'
+  const inputBg = preset?.accentSoftBg ?? '#f8f6f0'
+  const surfaceBg = preset?.surfaceBg ?? '#ffffff'
   const displayWaiverTitle = waiverTitle || DEFAULT_WAIVER_TITLE
   const displayWaiverText = waiverText || DEFAULT_WAIVER_TEXT
 
@@ -104,28 +115,49 @@ export default function RegistrationForm({
   }
 
   const inputStyle = {
-    width: '100%', background: '#f8f6f0', border: '0.5px solid #d4c9a8',
-    borderRadius: '8px', padding: '10px 14px', fontSize: '14px',
-    color: '#1a1a0a', fontFamily: 'inherit', outline: 'none',
+    width: '100%',
+    background: inputBg,
+    border: `0.5px solid ${surfaceBorder}`,
+    borderRadius: '8px',
+    padding: '10px 14px',
+    fontSize: '14px',
+    color: headingCol,
+    fontFamily: 'inherit',
+    outline: 'none',
   }
   const labelStyle = {
-    display: 'block', fontSize: '11px', fontWeight: '700' as const,
-    textTransform: 'uppercase' as const, letterSpacing: '0.07em',
-    color: '#9a8c6a', marginBottom: '6px',
+    display: 'block',
+    fontSize: '11px',
+    fontWeight: '700' as const,
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.07em',
+    color: mutedCol,
+    marginBottom: '6px',
   }
 
-  if (success) return (
-    <div style={{ background: 'white', border: '0.5px solid #d4c9a8', borderRadius: '14px', padding: '40px 24px', textAlign: 'center', marginBottom: '24px' }}>
-      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px', color: accent }}>
-        <CheckCircle2 size={48} strokeWidth={1.5} aria-hidden />
+  if (success) {
+    return (
+      <div
+        style={{
+          background: surfaceBg,
+          border: `0.5px solid ${surfaceBorder}`,
+          borderRadius: '14px',
+          padding: '40px 24px',
+          textAlign: 'center',
+          marginBottom: '24px',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px', color: accent }}>
+          <CheckCircle2 size={48} strokeWidth={1.5} aria-hidden />
+        </div>
+        <h2 style={{ fontSize: '18px', fontWeight: 800, color: headingCol, marginBottom: '8px' }}>You&apos;re registered</h2>
+        <p style={{ fontSize: '14px', color: mutedCol, lineHeight: 1.6 }}>
+          Welcome to {leagueName}! The organizer will be in touch with next steps.
+          {showGuests && guests.length > 0 && ` Your ${guests.length} guest${guests.length > 1 ? 's are' : ' is'} also registered.`}
+        </p>
       </div>
-      <h2 style={{ fontSize: '18px', fontWeight: '800', color: '#1a1a0a', marginBottom: '8px' }}>You&apos;re registered</h2>
-      <p style={{ fontSize: '14px', color: '#9a8c6a', lineHeight: '1.6' }}>
-        Welcome to {leagueName}! The organizer will be in touch with next steps.
-        {showGuests && guests.length > 0 && ` Your ${guests.length} guest${guests.length > 1 ? 's are' : ' is'} also registered.`}
-      </p>
-    </div>
-  )
+    )
+  }
 
   return (
     <>
@@ -143,15 +175,15 @@ export default function RegistrationForm({
           onClick={(e) => { if (e.target === e.currentTarget) setWaiverModalOpen(false) }}
         >
           <div style={{
-            background: 'white',
+            background: surfaceBg,
             borderRadius: '14px',
             maxWidth: '440px', width: '100%', maxHeight: '85vh',
             display: 'flex', flexDirection: 'column',
-            border: '1px solid #d4c9a8',
+            border: `1px solid ${surfaceBorder}`,
             boxShadow: '0 20px 40px rgba(0,0,0,0.15)',
           }}>
-            <div style={{ padding: '16px 18px', borderBottom: '1px solid #ede5cc', flexShrink: 0 }}>
-              <h2 id="waiver-modal-title" style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#1a1a0a' }}>
+            <div style={{ padding: '16px 18px', borderBottom: `1px solid ${surfaceBorder}`, flexShrink: 0 }}>
+              <h2 id="waiver-modal-title" style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: headingCol }}>
                 {displayWaiverTitle}
               </h2>
             </div>
@@ -168,7 +200,7 @@ export default function RegistrationForm({
             </div>
             <div style={{
               padding: '14px 18px',
-              borderTop: '1px solid #ede5cc',
+              borderTop: `1px solid ${surfaceBorder}`,
               display: 'flex',
               gap: '10px',
               justifyContent: 'flex-end',
@@ -184,13 +216,13 @@ export default function RegistrationForm({
                 style={{
                   padding: '10px 16px',
                   borderRadius: '8px',
-                  border: '1px solid #d4c9a8',
-                  background: 'white',
+                  border: `1px solid ${surfaceBorder}`,
+                  background: surfaceBg,
                   fontWeight: 700,
                   fontSize: '13px',
                   cursor: 'pointer',
                   fontFamily: 'inherit',
-                  color: '#6b5e3a',
+                  color: bodyCol,
                 }}
               >
                 Decline
@@ -206,7 +238,7 @@ export default function RegistrationForm({
                   borderRadius: '8px',
                   border: 'none',
                   background: accent,
-                  color: 'white',
+                  color: contrastTextForAccent(accent),
                   fontWeight: 700,
                   fontSize: '13px',
                   cursor: 'pointer',
@@ -220,8 +252,8 @@ export default function RegistrationForm({
         </div>
       )}
 
-      <div style={{ background: 'white', border: '0.5px solid #d4c9a8', borderRadius: '14px', padding: '24px', marginBottom: '24px' }}>
-        <h2 style={{ fontSize: '16px', fontWeight: '800', color: '#1a1a0a', marginBottom: '20px' }}>Register to Play</h2>
+      <div style={{ background: surfaceBg, border: `0.5px solid ${surfaceBorder}`, borderRadius: '14px', padding: '24px', marginBottom: '24px' }}>
+        <h2 style={{ fontSize: '16px', fontWeight: 800, color: headingCol, marginBottom: '20px' }}>Register to Play</h2>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
           <div>
@@ -252,9 +284,9 @@ export default function RegistrationForm({
                 <button key={pos} type="button" onClick={() => togglePosition(pos)}
                   style={{
                     padding: '5px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: '700',
-                    border: form.positions.includes(pos) ? `1.5px solid ${accent}` : '0.5px solid #d4c9a8',
+                    border: form.positions.includes(pos) ? `1.5px solid ${accent}` : `0.5px solid ${surfaceBorder}`,
                     background: form.positions.includes(pos) ? accent : 'transparent',
-                    color: form.positions.includes(pos) ? 'white' : '#6b5e3a',
+                    color: form.positions.includes(pos) ? contrastTextForAccent(accent) : bodyCol,
                     cursor: 'pointer', fontFamily: 'inherit',
                   }}>
                   {pos}
@@ -265,11 +297,11 @@ export default function RegistrationForm({
 
           {/* Waiver */}
           {waiverLayout === 'modal' ? (
-            <div style={{ background: '#f8f6f0', border: '0.5px solid #d4c9a8', borderRadius: '8px', padding: '14px 14px' }}>
-              <div style={{ fontSize: '13px', fontWeight: '700', color: '#1a1a0a', marginBottom: '8px' }}>
+            <div style={{ background: inputBg, border: `0.5px solid ${surfaceBorder}`, borderRadius: '8px', padding: '14px 14px' }}>
+              <div style={{ fontSize: '13px', fontWeight: 700, color: headingCol, marginBottom: '8px' }}>
                 {displayWaiverTitle}
               </div>
-              <p style={{ fontSize: '12px', color: '#9a8c6a', margin: '0 0 12px', lineHeight: 1.45 }}>
+              <p style={{ fontSize: '12px', color: mutedCol, margin: '0 0 12px', lineHeight: 1.45 }}>
                 Tap below to read the full text. You must accept to register.
               </p>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
@@ -293,22 +325,22 @@ export default function RegistrationForm({
                 {waiverAccepted ? (
                   <span style={{ fontSize: '12px', fontWeight: 700, color: '#16a34a' }}>Accepted</span>
                 ) : (
-                  <span style={{ fontSize: '12px', color: '#9a8c6a' }}>Not accepted yet</span>
+                  <span style={{ fontSize: '12px', color: mutedCol }}>Not accepted yet</span>
                 )}
               </div>
             </div>
           ) : (
-            <div style={{ background: '#f8f6f0', border: '0.5px solid #d4c9a8', borderRadius: '8px', padding: '12px 14px' }}>
-              <div style={{ fontSize: '11px', fontWeight: '700', color: '#9a8c6a', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '6px' }}>
+            <div style={{ background: inputBg, border: `0.5px solid ${surfaceBorder}`, borderRadius: '8px', padding: '12px 14px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: mutedCol, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '6px' }}>
                 {displayWaiverTitle}
               </div>
-              <div style={{ fontSize: '11px', color: '#6b5e3a', lineHeight: '1.5', marginBottom: '10px', maxHeight: '120px', overflowY: 'auto' }}>
+              <div style={{ fontSize: '11px', color: bodyCol, lineHeight: 1.5, marginBottom: '10px', maxHeight: '120px', overflowY: 'auto' }}>
                 {displayWaiverText}
               </div>
               <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
                 <input type="checkbox" checked={waiverAccepted} onChange={(e) => setWaiverAccepted(e.target.checked)}
                   style={{ marginTop: '2px', accentColor: accent, width: '14px', height: '14px', flexShrink: 0 }} />
-                <span style={{ fontSize: '12px', color: '#1a1a0a', fontWeight: '600' }}>
+                <span style={{ fontSize: '12px', color: headingCol, fontWeight: 600 }}>
                   I have read and accept the liability waiver
                 </span>
               </label>
@@ -326,15 +358,15 @@ export default function RegistrationForm({
                   </div>
                 </div>
                 <button type="button" onClick={addGuest}
-                  style={{ background: accent, color: 'white', border: 'none', borderRadius: '6px', padding: '5px 12px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
+                  style={{ background: accent, color: contrastTextForAccent(accent), border: 'none', borderRadius: '6px', padding: '5px 12px', fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
                   + Add Guest
                 </button>
               </div>
 
               {guests.map((guest, idx) => (
-                <div key={idx} style={{ padding: '12px 14px', borderTop: '0.5px solid #d4c9a8', background: 'white' }}>
+                <div key={idx} style={{ padding: '12px 14px', borderTop: `0.5px solid ${surfaceBorder}`, background: surfaceBg }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                    <span style={{ fontSize: '12px', fontWeight: '700', color: '#1a1a0a' }}>Guest {idx + 1}</span>
+                    <span style={{ fontSize: '12px', fontWeight: 700, color: headingCol }}>Guest {idx + 1}</span>
                     <button type="button" onClick={() => removeGuest(idx)} aria-label="Remove guest"
                       style={{
                         background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer',
@@ -355,7 +387,7 @@ export default function RegistrationForm({
                       <input type="checkbox" checked={guest.waiver_accepted}
                         onChange={(e) => updateGuest(idx, 'waiver_accepted', e.target.checked)}
                         style={{ marginTop: '2px', accentColor: accent, width: '14px', height: '14px', flexShrink: 0 }} />
-                      <span style={{ fontSize: '11px', color: '#1a1a0a', fontWeight: '600' }}>
+                      <span style={{ fontSize: '11px', color: headingCol, fontWeight: 600 }}>
                         Guest accepts the liability waiver
                       </span>
                     </label>
@@ -374,9 +406,10 @@ export default function RegistrationForm({
           <button type="submit" disabled={loading || !form.full_name || !waiverAccepted}
             style={{
               width: '100%',
-              background: loading || !form.full_name || !waiverAccepted ? '#9a8c6a' : accent,
-              color: 'white', border: 'none', borderRadius: '8px', padding: '12px',
-              fontSize: '14px', fontWeight: '700',
+              background: loading || !form.full_name || !waiverAccepted ? mutedCol : accent,
+              color: loading || !form.full_name || !waiverAccepted ? contrastTextForAccent(mutedCol) : contrastTextForAccent(accent),
+              border: 'none', borderRadius: '8px', padding: '12px',
+              fontSize: '14px', fontWeight: 700,
               cursor: loading || !form.full_name || !waiverAccepted ? 'not-allowed' : 'pointer',
               fontFamily: 'inherit', transition: 'background 0.15s',
             }}>

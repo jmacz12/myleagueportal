@@ -1,17 +1,25 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { ImagePlus, Loader2 } from 'lucide-react'
 import ThemeSelector from './ThemeSelector'
+import { contrastTextForAccent, getThemePresets } from '@/lib/leagueTheme'
 
 interface OrgSettings {
   name: string
   slug: string
   primary_color: string
   plan: string
+  logo_url?: string | null
   news_banner?: string | null
   news_banner_color?: string | null
   league_timezone?: string | null
+  league_theme_preset?: string | null
+  brand_color_change_count?: number | null
+  brand_color_change_period_start?: string | null
 }
+
+const PRO_BRAND_COLOR_CHANGES_PER_MONTH = 5
 
 const TIMEZONE_OPTIONS = [
   'America/Vancouver',
@@ -48,6 +56,7 @@ export default function SettingsPage() {
     news_banner: '',
     news_banner_color: '#5a7a2a',
     league_timezone: 'America/Vancouver',
+    league_theme_preset: 'preset-1',
   })
   const [activeWaiverTab, setActiveWaiverTab] = useState<'season' | 'dropin' | null>(null)
 
@@ -72,6 +81,7 @@ export default function SettingsPage() {
   const [dropinExtractError, setDropinExtractError] = useState('')
   const [waiverExporting, setWaiverExporting] = useState(false)
   const [waiverExportError, setWaiverExportError] = useState('')
+  const [logoUploading, setLogoUploading] = useState(false)
 
   useEffect(() => { fetchSettings(); fetchWaivers() }, [])
 
@@ -86,6 +96,7 @@ export default function SettingsPage() {
       news_banner: data.org?.news_banner || '',
       news_banner_color: data.org?.news_banner_color || '#5a7a2a',
       league_timezone: data.org?.league_timezone || 'America/Vancouver',
+      league_theme_preset: data.org?.league_theme_preset || 'preset-1',
     })
     setLoading(false)
   }
@@ -145,6 +156,47 @@ export default function SettingsPage() {
     if (data.dropin) {
       setDropinWaiver(data.dropin)
       setDropinWaiverForm({ title: data.dropin.title, content: data.dropin.content })
+    }
+  }
+
+  async function uploadLeagueLogo(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setError('')
+    setLogoUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch('/api/settings/logo', { method: 'POST', body: fd })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(typeof data.error === 'string' ? data.error : 'Logo upload failed')
+        return
+      }
+      await fetchSettings()
+      setSuccess(true)
+      setTimeout(() => setSuccess(false), 2500)
+    } finally {
+      setLogoUploading(false)
+    }
+  }
+
+  async function clearLeagueLogo() {
+    setError('')
+    setLogoUploading(true)
+    try {
+      const res = await fetch('/api/settings/logo', { method: 'DELETE' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setError(typeof data.error === 'string' ? data.error : 'Could not remove logo')
+        return
+      }
+      await fetchSettings()
+      setSuccess(true)
+      setTimeout(() => setSuccess(false), 2500)
+    } finally {
+      setLogoUploading(false)
     }
   }
 
@@ -248,6 +300,10 @@ export default function SettingsPage() {
   }
 
   const isPro = settings?.plan === 'pro' || settings?.plan === 'enterprise'
+  const isEnterprise = settings?.plan === 'enterprise'
+  const generatedPresets = getThemePresets(form.primary_color)
+  const proColorChangesUsed = Number(settings?.brand_color_change_count || 0)
+  const proColorChangesRemaining = Math.max(0, PRO_BRAND_COLOR_CHANGES_PER_MONTH - proColorChangesUsed)
 
   const planFeatures: Record<string, string[]> = {
     basic: ['50 players max', '1 active season', 'Standard branding', 'Basic roster management'],
@@ -440,6 +496,85 @@ export default function SettingsPage() {
             <input type="text" required value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })} className="input" />
           </div>
+
+          <div>
+            <label className="label">League logo</label>
+            <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '10px', lineHeight: 1.45 }}>
+              Shown on your public league home, join hub, and drop-ins. Square or wide images work; we fit them inside the hero. Upload replaces the letter initials block everywhere.
+            </p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '14px' }}>
+              <div
+                style={{
+                  width: '72px',
+                  height: '72px',
+                  borderRadius: '12px',
+                  border: '0.5px solid var(--border)',
+                  background: 'var(--bg-elevated)',
+                  overflow: 'hidden',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                {settings?.logo_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={settings.logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                ) : (
+                  <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', padding: '8px', textAlign: 'center' }}>
+                    No logo
+                  </span>
+                )}
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+                <label
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '8px 14px',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    borderRadius: '8px',
+                    cursor: logoUploading ? 'wait' : 'pointer',
+                    border: '0.5px solid var(--border)',
+                    background: 'var(--bg-elevated)',
+                    opacity: logoUploading ? 0.75 : 1,
+                  }}
+                >
+                  {logoUploading ? <Loader2 size={16} className="animate-spin" aria-hidden /> : <ImagePlus size={16} aria-hidden />}
+                  {logoUploading ? 'Working…' : 'Upload image'}
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    hidden
+                    disabled={logoUploading}
+                    onChange={uploadLeagueLogo}
+                  />
+                </label>
+                {settings?.logo_url ? (
+                  <button
+                    type="button"
+                    disabled={logoUploading}
+                    onClick={clearLeagueLogo}
+                    style={{
+                      padding: '8px 12px',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      borderRadius: '8px',
+                      border: '0.5px solid var(--border)',
+                      background: 'transparent',
+                      cursor: logoUploading ? 'not-allowed' : 'pointer',
+                      color: 'var(--text-muted)',
+                    }}
+                  >
+                    Remove logo
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          </div>
+
           <div>
             <label className="label">
               Registration URL
@@ -460,8 +595,11 @@ export default function SettingsPage() {
               style={{ marginTop: '6px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', color: 'var(--accent)', fontWeight: '600', padding: 0, display: 'flex', alignItems: 'center', gap: '4px' }}>
               {copied ? 'Copied' : 'Copy registration link'}
             </button>
-            <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
-              {settings?.plan === 'basic' ? 'Upgrade to Pro to set a custom, memorable URL' : `Players register at: myleagueportal.com/join/${form.slug}`}
+            <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', lineHeight: 1.45 }}>
+              {settings?.plan === 'basic' ? 'Upgrade to Pro to set a custom, memorable URL.' : `Registration & drop-ins: myleagueportal.com/join/${form.slug}`}
+              <br />
+              League home (teams, rosters, news):{' '}
+              <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>myleagueportal.com/league/{form.slug}</span>
             </p>
           </div>
           <div>
@@ -473,9 +611,72 @@ export default function SettingsPage() {
               <input type="color" value={form.primary_color} onChange={(e) => setForm({ ...form, primary_color: e.target.value })}
                 disabled={settings?.plan === 'basic'}
                 style={{ width: '44px', height: '36px', borderRadius: '6px', border: '0.5px solid var(--border)', cursor: 'pointer', background: 'none', padding: '2px' }} />
-              <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Applied to your public registration page</span>
+              <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Used to generate league page themes</span>
             </div>
+            {settings?.plan === 'pro' && (
+              <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
+                Brand color changes remaining this month: <strong style={{ color: 'var(--text-primary)' }}>{proColorChangesRemaining}</strong> / {PRO_BRAND_COLOR_CHANGES_PER_MONTH}
+              </p>
+            )}
           </div>
+
+          {isPro && (
+            <div>
+              <label className="label">League Theme Preset</label>
+              <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '10px' }}>
+                {isEnterprise
+                  ? 'Pick a preset as your base style. Enterprise custom controls can extend this later.'
+                  : 'Pro includes 5 presets auto-generated from your brand color.'}
+              </p>
+              <select
+                className="input"
+                value={form.league_theme_preset}
+                onChange={(e) => setForm({ ...form, league_theme_preset: e.target.value })}
+                style={{ marginBottom: '12px' }}
+              >
+                {generatedPresets.map((preset) => (
+                  <option key={preset.id} value={preset.id}>
+                    {preset.name} - {preset.description}
+                  </option>
+                ))}
+              </select>
+              {(() => {
+                const active = generatedPresets.find((p) => p.id === form.league_theme_preset) || generatedPresets[0]
+                return (
+                  <div
+                    style={{
+                      borderRadius: '10px',
+                      border: `1px solid ${active.surfaceBorder}`,
+                      background: active.pageBg,
+                      padding: '12px',
+                    }}
+                  >
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '8px', marginBottom: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ width: '18px', height: '18px', borderRadius: '999px', background: active.pageBg, border: '1px solid rgba(0,0,0,0.08)' }} />
+                        <span style={{ fontSize: '10px', color: active.body }}>Page</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ width: '18px', height: '18px', borderRadius: '999px', background: active.surfaceBg, border: `1px solid ${active.surfaceBorder}` }} />
+                        <span style={{ fontSize: '10px', color: active.body }}>Card</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ width: '18px', height: '18px', borderRadius: '999px', background: active.accent, border: '1px solid rgba(0,0,0,0.08)' }} />
+                        <span style={{ fontSize: '10px', color: active.body }}>Accent</span>
+                      </div>
+                    </div>
+                    <div style={{ fontSize: '12px', fontWeight: 700, color: active.heading }}>{active.name}</div>
+                    <div style={{ fontSize: '11px', color: active.body, marginTop: '2px' }}>
+                      {active.description}
+                    </div>
+                    <div style={{ marginTop: '8px', fontSize: '10px', fontWeight: 700, color: contrastTextForAccent(active.accent), background: active.accent, borderRadius: '999px', padding: '4px 8px', display: 'inline-block' }}>
+                      Active
+                    </div>
+                  </div>
+                )
+              })()}
+            </div>
+          )}
           
           <div>
             <label className="label">League Time Zone</label>

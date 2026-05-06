@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { EMPTY_LEAGUE_SITE, parseLeagueSitePayload } from '@/lib/league-site'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -18,20 +19,27 @@ export async function GET(
 
   let { data: orgWithTz, error: orgWithTzError } = await supabaseAdmin
     .from('organizations')
-    .select('id, name, slug, primary_color, logo_url, news_banner, news_banner_color, league_timezone')
+    .select(
+      'id, name, slug, primary_color, logo_url, news_banner, news_banner_color, league_timezone, league_theme_preset'
+    )
     .eq('slug', slug)
     .single()
 
   const { data: orgWithoutTz } = orgWithTzError
     ? await supabaseAdmin
         .from('organizations')
-        .select('id, name, slug, primary_color, logo_url, news_banner, news_banner_color')
+        .select(
+          'id, name, slug, primary_color, logo_url, news_banner, news_banner_color, league_theme_preset'
+        )
         .eq('slug', slug)
         .single()
     : { data: null as any }
 
   const org =
-    orgWithTz || (orgWithoutTz ? { ...orgWithoutTz, league_timezone: null } : null)
+    orgWithTz ||
+    (orgWithoutTz
+      ? { ...orgWithoutTz, league_timezone: null, league_theme_preset: 'preset-1' }
+      : null)
   const orgError = orgWithTzError && !orgWithoutTz ? orgWithTzError : null
 
   if (orgError || !org) {
@@ -98,6 +106,17 @@ export async function GET(
     .eq('is_active', true)
     .maybeSingle()
 
+  let leagueSite = EMPTY_LEAGUE_SITE
+  const { data: siteRow, error: siteErr } = await supabaseAdmin
+    .from('league_site_content')
+    .select('published')
+    .eq('organization_id', org.id)
+    .maybeSingle()
+
+  if (!siteErr && siteRow?.published != null) {
+    leagueSite = parseLeagueSitePayload(siteRow.published)
+  }
+
   const seasonRegistrationOpen = !!(competitiveSeason && registrationWindowAllows(competitiveSeason))
 
   return NextResponse.json({
@@ -106,5 +125,7 @@ export async function GET(
     seasonWaiver,
     /** True when online signup is on and inside optional opens/closes window */
     seasonRegistrationOpen,
+    /** Published public home content (news, media, hero background, etc.) */
+    leagueSite,
   })
 }

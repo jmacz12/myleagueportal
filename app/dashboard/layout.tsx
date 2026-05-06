@@ -2,7 +2,8 @@
 
 import { UserButton } from '@clerk/nextjs'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
+import { useEffect, useMemo, useState } from 'react'
 import {
   type LucideIcon,
   LayoutDashboard,
@@ -12,15 +13,17 @@ import {
   Trophy,
   Timer,
   Settings,
+  Globe,
 } from 'lucide-react'
 
-const navItems: { href: string; label: string; Icon: LucideIcon }[] = [
+const allNavItems: { href: string; label: string; Icon: LucideIcon }[] = [
   { href: '/dashboard', label: 'Overview', Icon: LayoutDashboard },
   { href: '/dashboard/seasons', label: 'Seasons', Icon: CalendarDays },
   { href: '/dashboard/teams', label: 'Teams', Icon: Users },
   { href: '/dashboard/players', label: 'Players', Icon: UserCircle },
   { href: '/dashboard/games', label: 'Games', Icon: Trophy },
   { href: '/dashboard/dropin', label: 'Drop-ins', Icon: Timer },
+  { href: '/dashboard/league-site', label: 'League website', Icon: Globe },
   { href: '/dashboard/settings', label: 'Settings', Icon: Settings },
 ]
 
@@ -30,6 +33,38 @@ export default function DashboardLayout({
   children: React.ReactNode
 }) {
   const pathname = usePathname()
+  const router = useRouter()
+  const [access, setAccess] = useState<{ role: 'owner' | 'editor' } | null | undefined>(undefined)
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/me/org-access')
+      .then((r) => r.json())
+      .then((d) => {
+        if (cancelled) return
+        setAccess(d.access ?? null)
+      })
+      .catch(() => {
+        if (!cancelled) setAccess(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!access || access.role !== 'editor') return
+    const onLeagueSite =
+      pathname === '/dashboard/league-site' || pathname.startsWith('/dashboard/league-site/')
+    if (!onLeagueSite) router.replace('/dashboard/league-site')
+  }, [access, pathname, router])
+
+  const navItems = useMemo(() => {
+    if (access?.role === 'editor') {
+      return allNavItems.filter((i) => i.href === '/dashboard/league-site')
+    }
+    return allNavItems
+  }, [access])
 
   const isActive = (href: string) => {
     if (href === '/dashboard') return pathname === '/dashboard'
@@ -99,7 +134,7 @@ export default function DashboardLayout({
 
         {/* Nav */}
         <nav style={{ flex: 1, padding: '10px 8px' }}>
-          {navItems.map(({ href, label, Icon }) => (
+          {(access === undefined ? allNavItems : navItems).map(({ href, label, Icon }) => (
             <Link
               key={href}
               href={href}
@@ -162,7 +197,7 @@ export default function DashboardLayout({
 
       {/* Mobile Bottom Nav */}
       <nav className="mobile-nav">
-        {navItems.map(({ href, label, Icon }) => (
+        {(access === undefined ? allNavItems : navItems).map(({ href, label, Icon }) => (
           <Link
             key={href}
             href={href}

@@ -1,0 +1,93 @@
+import { NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
+
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
+
+function formatPosition(row: {
+  positions?: string[] | null
+}): string | null {
+  const arr = row.positions
+  if (Array.isArray(arr) && arr.length > 0) return arr.join(', ')
+  return null
+}
+
+/**
+ * Public team page payload — roster without email/phone (Basic tier).
+ */
+export async function GET(
+  _req: Request,
+  { params }: { params: Promise<{ slug: string; teamId: string }> }
+) {
+  const { slug, teamId } = await params
+
+  const { data: org, error: orgError } = await supabaseAdmin
+    .from('organizations')
+    .select('id, name, slug, primary_color, logo_url, league_theme_preset')
+    .eq('slug', slug)
+    .single()
+
+  if (orgError || !org) {
+    return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
+  }
+
+  const { data: team, error: teamError } = await supabaseAdmin
+    .from('teams')
+    .select('id, name, color, season_id, organization_id')
+    .eq('id', teamId)
+    .single()
+
+  if (teamError || !team || team.organization_id !== org.id) {
+    return NextResponse.json({ error: 'Team not found' }, { status: 404 })
+  }
+
+  const { data: season } = await supabaseAdmin
+    .from('seasons')
+    .select('id, name')
+    .eq('id', team.season_id)
+    .maybeSingle()
+
+  const { data: players, error: playersError } = await supabaseAdmin
+    .from('players')
+    .select('id, full_name, jersey_number, positions')
+    .eq('team_id', teamId)
+    .order('full_name', { ascending: true })
+
+  if (playersError) {
+    return NextResponse.json({ error: 'Failed to load roster' }, { status: 500 })
+  }
+
+  const { data: openPoll } = await supabaseAdmin
+    .from('jersey_polls')
+    .select('id')
+    .eq('team_id', teamId)
+    .eq('status', 'open')
+    .maybeSingle()
+
+  const roster = (players || []).map((p) => ({
+    id: p.id,
+    full_name: p.full_name,
+    jersey_number: p.jersey_number,
+    position_label: formatPosition(p as { positions?: string[] | null }),
+  }))
+
+  return NextResponse.json({
+    organization: {
+      name: org.name,
+      slug: org.slug,
+      primary_color: org.primary_color,
+      logo_url: org.logo_url,
+      league_theme_preset: org.league_theme_preset ?? 'preset-1',
+    },
+    team: {
+      id: team.id,
+      name: team.name,
+      color: team.color,
+      season_name: season?.name || 'Season',
+    },
+    roster,
+    open_jersey_poll_id: openPoll?.id ?? null,
+  })
+}

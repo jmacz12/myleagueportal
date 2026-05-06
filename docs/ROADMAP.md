@@ -8,10 +8,16 @@ Readable breakdown of what exists today versus what is planned. Update this file
 
 Most of this is **not built yet**; this section records **Basic / Pro / Enterprise** intent so public surfaces and billing stay aligned.
 
+### Information architecture (target)
+
+- **League home** — A **dedicated public home for the league**: the place for everything **browse, follow, and watch**—teams & rosters, standings/stats (tiered), featured games, **video/stream**, stream **overlays** (tiered), news/banner, and clear paths to **join** the season or **drop-ins**. **Target route:** e.g. `**/league/[slug]`** (exact path TBD; Enterprise may pair with **custom domains** from Phase 7).
+- **Join** — `**/join/[slug]`** is for **people taking action**: **season registration**, **drop-ins**, and **player tasks** (e.g. **jersey poll**). It should read as **“sign up / participate,”** not the full league destination. League home and join **cross-link** (e.g. “Register” on league home → join flows; “League home” from join when helpful).
+- **Shipped (Basic shell):** `**/league/[slug]`** — league home (news banner, current season context, **team directory** → `**/league/[slug]/teams/[teamId]`**, Participate links to `**/join/...`** for season signup & drop-ins). `**/join/[slug]**` — signup hub (league home card + season + drop-ins). Legacy `**/join/[slug]/teams/[id]**` redirects to `**/league/.../teams/[id]**`.
+- **Shipped (CMS v1):** Dashboard **League website** (`**/dashboard/league-site`**) and **on-page editing** at **`/league/[slug]?edit=1`** (owners / website editors) — **Save draft** / **Publish**; **hero** upload; **text**, **news**, **media** blocks with **Up / Down** reorder in dashboard and on-page editor. **`GET /api/join/[slug]/hub`** includes **`leagueSite`** (published only). APIs: **`/api/league-site`**, **`/api/league-site/upload`**, **`/api/me/org-access`**, **`/api/organization-editors`**. **Organization editors** by email (Clerk account must exist). **Gallery:** tier caps on total photos (Basic / Pro / Enterprise), carousel + lightbox on public league home, multi-file uploads with **circular/spinner** busy indicators on media + hero uploads and **loader icons** on save/publish/add-editor. **Join surfaces theme parity:** **`/join/[slug]`**, **`/join/[slug]/register`**, **`/join/[slug]/dropins`** use the same **`resolveThemePreset(brand color, league_theme_preset)`** tokens as **`/league/[slug]`** so organizer theme changes stay consistent. **Dev seed:** `**POST /api/dev/seed-teams-players**` — **`withLeagueSiteDemo: true`** upserts rich **`league_site_content`** (TEXT + NEWS + media). **`fullPortalDemo: true`** (dev) also seeds **up to 8 [SEED] teams**, **25 roster players**, opens **season online registration**, inserts **[SEED] drop-in sessions** with sample **`dropin_registrations`**, and implies the league-site demo payload. **Migrations:** `**20260505213000_league_site_content.sql**` (+ **`20260505213039`** no-op for alignment).
+
 ### Basic
 
-- Public **league hub** (`/join/[slug]`) and a **minimal public team page** (team identity, season context, links such as jersey poll).
-- **Roster on public** for all plans (names, jersey #, positions as configured)—**no emails/phones on public** by default; plain roster presentation (no stat strips).
+- **League home (Basic):** org branding, active season context, **team directory** → **public team pages** at `**/league/[slug]/teams/[teamId]`** (identity, season, **roster** without contact info, jersey poll link to `**/join/.../jersey-poll`** when open). **Roster on public** for all plans (names, jersey #, positions as configured)—**no emails/phones on public** by default; plain roster (no stat strips).
 - **No public team/player stats** on Basic.
 
 ### Pro
@@ -20,23 +26,54 @@ Most of this is **not built yet**; this section records **Basic / Pro / Enterpri
 - **Five headline stats** on public Pro surfaces (fixed platform-wide set until sport templates ship—e.g. tied to core tracked stats).
 - **Optional headshot slots** on public roster cards—**organizer opts in** per league/team/player policy.
 - **Team logo** upload on the public team page.
+- **Brand-aware theme presets (Pro):** League page styling derives from league **brand color** in Settings. Generate **5 automatic theme presets** and let organizer choose one (no full free-form theme editing in Pro).
+- **Preset behavior guardrail (Pro):** Presets must stay **brand-derived** (hue/tone variants from chosen brand color), not unrelated/random palettes.
+- **Brand color change policy (Pro):** Brand color changes are **rate-limited monthly** (target default: **5/month**, configurable). Changing brand color regenerates the 5 presets for that league.
+- **Optional logo-assisted branding (Pro):** Provide an **“Extract suggested brand color from logo”** helper; saved brand color remains the source of truth.
+- **Video / stream:** featured **YouTube** and **Twitch** (embeds and/or prominent outbound links) on **league home** / team surfaces.
+- **Stream overlay:** **Basic overlay** for OBS/streaming—**template-based**, limited customization (on-brand, not full white-label).
 
 ### Enterprise
 
-- **All stats** the platform can derive from recorded games, with **organizer toggles** (which stats appear where: league home, team page, scoreboard).
+- **All stats** the platform can derive from recorded games, with **organizer toggles** (which stats appear where: **league home**, team page, scoreboard).
 - **Sport-oriented analytics** (aggregates, trends) built from existing game data—scope grows with templates.
 - **Auto season award maker**; **final weeks of season** prompts/notifications for organizers; **award race** callouts eligible for **league home** promotion.
 - Public **team page**: **full edit** within supported templates/layout (copy, sections, branding)—not necessarily arbitrary HTML at first.
+- **Theme controls (Enterprise):** Includes all Pro auto-brand behavior plus **fully customizable theme controls** (manual colors/tokens/section styling) with **unlimited edits**.
+- **Video / stream:** **First-party / league-owned streaming** on the platform (full product—**scope TBD**). Complements Pro’s **YouTube/Twitch-first** positioning for leagues that want an owned destination.
+- **Stream overlay:** **Fully customizable** overlays—layouts, branding, **sponsor placements**, advanced OBS/stream integration (see Phase 7).
 - Pairs with **Phase 7** custom domains and multi-admin for operational scale.
 
 ### Org “employees” / staff (not payroll)
 
 - **Roadmap:** **Phase 7 — Multi-admin** — **Additional dashboard access** the **primary organizer grants and can revoke** (e.g. refs, scorekeepers, league staff). Delegated roles vs full org owner—not payroll “employees.”
+- **Shipped (narrow):** **Website editors** — extra users who may edit **League website** only (`**organization_editors**`); not full multi-admin for seasons, teams, billing, etc.
 
 ### Messaging & in-app chat
 
 - **Deferred / TBD:** Revisit when communication milestones are closer. Many leagues already use **Messenger / WhatsApp**; avoid committing to a **group-chat clone v1** until scope and moderation are clear.
 - **Placeholder intent:** **Pro+** might include **structured** league/team messaging (announcements, moderation, optional private team channel)—**evaluate at delivery time**.
+
+### Team manager / club workspace (future — separate from league organizer)
+
+**Persona:** **Team managers / captains / club leads** running **their team’s** logistics—not the **league-wide** organizer. This is **not** the same as **Phase 7 multi-admin** (league staff on the **organizer dashboard**).
+
+**From manager interviews (prioritize when building):**
+
+- **Calendar uploads / import** — Bring in `**.ics`** (and similar) so practice, league games, and team events live in one place; **subscribe / export** as a follow-on.
+- **Calendar reminders to members** — Notifications tied to events (**email** first; **SMS / push** TBD—reuse Phase 6-style delivery when it exists).
+- **Automated polls + reminders** — e.g. **attendance / “who’s bringing X”** polls, scheduled **by default ~24 hours before game time** or at **offsets the manager chooses**; results and nudges go to **team members** as reminders (not only league-wide blasts).
+- **Pre-set home game rules** — **Facility, arrival time, jersey colors, equipment checklists**, etc., configured under **team management** and shown on the **team workspace** (league-level defaults vs team overrides need a **single source of truth** rule—design before shipping).
+- **Team front page** — A **home** for the team: **news** (team-only posts; optional surfacing of **league news** if the organizer allows), **next events**, quick links (polls, rules, files).
+
+**Other ideas (validate with managers):**
+
+- **Next game** strip: opponent, time, **directions/map**, RSVP or poll shortcut.
+- **League schedule (read-only)** on the team calendar with **team-only** overlays (practices, socials)—avoid duplicating editable league fixtures on the team side.
+- **Lightweight file stash** (parking PDFs, permit scans, music links).
+- **Simple roles** later (coach vs player vs parent) if one “member” view is too blunt.
+
+**Status:** **Not started** — park after **League home**; **invites and permissions** (who is a team manager, roster membership) need explicit modeling so team tools don’t grant league-admin powers.
 
 ---
 
@@ -67,7 +104,8 @@ Most of this is **not built yet**; this section records **Basic / Pro / Enterpri
 ### Public portal
 
 - **Marketing:** Professional landing page (`/`).
-- **Join hub:** `**/join/[slug]`** — org branding, **season registration** → `/join/[slug]/register` (per competitive season: **Public season signup** + optional **opens/closes** window in Dashboard → Seasons), **drop-ins** → `/join/[slug]/dropins`; drop-in flows may still allow guests where configured; season signup is one player per account; **no jersey # on season signup** (numbers assigned later).
+- **Join (`/join/[slug]`):** **Season registration** → `/join/[slug]/register`, **drop-ins** → `/join/[slug]/dropins`, **jersey poll** → `/join/[slug]/jersey-poll/[pollId]`; link to `**/league/[slug]`** for browse. Guests where configured for drop-ins; season signup one player per account; **no jersey # on season signup**.
+- **League home:** `**/league/[slug]`** — Basic shell shipped (teams, rosters, news banner, participate links, **CMS v1** sections + optional hero background); Pro/Enterprise depth (stats, stream, overlays) per **Product direction**.
 - **Fans:** Public **live scoreboard** for games (`/games/[gameId]/scoreboard`).
 
 ### Waivers
@@ -79,42 +117,43 @@ Most of this is **not built yet**; this section records **Basic / Pro / Enterpri
 ## Phase 4 — Communication & logistics (**in progress / polishing**)
 
 
-| Area                            | Status           | Notes                                                                                                                                   |
-| ------------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| **News banner**                 | Done             | Organizer-controlled; stored in Supabase; rendered on public surfaces.                                                                  |
-| **Public drop-in registration** | Shipped / polish | List + sign up for upcoming sessions (`/join/[slug]/…`); tighten edge cases as needed.                                                  |
-| **League timezone**             | Done / verify    | Consistent local rendering for organizers vs travelers.                                                                                 |
-| **Automation**                  | Partial          | **Midnight cron:** session close (`/api/cron/close-sessions` + `CRON_SECRET`). Extend if you add pruning, reminders, or retention jobs. |
-| **Developer tools**             | Done             | Dev-only **seed drop-in** route for fast UI testing.                                                                                    |
+| Area                            | Status           | Notes                                                                                                                                                       |
+| ------------------------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **News banner**                 | Done             | Organizer-controlled; stored in Supabase; rendered on public surfaces.                                                                                      |
+| **Public drop-in registration** | Shipped / polish | List + sign up for upcoming sessions (`/join/[slug]/…`); tighten edge cases as needed.                                                                      |
+| **League timezone**             | Done / verify    | Consistent local rendering for organizers vs travelers.                                                                                                     |
+| **Automation**                  | Partial          | **Midnight cron:** session close (`/api/cron/close-sessions` + `CRON_SECRET`). Extend if you add pruning, reminders, or retention jobs.                     |
+| **Developer tools**             | Done             | Dev-only **seed drop-in** route for fast UI testing.                                                                                                        |
 | **Season signup schedule**      | Done             | Optional `online_registration_opens_at` / `closes_at` on `seasons`; hub respects window. Migration: `20260207100000_season_online_registration_window.sql`. |
-| **Jerseys (dashboard)**         | Done             | Organizers set **jersey #** on **Dashboard → Players** (per season uniqueness); not collected on public season signup.                    |
+| **Jerseys (dashboard)**         | Done             | Organizers set **jersey #** on **Dashboard → Players** (per season uniqueness); not collected on public season signup.                                      |
+| **League website (CMS v1)**     | Done / verify    | Dashboard **League website** — draft/publish, hero upload, sections; hub **`leagueSite`**; **website editors** by email. Confirm Storage bucket + RLS expectations after each deploy. |
 
 
 ---
 
 ## Phase 5 — Team organizer & player tools (**in progress**)
 
-- **Team jersey poll:** **Shipped (MVP).** Dashboard **Teams** — **Start poll** (requires roster on team + org slug in Settings); **Copy link** to public `**/join/[slug]/jersey-poll/[pollId]**`; players submit **email** (must match season registration) + **preferred 0–99**; **Close** ends submissions. **Teams** shows preferences + **Conflict** when two players want the same number. **Players** shows **Poll** (pending or number) while a team poll is open. Final jersey **#** remains organizer-assigned on **Players** (per-season uniqueness). **Follow-ups:** one-click “apply poll to jersey #”, email/notify players, optional stricter rules.
+- **Team jersey poll:** **Shipped (MVP).** Dashboard **Teams** — **Start poll** (requires roster on team + org slug in Settings); **Copy link** to public `**/join/[slug]/jersey-poll/[pollId]`**; players submit **email** (must match season registration) + **preferred 0–99**; **Close** ends submissions. **Teams** shows preferences + **Conflict** when two players want the same number. **Players** shows **Poll** (pending or number) while a team poll is open. Final jersey **#** remains organizer-assigned on **Players** (per-season uniqueness). **Follow-ups:** one-click “apply poll to jersey #”, email/notify players, optional stricter rules.
 - **Sport-aware positions / roster fields:** Let each league pick a **sport template** (or custom field set) at onboarding or in settings so registration and lineups use the right positions (e.g. basketball vs soccer vs volleyball) instead of a single hard-coded list.
 - **Reputation — finalization:** Extend beyond today’s organizer-facing tiers (e.g. player-visible summaries, refinements, exports — scope TBD).
-- **Pre-set home game rules:** Facility access, jersey colors, equipment checklists, automated distribution.
-- **Automated polls:** Attendance / availability (e.g. Supabase Realtime).
+- **Pre-set home game rules (league):** Facility access, jersey colors, equipment checklists, automated distribution. **Team-scoped** presets and **team manager UI** → see **Product direction — Team manager / club workspace**.
+- **Automated polls (league / tooling):** Attendance / availability (e.g. Supabase Realtime). **Team manager** poll + **game-day reminder** flows → same section.
 - **Mass / in-app messaging:** See **Product direction — Messaging & in-app chat** (deferred; scope TBD—may consolidate with Phase 4 comms when ready).
 
 ---
 
 ## Phase 6 — Advanced scheduling & AI (**future**)
 
-- **Calendar imports:** `.ics` / `.csv` bulk upload.
-- **Automated reminders:** ~24h SMS/email (e.g. Twilio / Resend) to cut no-shows.
+- **Calendar imports:** `.ics` / `.csv` bulk upload (league and, later, **team manager** calendars—see **Team manager / club workspace**).
+- **Automated reminders:** ~24h SMS/email (e.g. Twilio / Resend) to cut no-shows; **shared plumbing** for **team manager** event and poll reminders.
 - **AI schedule generator:** Natural-language prompts → season schedules.
 
 ---
 
 ## Phase 7 — Premium expansion (**future**)
 
-- **Custom domains:** Enterprise branded URLs.
-- **OBS overlay builder:** Stream graphics for YouTube/Twitch.
+- **Custom domains:** Enterprise branded URLs (often paired with **League home**).
+- **Stream overlays:** **Pro** — template/basic OBS overlays; **Enterprise** — **fully customizable** graphics including **sponsor** placements and deeper layout control (pairs with **Product direction** stream tiers).
 - **Multi-admin / delegated dashboard access:** The **primary organizer** can **invite** additional users to the dashboard (e.g. refs, scorekeepers, staff) with scoped roles, and **revoke access** anytime—not payroll “employees,” but **trusted operators** with less than full org ownership where the product supports it.
 
 ---
@@ -132,11 +171,32 @@ Most of this is **not built yet**; this section records **Basic / Pro / Enterpri
 - When you **ship** or **cancel** a roadmap item, edit the relevant phase and add a short **changelog line** at the bottom (date + one sentence).
 - When code changes **materially** affect a bullet above, update this doc in the **same PR** when possible.
 
+### Verification checklist — League website CMS (after deploy / migration)
+
+Use this when validating **`league_site_content`**, **organization_editors**, and **`league-site`** storage are live.
+
+1. **Database:** Tables **`league_site_content`** and **`organization_editors`** exist; RLS enabled (app uses service role in API routes).
+2. **Storage:** Bucket **`league-site`** exists and is **public**; uploads from **League website** return a URL that loads in the browser.
+3. **Owner flow:** **Save draft** does not change the public page; **Publish** updates **`/league/[slug]`** (and hub JSON **`leagueSite`**) for anonymous visitors.
+4. **Editor flow:** Invited user (email must resolve in Clerk) sees only **League website**; cannot open other dashboard areas without redirect.
+5. **Public safety:** Draft-only content never appears in **`GET /api/join/[slug]/hub`** or on the league home for logged-out users.
+6. **`?edit=1`:** Banner appears only when signed in as owner/editor **for that slug**; others see no banner.
+
 ### Changelog
 
+- **2026-05-05:** **League home — pro sports polish + CMS ergonomics:** **`/league/[slug]`** — hero **stat pills** (teams / players / active season), stronger participate band (**Get on the floor**), upgraded CMS sections (accent rail, typography), **season headquarters** card + **team cards** (initial badge, gradient wash, season hint). **Section blocks:** explicit **Up / Down** controls on **Dashboard → League website** (plus existing on-page editor). **Dev-only:** `**POST /api/dev/seed-teams-players**` with **`withLeagueSiteDemo: true`** seeds demo **text / news / media** + arena hero for leagues like **`vancouvarites`** during local design review.
+- **2026-05-05:** **League website CMS v1:** dashboard **League website** (draft/publish, hero background upload, text/news/media sections), **`leagueSite`** on hub, **organization_editors** + Clerk email lookup, **`/api/me/org-access`**, Storage bucket **`league-site`**. Migrations applied to Supabase (`**20260505213000**` / `**20260505213039**`). **Next:** calendar/games widgets, richer text.
+- **2026-05-05:** **Public visual pass (creative polish):** upgraded `**/league/[slug]`** and `**/league/[slug]/teams/[teamId]**` with professional hero cards, stronger information hierarchy, status chips, improved participation/CTA cards, and themed roster/table surfaces while preserving Basic-tier data boundaries (no public contact info or advanced stats). This is the new visual baseline for iterative adjustments.
+- **2026-05-05:** **Theme UX sequencing:** prioritize polishing real **league page** and **team page** layouts first; then add a **mini league-page visual preview** in Settings (instead of simple color swatches) so preview mirrors the finalized live layout. Team page theming should align with league theme system.
+- **2026-05-05:** **Theme tiering update:** **Pro** gets brand-color-driven league themes with **5 auto-generated presets**, optional logo color extraction helper, and monthly brand-color change limits (default target **5/month**, configurable). **Enterprise** keeps all Pro behavior plus **fully customizable themes with unlimited edits**.
+- **2026-05-05:** **Public league/team stability fix:** team page roster API now reads `players.positions` (removed invalid `position` select) so `**/league/[slug]/teams/[teamId]`** loads reliably; began league-home copy/spacing polish. **Next focus:** page-by-page visual refinement with final approved designs (league page first, then team page).
+- **2026-05-10:** **League home** route `**/league/[slug]`** (news, season context, teams → `**/league/[slug]/teams/[teamId]`**, participate → join). `**/join/[slug]**` slimmed to signup hub + link to league home. `**/join/.../teams/[id]**` → redirect to `**/league/...**`. Settings shows public league home URL.
+- **2026-05-09:** **Team manager / club workspace** (Product direction): calendar **upload/import**, **member reminders**, **scheduled polls** (e.g. default **24h before game** or manager-chosen times), **home game rule presets** in team management, **team front page** with **news**; extra ideas (next-game strip, file stash, roles). **Phase 5 / 6** cross-links. **Next product focus:** **League home**; team workspace deferred.
+- **2026-05-08:** **Product direction:** **League home** vs **Join** IA — dedicated `**/league/[slug]`** (target) for browse/watch (teams, stats, **YouTube/Twitch** Pro vs **first-party stream** Enterprise, **overlay** tiers); `**/join/[slug]`** for signup/participate; **interim** Basic team shell on join until League home ships. **Phase 7** overlay bullet split **Pro basic** vs **Enterprise** customizable + sponsors.
+- **2026-05-04:** **Public league + team shell (Basic):** `**GET /api/join/[slug]/teams`** (directory + open poll hints) and `**GET /api/join/[slug]/teams/[teamId]`** (public roster: name, jersey #, positions—no email/phone); pages `**/join/[slug]**` (team cards) and `**/join/[slug]/teams/[teamId]**` (roster table + jersey poll card).
 - **2026-05-06:** **Phase 8 — Help & documentation** (searchable help hub, plans/payments explainers—late phase). **Phase 7** multi-admin clarified as **invited dashboard access, revocable by organizer**. **Product direction** staff bullet aligned with same wording.
 - **2026-05-05:** **Product direction** section: plan tiers for **public league & team pages** (Basic / Pro / Enterprise): roster-on-public for all tiers with upgrade depth (stats, headshots, logos, Enterprise awards/analytics/page edit); **Phase 7** multi-admin framed as **delegated staff**; **messaging / in-app chat** marked **deferred TBD** with Pro+ placeholder.
-- **2026-05-04:** **Team jersey poll (Phase 5 MVP):** tables `jersey_polls` / `jersey_poll_responses`, organizer APIs `**/api/jersey-polls**`, public `**/api/join/[slug]/jersey-poll/...**` + page `**/join/[slug]/jersey-poll/[pollId]**`. Migration: `**20260504120000_team_jersey_poll.sql**`.
+- **2026-05-04:** **Team jersey poll (Phase 5 MVP):** tables `jersey_polls` / `jersey_poll_responses`, organizer APIs `**/api/jersey-polls`**, public `**/api/join/[slug]/jersey-poll/...`** + page `**/join/[slug]/jersey-poll/[pollId]**`. Migration: `**20260504120000_team_jersey_poll.sql**`.
 - **2026-05-04:** Public `**/join/[slug]` hub**: landing page with links to **season registration** (`/join/[slug]/register`) and **drop-ins** (`/join/[slug]/dropins`); hub API at `**GET /api/join/[slug]/hub`**.
 - **2026-05-04:** Roadmap reformatted for clarity; aligned completed work with live scoring, public scoreboard, drop-in reputation (organizer), Phase 4 table, and cron scope.
 - **2026-05-04:** Season signup **schedule** (opens/closes); **competitive-only** seasons (removed drop-in season type); **jersey #** removed from public season registration—dashboard Players + planned **team jersey poll** (Phase 5).

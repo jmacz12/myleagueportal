@@ -164,7 +164,7 @@ export default function JerseyPollPage() {
       <div style={shell}>
         <div style={{ maxWidth: '440px', margin: '0 auto', padding: '48px 20px', textAlign: 'center' }}>
           <Link
-            href={`/join/${slug}`}
+            href={`/league/${slug}`}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -192,7 +192,7 @@ export default function JerseyPollPage() {
       <div style={shell}>
         <div style={{ maxWidth: '440px', margin: '0 auto', padding: '32px 20px' }}>
           <Link
-            href={`/join/${slug}`}
+            href={`/league/${slug}`}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -235,7 +235,7 @@ export default function JerseyPollPage() {
     <div style={shell}>
       <div style={{ maxWidth: '440px', margin: '0 auto', padding: '32px 20px 48px' }}>
         <Link
-          href={`/join/${slug}`}
+          href={`/league/${slug}`}
           style={{
             display: 'inline-flex',
             alignItems: 'center',

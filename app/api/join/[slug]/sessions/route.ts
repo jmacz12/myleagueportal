@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { EMPTY_LEAGUE_SITE, parseLeagueSitePayload } from '@/lib/league-site'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -43,7 +44,7 @@ export async function GET(
   const { data: orgWithTz, error: orgWithTzError } = await supabaseAdmin
     .from('organizations')
     .select(
-      'id, name, slug, primary_color, logo_url, news_banner, news_banner_color, league_timezone'
+      'id, name, slug, primary_color, logo_url, news_banner, news_banner_color, league_timezone, league_theme_preset'
     )
     .eq('slug', slug)
     .single()
@@ -56,7 +57,9 @@ export async function GET(
         .single()
     : { data: null as any }
 
-  const org = orgWithTz || (orgWithoutTz ? { ...orgWithoutTz, league_timezone: null } : null)
+  const org =
+    orgWithTz ||
+    (orgWithoutTz ? { ...orgWithoutTz, league_timezone: null, league_theme_preset: 'preset-1' } : null)
   const orgError = orgWithTzError && !orgWithoutTz ? orgWithTzError : null
 
   if (orgError || !org) {
@@ -83,8 +86,44 @@ export async function GET(
     return isUpcoming && isSignupOpen(s, now)
   })
 
+  const sessionIds = upcoming.map((s) => s.id)
+  const signupsBySession = new Map<string, { full_name: string }[]>()
+  if (sessionIds.length > 0) {
+    const { data: regs } = await supabaseAdmin
+      .from('dropin_registrations')
+      .select('session_id, full_name, created_at')
+      .in('session_id', sessionIds)
+      .eq('is_guest', false)
+      .order('session_id', { ascending: true })
+      .order('created_at', { ascending: true })
+
+    for (const row of regs || []) {
+      const sid = row.session_id as string
+      const list = signupsBySession.get(sid) || []
+      list.push({ full_name: String(row.full_name || '').trim() || 'Player' })
+      signupsBySession.set(sid, list)
+    }
+  }
+
+  const sessionsWithSignups = upcoming.map((s) => ({
+    ...s,
+    signups: signupsBySession.get(s.id) || [],
+  }))
+
+  let leagueSite = EMPTY_LEAGUE_SITE
+  const { data: siteRow, error: siteErr } = await supabaseAdmin
+    .from('league_site_content')
+    .select('published')
+    .eq('organization_id', org.id)
+    .maybeSingle()
+
+  if (!siteErr && siteRow?.published != null) {
+    leagueSite = parseLeagueSitePayload(siteRow.published)
+  }
+
   return NextResponse.json({
-    sessions: upcoming,
+    sessions: sessionsWithSignups,
     organization: org,
+    leagueSite,
   })
 }

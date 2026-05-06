@@ -1,0 +1,105 @@
+import { NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
+import { auth } from '@clerk/nextjs/server'
+import { createClient } from '@supabase/supabase-js'
+import { getOrgAccessForClerkUser } from '@/lib/org-access'
+import { EMPTY_LEAGUE_SITE, parseLeagueSitePayload } from '@/lib/league-site'
+import { countGalleryImages, maxGalleryImagesForPlan } from '@/lib/league-site-limits'
+
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
+
+export async function GET() {
+  const { userId } = await auth()
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const access = await getOrgAccessForClerkUser(userId)
+  if (!access) return NextResponse.json({ error: 'No organization' }, { status: 404 })
+
+  const { data: row } = await supabaseAdmin
+    .from('league_site_content')
+    .select('draft, published, updated_at')
+    .eq('organization_id', access.organization.id)
+    .maybeSingle()
+
+  const draft = parseLeagueSitePayload(row?.draft ?? EMPTY_LEAGUE_SITE)
+  const published = parseLeagueSitePayload(row?.published ?? EMPTY_LEAGUE_SITE)
+
+  return NextResponse.json({
+    draft,
+    published,
+    updatedAt: row?.updated_at ?? null,
+    role: access.role,
+    slug: access.organization.slug,
+  })
+}
+
+export async function PUT(req: Request) {
+  const { userId } = await auth()
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const access = await getOrgAccessForClerkUser(userId)
+  if (!access) return NextResponse.json({ error: 'No organization' }, { status: 404 })
+
+  let body: { draft?: unknown; publish?: boolean }
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+  }
+
+  const { data: existing } = await supabaseAdmin
+    .from('league_site_content')
+    .select('draft, published')
+    .eq('organization_id', access.organization.id)
+    .maybeSingle()
+
+  let draft = parseLeagueSitePayload(existing?.draft ?? EMPTY_LEAGUE_SITE)
+  let published = parseLeagueSitePayload(existing?.published ?? EMPTY_LEAGUE_SITE)
+
+  if (body.draft !== undefined) {
+    draft = parseLeagueSitePayload(body.draft)
+  }
+
+  const { data: orgPlanPut } = await supabaseAdmin
+    .from('organizations')
+    .select('plan')
+    .eq('id', access.organization.id)
+    .maybeSingle()
+
+  const planPut = typeof orgPlanPut?.plan === 'string' ? orgPlanPut.plan : 'basic'
+  const maxG = maxGalleryImagesForPlan(planPut)
+  const galleryCount = countGalleryImages(draft)
+  if (galleryCount > maxG) {
+    return NextResponse.json(
+      {
+        error: `Your ${planPut} plan allows up to ${maxG} gallery photos across all media sections. Remove some images or upgrade.`,
+        maxGalleryImages: maxG,
+        galleryImageCount: galleryCount,
+      },
+      { status: 400 }
+    )
+  }
+
+  if (body.publish === true) {
+    published = draft
+    revalidatePath(`/league/${access.organization.slug}`)
+  }
+
+  const payload = {
+    organization_id: access.organization.id,
+    draft,
+    published,
+    updated_at: new Date().toISOString(),
+  }
+
+  const { error } = await supabaseAdmin.from('league_site_content').upsert(payload, { onConflict: 'organization_id' })
+
+  if (error) {
+    return NextResponse.json({ error: 'Failed to save' }, { status: 500 })
+  }
+
+  return NextResponse.json({ ok: true, draft, published })
+}
