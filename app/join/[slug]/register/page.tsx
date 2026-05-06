@@ -4,10 +4,12 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { ChevronLeft } from 'lucide-react'
+import { LeagueNotFoundOrganizerHint } from '@/components/LeagueNotFoundOrganizerHint'
 import NewsBanner from '@/components/NewsBanner'
 import { PublicLeagueHeroBand } from '@/components/league-site/PublicLeagueHeroBand'
 import RegistrationForm from '../RegistrationForm'
 import { publicHeroThemeFromPreset, resolveThemePreset } from '@/lib/leagueTheme'
+import { getPublicThemeInputsForOrg } from '@/lib/public-league-branding'
 import type { LeagueSitePayload } from '@/lib/league-site'
 import { DEFAULT_LEAGUE_HERO_TAGLINE, EMPTY_LEAGUE_SITE, displayHeroInitials } from '@/lib/league-site'
 import { effectiveSignupOpensAtIso } from '@/lib/seasonSignup'
@@ -21,6 +23,8 @@ interface HubPayload {
     news_banner: string | null
     news_banner_color: string | null
     league_theme_preset?: string | null
+    league_appearance_mode?: string | null
+    plan?: string | null
   }
   competitiveSeason: {
     id: string
@@ -60,6 +64,8 @@ export default function SeasonRegisterPage() {
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
   const [data, setData] = useState<HubPayload | null>(null)
+  const [signedInOrg, setSignedInOrg] = useState<{ slug: string; name: string } | null>(null)
+  const [accessResolved, setAccessResolved] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -94,7 +100,34 @@ export default function SeasonRegisterPage() {
     }
   }, [slug])
 
-  const shellPreset = resolveThemePreset(null, null)
+  useEffect(() => {
+    let cancelled = false
+    setAccessResolved(false)
+    fetch('/api/me/org-access')
+      .then(async (r) => {
+        if (cancelled) return
+        if (!r.ok) {
+          setSignedInOrg(null)
+          return
+        }
+        const d = await r.json()
+        if (cancelled) return
+        const a = d.access
+        if (a?.slug && a?.name) setSignedInOrg({ slug: String(a.slug), name: String(a.name) })
+        else setSignedInOrg(null)
+      })
+      .catch(() => {
+        if (!cancelled) setSignedInOrg(null)
+      })
+      .finally(() => {
+        if (!cancelled) setAccessResolved(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [slug])
+
+  const shellPreset = resolveThemePreset(null, null, 'light')
 
   if (loading) {
     return (
@@ -120,13 +153,19 @@ export default function SeasonRegisterPage() {
         <p style={{ color: shellPreset.heading, fontWeight: 800, fontSize: '18px', marginBottom: '8px' }}>
           League not found
         </p>
-        <p style={{ color: shellPreset.muted, fontSize: '14px' }}>Check your registration link with the organizer.</p>
+        <p style={{ color: shellPreset.muted, fontSize: '14px', maxWidth: '360px' }}>
+          {accessResolved && !signedInOrg
+            ? 'Check your registration link with the organizer. If you run the league, copy the URL from Dashboard → Settings.'
+            : 'Check your registration link with the organizer.'}
+        </p>
+        <LeagueNotFoundOrganizerHint signedInOrg={signedInOrg} currentSlug={slug} preset={shellPreset} variant="register" />
       </div>
     )
   }
 
   const { organization: org, competitiveSeason, seasonWaiver, seasonRegistrationOpen, leagueSite } = data
-  const preset = resolveThemePreset(org.primary_color, org.league_theme_preset ?? undefined)
+  const regBrand = getPublicThemeInputsForOrg(org)
+  const preset = resolveThemePreset(regBrand.primaryColor, regBrand.presetId, regBrand.appearanceMode)
   const heroTheme = publicHeroThemeFromPreset(preset)
 
   if (!competitiveSeason || !seasonRegistrationOpen) {
@@ -136,12 +175,13 @@ export default function SeasonRegisterPage() {
         <div style={{ position: 'relative' }}>
           <PublicLeagueHeroBand
             orgName={org.name}
-            logoUrl={org.logo_url}
-            heroBackgroundUrl={leagueSite.heroBackgroundUrl}
+            logoUrl={regBrand.usePlatformBranding ? null : org.logo_url}
+            heroBackgroundUrl={regBrand.suppressCustomHero ? null : leagueSite.heroBackgroundUrl}
             tagline={leagueSite.heroTagline ?? DEFAULT_LEAGUE_HERO_TAGLINE}
             placeholderInitials={displayHeroInitials(leagueSite.heroInitials, org.name)}
             preset={preset}
             heroTheme={heroTheme}
+            usePlatformBranding={regBrand.usePlatformBranding}
             compact
           />
         </div>
@@ -189,12 +229,13 @@ export default function SeasonRegisterPage() {
       <div style={{ position: 'relative' }}>
         <PublicLeagueHeroBand
           orgName={org.name}
-          logoUrl={org.logo_url}
-          heroBackgroundUrl={leagueSite.heroBackgroundUrl}
+          logoUrl={regBrand.usePlatformBranding ? null : org.logo_url}
+          heroBackgroundUrl={regBrand.suppressCustomHero ? null : leagueSite.heroBackgroundUrl}
           tagline={leagueSite.heroTagline ?? DEFAULT_LEAGUE_HERO_TAGLINE}
           placeholderInitials={displayHeroInitials(leagueSite.heroInitials, org.name)}
           preset={preset}
           heroTheme={heroTheme}
+          usePlatformBranding={regBrand.usePlatformBranding}
           compact
         />
       </div>

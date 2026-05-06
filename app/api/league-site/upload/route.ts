@@ -18,6 +18,18 @@ export async function POST(req: Request) {
   const access = await getOrgAccessForClerkUser(userId)
   if (!access) return NextResponse.json({ error: 'No organization' }, { status: 404 })
 
+  const { data: orgPlan } = await supabaseAdmin
+    .from('organizations')
+    .select('plan')
+    .eq('id', access.organization.id)
+    .maybeSingle()
+  if (String(orgPlan?.plan || 'basic').toLowerCase() === 'basic') {
+    return NextResponse.json(
+      { error: 'Image uploads for the league website require Pro or Enterprise.' },
+      { status: 403 }
+    )
+  }
+
   const form = await req.formData().catch(() => null)
   if (!form) return NextResponse.json({ error: 'Invalid form data' }, { status: 400 })
 

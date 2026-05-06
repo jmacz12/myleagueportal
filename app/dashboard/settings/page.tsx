@@ -3,7 +3,14 @@
 import { useState, useEffect } from 'react'
 import { ImagePlus, Loader2 } from 'lucide-react'
 import ThemeSelector from './ThemeSelector'
-import { contrastTextForAccent, getThemePresets } from '@/lib/leagueTheme'
+import { contrastTextForAccent, resolveLeagueThemeChoice } from '@/lib/leagueTheme'
+import {
+  LEAGUE_THEME_CHOICE_META,
+  LEAGUE_THEME_CHOICE_ORDER,
+  appearanceModeForChoice,
+  normalizeLeagueThemePresetId,
+  type LeagueThemeChoiceId,
+} from '@/lib/league-theme-choice'
 
 interface OrgSettings {
   name: string
@@ -15,6 +22,7 @@ interface OrgSettings {
   news_banner_color?: string | null
   league_timezone?: string | null
   league_theme_preset?: string | null
+  league_appearance_mode?: string | null
   brand_color_change_count?: number | null
   brand_color_change_period_start?: string | null
 }
@@ -56,7 +64,8 @@ export default function SettingsPage() {
     news_banner: '',
     news_banner_color: '#5a7a2a',
     league_timezone: 'America/Vancouver',
-    league_theme_preset: 'preset-1',
+    league_theme_preset: 'classic',
+    league_appearance_mode: 'light',
   })
   const [activeWaiverTab, setActiveWaiverTab] = useState<'season' | 'dropin' | null>(null)
 
@@ -89,6 +98,10 @@ export default function SettingsPage() {
     const res = await fetch('/api/settings')
     const data = await res.json()
     setSettings(data.org)
+    const themeChoice = normalizeLeagueThemePresetId(
+      data.org?.league_theme_preset,
+      data.org?.league_appearance_mode
+    )
     setForm({
       name: data.org?.name || '',
       slug: data.org?.slug || '',
@@ -96,7 +109,8 @@ export default function SettingsPage() {
       news_banner: data.org?.news_banner || '',
       news_banner_color: data.org?.news_banner_color || '#5a7a2a',
       league_timezone: data.org?.league_timezone || 'America/Vancouver',
-      league_theme_preset: data.org?.league_theme_preset || 'preset-1',
+      league_theme_preset: themeChoice,
+      league_appearance_mode: appearanceModeForChoice(themeChoice),
     })
     setLoading(false)
   }
@@ -301,7 +315,6 @@ export default function SettingsPage() {
 
   const isPro = settings?.plan === 'pro' || settings?.plan === 'enterprise'
   const isEnterprise = settings?.plan === 'enterprise'
-  const generatedPresets = getThemePresets(form.primary_color)
   const proColorChangesUsed = Number(settings?.brand_color_change_count || 0)
   const proColorChangesRemaining = Math.max(0, PRO_BRAND_COLOR_CHANGES_PER_MONTH - proColorChangesUsed)
 
@@ -622,26 +635,55 @@ export default function SettingsPage() {
 
           {isPro && (
             <div>
-              <label className="label">League Theme Preset</label>
-              <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '10px' }}>
+              <label className="label">League theme</label>
+              <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '12px' }}>
                 {isEnterprise
-                  ? 'Pick a preset as your base style. Enterprise custom controls can extend this later.'
-                  : 'Pro includes 5 presets auto-generated from your brand color.'}
+                  ? 'Pick one of five public looks. Classic, Bold, and Soft use your brand color; Bright is a cool daylight style; Midnight is a dark shell with light type.'
+                  : 'Pro includes five theme presets. Fresh and Modern are retired—Bright replaces the old Fresh look; dark mode is the Midnight preset.'}
               </p>
-              <select
-                className="input"
-                value={form.league_theme_preset}
-                onChange={(e) => setForm({ ...form, league_theme_preset: e.target.value })}
-                style={{ marginBottom: '12px' }}
-              >
-                {generatedPresets.map((preset) => (
-                  <option key={preset.id} value={preset.id}>
-                    {preset.name} - {preset.description}
-                  </option>
-                ))}
-              </select>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '14px', alignItems: 'center' }}>
+                {LEAGUE_THEME_CHOICE_ORDER.map((choiceId) => {
+                  const meta = LEAGUE_THEME_CHOICE_META[choiceId]
+                  const selected =
+                    normalizeLeagueThemePresetId(form.league_theme_preset, form.league_appearance_mode) === choiceId
+                  return (
+                    <button
+                      key={choiceId}
+                      type="button"
+                      title={meta.description}
+                      onClick={() =>
+                        setForm({
+                          ...form,
+                          league_theme_preset: choiceId,
+                          league_appearance_mode: appearanceModeForChoice(choiceId),
+                        })
+                      }
+                      style={{
+                        flex: '0 0 auto',
+                        borderRadius: '999px',
+                        border: `2px solid ${selected ? 'var(--accent)' : 'var(--border)'}`,
+                        padding: '8px 14px',
+                        background: selected ? 'var(--accent-muted)' : 'var(--bg-surface)',
+                        cursor: 'pointer',
+                        fontFamily: 'inherit',
+                        fontWeight: 800,
+                        fontSize: '12px',
+                        color: 'var(--text-primary)',
+                        letterSpacing: '0.02em',
+                      }}
+                    >
+                      {meta.name}
+                    </button>
+                  )
+                })}
+              </div>
               {(() => {
-                const active = generatedPresets.find((p) => p.id === form.league_theme_preset) || generatedPresets[0]
+                const choice = normalizeLeagueThemePresetId(
+                  form.league_theme_preset,
+                  form.league_appearance_mode
+                ) as LeagueThemeChoiceId
+                const active = resolveLeagueThemeChoice(form.primary_color, choice)
+                const meta = LEAGUE_THEME_CHOICE_META[choice]
                 return (
                   <div
                     style={{
@@ -665,16 +707,17 @@ export default function SettingsPage() {
                         <span style={{ fontSize: '10px', color: active.body }}>Accent</span>
                       </div>
                     </div>
-                    <div style={{ fontSize: '12px', fontWeight: 700, color: active.heading }}>{active.name}</div>
-                    <div style={{ fontSize: '11px', color: active.body, marginTop: '2px' }}>
-                      {active.description}
-                    </div>
+                    <div style={{ fontSize: '12px', fontWeight: 700, color: active.heading }}>{meta.name}</div>
+                    <div style={{ fontSize: '11px', color: active.body, marginTop: '2px' }}>{meta.description}</div>
                     <div style={{ marginTop: '8px', fontSize: '10px', fontWeight: 700, color: contrastTextForAccent(active.accent), background: active.accent, borderRadius: '999px', padding: '4px 8px', display: 'inline-block' }}>
                       Active
                     </div>
                   </div>
                 )
               })()}
+              <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '12px', lineHeight: 1.45 }}>
+                Applies to your public league home and join hub. Matches on-page edit; save with the button below.
+              </p>
             </div>
           )}
           

@@ -5,6 +5,8 @@ import { createClient } from '@supabase/supabase-js'
 import { getOrgAccessForClerkUser } from '@/lib/org-access'
 import { EMPTY_LEAGUE_SITE, parseLeagueSitePayload } from '@/lib/league-site'
 import { countGalleryImages, maxGalleryImagesForPlan } from '@/lib/league-site-limits'
+import { proBrandColorChangesRemaining, PRO_BRAND_COLOR_CHANGES_PER_MONTH } from '@/lib/pro-brand-color-limits'
+import { appearanceModeForChoice, normalizeLeagueThemePresetId } from '@/lib/league-theme-choice'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -27,12 +29,36 @@ export async function GET() {
   const draft = parseLeagueSitePayload(row?.draft ?? EMPTY_LEAGUE_SITE)
   const published = parseLeagueSitePayload(row?.published ?? EMPTY_LEAGUE_SITE)
 
+  const { data: orgMeta } = await supabaseAdmin
+    .from('organizations')
+    .select(
+      'plan, primary_color, league_theme_preset, league_appearance_mode, brand_color_change_count, brand_color_change_period_start'
+    )
+    .eq('id', access.organization.id)
+    .maybeSingle()
+
+  const plan = typeof orgMeta?.plan === 'string' ? orgMeta.plan : 'basic'
+  const maxG = maxGalleryImagesForPlan(plan)
+  const themeChoice = normalizeLeagueThemePresetId(
+    orgMeta?.league_theme_preset,
+    orgMeta?.league_appearance_mode
+  )
+
   return NextResponse.json({
     draft,
     published,
     updatedAt: row?.updated_at ?? null,
     role: access.role,
     slug: access.organization.slug,
+    maxGalleryImages: maxG,
+    appearance: {
+      plan,
+      primaryColor: orgMeta?.primary_color ?? null,
+      leagueThemePreset: themeChoice,
+      leagueAppearanceMode: appearanceModeForChoice(themeChoice),
+      proBrandColorChangesRemaining: proBrandColorChangesRemaining(orgMeta || {}),
+      proBrandColorChangesMonthlyLimit: PRO_BRAND_COLOR_CHANGES_PER_MONTH,
+    },
   })
 }
 
@@ -42,6 +68,24 @@ export async function PUT(req: Request) {
 
   const access = await getOrgAccessForClerkUser(userId)
   if (!access) return NextResponse.json({ error: 'No organization' }, { status: 404 })
+
+  const { data: orgGate } = await supabaseAdmin
+    .from('organizations')
+    .select('plan')
+    .eq('id', access.organization.id)
+    .maybeSingle()
+
+  const planGate = typeof orgGate?.plan === 'string' ? orgGate.plan : 'basic'
+  if (planGate === 'basic') {
+    return NextResponse.json(
+      {
+        error:
+          'Custom league website, hero image, and page sections are Pro and Enterprise features. Upgrade in Dashboard → Settings, then return here to edit.',
+        planGate: 'basic',
+      },
+      { status: 403 }
+    )
+  }
 
   let body: { draft?: unknown; publish?: boolean }
   try {

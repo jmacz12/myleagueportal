@@ -201,7 +201,14 @@ export async function PATCH(req: Request) {
           { status: 500 }
         )
       }
-      existingInResolvedOrg = fallbackRows?.[0] ?? null
+      const row = fallbackRows?.[0]
+      existingInResolvedOrg = row
+        ? {
+            ...row,
+            signup_opens_mode: null,
+            signup_opens_days_before: null,
+          }
+        : null
     } else {
       return NextResponse.json(
         { error: `Season lookup failed: ${existingInResolvedOrgError.message}` },
@@ -233,7 +240,14 @@ export async function PATCH(req: Request) {
             { status: 500 }
           )
         }
-        existingAny = fallbackRows?.[0] ?? null
+        const fb = fallbackRows?.[0]
+        existingAny = fb
+          ? {
+              ...fb,
+              signup_opens_mode: null,
+              signup_opens_days_before: null,
+            }
+          : null
       } else {
         return NextResponse.json(
           { error: `Season lookup failed: ${existingAnyError.message}` },
@@ -333,8 +347,7 @@ export async function PATCH(req: Request) {
         start_date: mergedStart,
         signup_opens_days_before: (existing as Record<string, unknown>)
           .signup_opens_days_before as number | null | undefined,
-        customOpensIso:
-          mode === 'custom' ? parseTs(existing.online_registration_opens_at as string | null) : null,
+        customOpensIso: null,
         closesIso: parseTs(existing.online_registration_closes_at as string | null),
       })
     )

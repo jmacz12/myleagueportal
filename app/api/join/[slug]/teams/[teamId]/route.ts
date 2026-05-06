@@ -25,7 +25,7 @@ export async function GET(
 
   const { data: org, error: orgError } = await supabaseAdmin
     .from('organizations')
-    .select('id, name, slug, primary_color, logo_url, league_theme_preset')
+    .select('id, name, slug, primary_color, logo_url, league_theme_preset, league_appearance_mode, plan')
     .eq('slug', slug)
     .single()
 
@@ -79,7 +79,9 @@ export async function GET(
       slug: org.slug,
       primary_color: org.primary_color,
       logo_url: org.logo_url,
-      league_theme_preset: org.league_theme_preset ?? 'preset-1',
+      league_theme_preset: org.league_theme_preset ?? 'classic',
+      league_appearance_mode: org.league_appearance_mode ?? 'light',
+      plan: org.plan ?? 'basic',
     },
     team: {
       id: team.id,

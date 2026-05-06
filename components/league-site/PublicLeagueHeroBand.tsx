@@ -21,6 +21,7 @@ export function PublicLeagueHeroBand({
   playersCount,
   showSeasonPill,
   bottomSlot,
+  usePlatformBranding,
 }: {
   orgName: string
   logoUrl: string | null
@@ -36,6 +37,8 @@ export function PublicLeagueHeroBand({
   playersCount?: number
   showSeasonPill?: boolean
   bottomSlot?: ReactNode
+  /** Basic plan: show house lockup instead of league-uploaded logo */
+  usePlatformBranding?: boolean
 }) {
   const heroBg = heroBackgroundUrl
   const padY = compact ? '38px' : '54px'
@@ -88,7 +91,43 @@ export function PublicLeagueHeroBand({
         aria-hidden
       />
       <div style={{ position: 'relative' }}>
-        {logoUrl ? (
+        {usePlatformBranding ? (
+          <div
+            style={{
+              margin: '0 auto 18px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '4px',
+            }}
+          >
+            <span
+              style={{
+                fontSize: '10px',
+                fontWeight: 700,
+                letterSpacing: '0.14em',
+                textTransform: 'uppercase',
+                color: heroTheme.heroSubtitle,
+              }}
+            >
+              Hosted on
+            </span>
+            <div
+              style={{
+                fontSize: compact ? '15px' : '17px',
+                fontWeight: 900,
+                letterSpacing: '-0.03em',
+                color: heroTheme.heroTitle,
+                padding: '10px 18px',
+                borderRadius: '12px',
+                border: '1px solid rgba(255,255,255,0.22)',
+                background: 'rgba(0,0,0,0.25)',
+              }}
+            >
+              MyLeaguePortal
+            </div>
+          </div>
+        ) : logoUrl ? (
           <img
             src={logoUrl}
             alt={orgName}

@@ -44,7 +44,7 @@ export async function GET(
   const { data: orgWithTz, error: orgWithTzError } = await supabaseAdmin
     .from('organizations')
     .select(
-      'id, name, slug, primary_color, logo_url, news_banner, news_banner_color, league_timezone, league_theme_preset'
+      'id, name, slug, primary_color, logo_url, news_banner, news_banner_color, league_timezone, league_theme_preset, league_appearance_mode, plan'
     )
     .eq('slug', slug)
     .single()
@@ -52,14 +52,21 @@ export async function GET(
   const { data: orgWithoutTz } = orgWithTzError
     ? await supabaseAdmin
         .from('organizations')
-        .select('id, name, slug, primary_color, logo_url, news_banner, news_banner_color')
+        .select('id, name, slug, primary_color, logo_url, news_banner, news_banner_color, plan')
         .eq('slug', slug)
         .single()
     : { data: null as any }
 
   const org =
     orgWithTz ||
-    (orgWithoutTz ? { ...orgWithoutTz, league_timezone: null, league_theme_preset: 'preset-1' } : null)
+    (orgWithoutTz
+      ? {
+          ...orgWithoutTz,
+          league_timezone: null,
+          league_theme_preset: 'classic',
+          league_appearance_mode: 'light',
+        }
+      : null)
   const orgError = orgWithTzError && !orgWithoutTz ? orgWithTzError : null
 
   if (orgError || !org) {

@@ -1,3 +1,5 @@
+import { sanitizePublicFontKey } from '@/lib/public-league-fonts'
+
 export type LeagueSiteMediaItem = {
   url: string
   caption?: string
@@ -15,6 +17,8 @@ export type LeagueSitePayload = {
   heroTagline: string | null
   /** Shown in the logo placeholder when no logo (1–3 letters). */
   heroInitials: string | null
+  /** Optional typography preset for public league + join hub surfaces (see `public-league-fonts`). */
+  publicFontKey: string | null
   sections: LeagueSiteSection[]
 }
 
@@ -25,6 +29,7 @@ export const EMPTY_LEAGUE_SITE: LeagueSitePayload = {
   heroBackgroundUrl: null,
   heroTagline: null,
   heroInitials: null,
+  publicFontKey: null,
   sections: [],
 }
 
@@ -133,5 +138,6 @@ export function parseLeagueSitePayload(raw: unknown): LeagueSitePayload {
     const sec = sanitizeSection(s)
     if (sec) sections.push(sec)
   }
-  return { heroBackgroundUrl, heroTagline, heroInitials, sections }
+  const publicFontKey = sanitizePublicFontKey(o.publicFontKey)
+  return { heroBackgroundUrl, heroTagline, heroInitials, publicFontKey, sections }
 }

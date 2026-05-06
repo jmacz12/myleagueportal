@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { ChevronLeft, Shirt } from 'lucide-react'
 import { publicHeroThemeFromPreset, resolveThemePreset } from '@/lib/leagueTheme'
+import { getPublicThemeInputsForOrg } from '@/lib/public-league-branding'
 
 interface TeamPayload {
   organization: {
@@ -13,6 +14,8 @@ interface TeamPayload {
     primary_color: string | null
     logo_url: string | null
     league_theme_preset?: string | null
+    league_appearance_mode?: string | null
+    plan?: string | null
   }
   team: {
     id: string
@@ -77,12 +80,12 @@ export default function LeaguePublicTeamPage() {
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
-  const accent =
-    data?.team.color || data?.organization.primary_color || '#5a7a2a'
-  const preset = resolveThemePreset(
-    data?.organization.primary_color,
-    data?.organization.league_theme_preset
-  )
+  const preset = useMemo(() => {
+    if (!data?.organization) return resolveThemePreset('#5a7a2a', 'classic', 'light')
+    const b = getPublicThemeInputsForOrg(data.organization)
+    return resolveThemePreset(b.primaryColor, b.presetId, b.appearanceMode)
+  }, [data])
+  const accent = data?.team.color || preset.accent
   const heroTheme = useMemo(() => publicHeroThemeFromPreset(preset), [preset])
 
   if (loading) {

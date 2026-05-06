@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { auth } from '@clerk/nextjs/server'
+import { appearanceModeForChoice, normalizeLeagueThemePresetId } from '@/lib/league-theme-choice'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -14,10 +15,9 @@ function startOfCurrentPeriodIso(): string {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)).toISOString()
 }
 
-function sanitizePresetId(value: unknown): string {
-  const allowed = new Set(['preset-1', 'preset-2', 'preset-3', 'preset-4', 'preset-5'])
-  const s = typeof value === 'string' ? value.trim() : ''
-  return allowed.has(s) ? s : 'preset-1'
+function sanitizePresetAndMode(value: unknown, modeHint: unknown): { preset: string; mode: string } {
+  const choice = normalizeLeagueThemePresetId(value, modeHint)
+  return { preset: choice, mode: appearanceModeForChoice(choice) }
 }
 
 export async function GET() {
@@ -27,7 +27,7 @@ export async function GET() {
   let { data: orgWithTz, error: orgWithTzError } = await supabaseAdmin
     .from('organizations')
     .select(
-      'id, name, slug, primary_color, logo_url, plan, stripe_customer_id, stripe_subscription_id, news_banner, news_banner_color, league_timezone, league_theme_preset, brand_color_change_count, brand_color_change_period_start'
+      'id, name, slug, primary_color, logo_url, plan, stripe_customer_id, stripe_subscription_id, news_banner, news_banner_color, league_timezone, league_theme_preset, league_appearance_mode, brand_color_change_count, brand_color_change_period_start'
     )
     .eq('clerk_user_id', userId)
     .single()
@@ -47,7 +47,8 @@ export async function GET() {
       ? {
         ...orgWithoutTz,
         league_timezone: null,
-        league_theme_preset: 'preset-1',
+        league_theme_preset: 'classic',
+        league_appearance_mode: 'light',
         brand_color_change_count: 0,
         brand_color_change_period_start: null,
       }
@@ -78,6 +79,7 @@ export async function PATCH(req: Request) {
     news_banner_color,
     league_timezone,
     league_theme_preset,
+    league_appearance_mode,
   } = await req.json()
 
   if (!name || !slug) {
@@ -108,10 +110,12 @@ export async function PATCH(req: Request) {
     league_timezone: league_timezone || null,
   }
 
-  // Only allow color change on pro/enterprise
+  // Only allow color / theme / appearance mode on pro/enterprise
   if (org.plan !== 'basic') {
     updateData.primary_color = primary_color
-    updateData.league_theme_preset = sanitizePresetId(league_theme_preset)
+    const tm = sanitizePresetAndMode(league_theme_preset, league_appearance_mode)
+    updateData.league_theme_preset = tm.preset
+    updateData.league_appearance_mode = tm.mode
   }
 
   if (org.plan === 'pro') {
@@ -140,7 +144,7 @@ export async function PATCH(req: Request) {
       updateData.brand_color_change_period_start = needsReset
         ? startOfCurrentPeriodIso()
         : org.brand_color_change_period_start
-      updateData.league_theme_preset = 'preset-1'
+      updateData.league_theme_preset = 'classic'
     } else {
       updateData.brand_color_change_count = org.brand_color_change_count ?? 0
       updateData.brand_color_change_period_start =
@@ -160,11 +164,13 @@ export async function PATCH(req: Request) {
       msg.includes('league_timezone') ||
       msg.includes('league_theme_preset') ||
       msg.includes('brand_color_change_count') ||
-      msg.includes('brand_color_change_period_start')
+      msg.includes('brand_color_change_period_start') ||
+      msg.includes('league_appearance_mode')
     ) {
       const fallbackUpdate = { ...updateData }
       delete fallbackUpdate.league_timezone
       delete fallbackUpdate.league_theme_preset
+      delete fallbackUpdate.league_appearance_mode
       delete fallbackUpdate.brand_color_change_count
       delete fallbackUpdate.brand_color_change_period_start
 

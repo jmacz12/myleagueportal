@@ -8,6 +8,7 @@ import NewsBanner from '@/components/NewsBanner'
 import { PublicLeagueHeroBand } from '@/components/league-site/PublicLeagueHeroBand'
 import { useParams } from 'next/navigation'
 import { contrastTextForAccent, publicHeroThemeFromPreset, resolveThemePreset } from '@/lib/leagueTheme'
+import { getPublicThemeInputsForOrg } from '@/lib/public-league-branding'
 import type { LeagueSitePayload } from '@/lib/league-site'
 import { DEFAULT_LEAGUE_HERO_TAGLINE, EMPTY_LEAGUE_SITE, displayHeroInitials } from '@/lib/league-site'
 
@@ -27,6 +28,8 @@ export default function DropinsPage() {
     logo_url: string | null
     primary_color: string | null
     league_theme_preset?: string | null
+    league_appearance_mode?: string | null
+    plan?: string | null
     news_banner: string | null
     news_banner_color: string | null
     league_timezone?: string | null
@@ -66,14 +69,15 @@ export default function DropinsPage() {
     loadData()
   }, [slug])
 
-  const preset = useMemo(
-    () => resolveThemePreset(org?.primary_color ?? null, org?.league_theme_preset ?? undefined),
-    [org?.primary_color, org?.league_theme_preset]
-  )
+  const preset = useMemo(() => {
+    if (!org) return resolveThemePreset('#5a7a2a', 'classic', 'light')
+    const b = getPublicThemeInputsForOrg(org)
+    return resolveThemePreset(b.primaryColor, b.presetId, b.appearanceMode)
+  }, [org])
 
   const heroTheme = useMemo(() => publicHeroThemeFromPreset(preset), [preset])
 
-  const shellPreset = resolveThemePreset(null, null)
+  const shellPreset = resolveThemePreset(null, null, 'light')
 
   const formatLocalTime = (dateStr: string) => {
     const date = new Date(dateStr)
@@ -127,6 +131,8 @@ export default function DropinsPage() {
     borderRadius: '12px',
   }
 
+  const dropinBrand = org ? getPublicThemeInputsForOrg(org) : null
+
   if (loading) {
     return (
       <div
@@ -148,16 +154,17 @@ export default function DropinsPage() {
     <div style={{ minHeight: '100vh', background: preset.pageBg, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
       <NewsBanner message={org?.news_banner} color={org?.news_banner_color} />
 
-      {org ? (
+      {org && dropinBrand ? (
         <div style={{ position: 'relative' }}>
           <PublicLeagueHeroBand
             orgName={org.name}
-            logoUrl={org.logo_url}
-            heroBackgroundUrl={leagueSite.heroBackgroundUrl}
+            logoUrl={dropinBrand.usePlatformBranding ? null : org.logo_url}
+            heroBackgroundUrl={dropinBrand.suppressCustomHero ? null : leagueSite.heroBackgroundUrl}
             tagline={leagueSite.heroTagline ?? DEFAULT_LEAGUE_HERO_TAGLINE}
             placeholderInitials={displayHeroInitials(leagueSite.heroInitials, org.name)}
             preset={preset}
             heroTheme={heroTheme}
+            usePlatformBranding={dropinBrand.usePlatformBranding}
             compact
           />
         </div>

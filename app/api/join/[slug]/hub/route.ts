@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { fetchOrganizationForPublicJoin, normalizeJoinSlugParam } from '@/lib/join-public-org'
 import { EMPTY_LEAGUE_SITE, parseLeagueSitePayload } from '@/lib/league-site'
 import { isSeasonRegistrationWindowOpen } from '@/lib/seasonSignup'
 
@@ -16,34 +17,14 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ slug: string }> }
 ) {
-  const { slug } = await params
+  const slug = normalizeJoinSlugParam((await params).slug)
+  if (!slug) {
+    return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
+  }
 
-  let { data: orgWithTz, error: orgWithTzError } = await supabaseAdmin
-    .from('organizations')
-    .select(
-      'id, name, slug, primary_color, logo_url, news_banner, news_banner_color, league_timezone, league_theme_preset'
-    )
-    .eq('slug', slug)
-    .single()
+  const org = await fetchOrganizationForPublicJoin(supabaseAdmin, slug)
 
-  const { data: orgWithoutTz } = orgWithTzError
-    ? await supabaseAdmin
-        .from('organizations')
-        .select(
-          'id, name, slug, primary_color, logo_url, news_banner, news_banner_color, league_theme_preset'
-        )
-        .eq('slug', slug)
-        .single()
-    : { data: null as any }
-
-  const org =
-    orgWithTz ||
-    (orgWithoutTz
-      ? { ...orgWithoutTz, league_timezone: null, league_theme_preset: 'preset-1' }
-      : null)
-  const orgError = orgWithTzError && !orgWithoutTz ? orgWithTzError : null
-
-  if (orgError || !org) {
+  if (!org?.id) {
     return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
   }
 

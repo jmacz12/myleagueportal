@@ -1,14 +1,17 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { CalendarDays, ChevronRight, House, Trophy } from 'lucide-react'
+import { LeagueNotFoundOrganizerHint } from '@/components/LeagueNotFoundOrganizerHint'
 import NewsBanner from '@/components/NewsBanner'
 import { PublicLeagueHeroBand } from '@/components/league-site/PublicLeagueHeroBand'
 import { publicHeroThemeFromPreset, resolveThemePreset } from '@/lib/leagueTheme'
+import { getPublicThemeInputsForOrg } from '@/lib/public-league-branding'
 import type { LeagueSitePayload } from '@/lib/league-site'
 import { DEFAULT_LEAGUE_HERO_TAGLINE, EMPTY_LEAGUE_SITE, displayHeroInitials } from '@/lib/league-site'
+import { googleFontStylesheetHref, resolvePublicLeagueFontStack } from '@/lib/public-league-fonts'
 import { effectiveSignupOpensAtIso } from '@/lib/seasonSignup'
 
 interface HubOrg {
@@ -20,6 +23,8 @@ interface HubOrg {
   news_banner: string | null
   news_banner_color: string | null
   league_theme_preset?: string | null
+  league_appearance_mode?: string | null
+  plan?: string | null
 }
 
 interface CompetitiveSeason {
@@ -65,6 +70,8 @@ export default function JoinHubPage() {
   const [notFound, setNotFound] = useState(false)
   const [hub, setHub] = useState<HubResponse | null>(null)
   const [dropInCount, setDropInCount] = useState(0)
+  const [signedInOrg, setSignedInOrg] = useState<{ slug: string; name: string } | null>(null)
+  const [accessResolved, setAccessResolved] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -104,14 +111,60 @@ export default function JoinHubPage() {
     }
   }, [slug])
 
-  const shellPreset = resolveThemePreset(null, null)
+  useEffect(() => {
+    let cancelled = false
+    setAccessResolved(false)
+    fetch('/api/me/org-access')
+      .then(async (r) => {
+        if (cancelled) return
+        if (!r.ok) {
+          setSignedInOrg(null)
+          return
+        }
+        const d = await r.json()
+        if (cancelled) return
+        const a = d.access
+        if (a?.slug && a?.name) setSignedInOrg({ slug: String(a.slug), name: String(a.name) })
+        else setSignedInOrg(null)
+      })
+      .catch(() => {
+        if (!cancelled) setSignedInOrg(null)
+      })
+      .finally(() => {
+        if (!cancelled) setAccessResolved(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [slug])
+
+  const leagueSiteForFont = hub?.leagueSite ?? EMPTY_LEAGUE_SITE
+  const publicFontStack = useMemo(
+    () => resolvePublicLeagueFontStack(leagueSiteForFont.publicFontKey),
+    [leagueSiteForFont.publicFontKey]
+  )
+
+  useEffect(() => {
+    const href = googleFontStylesheetHref(leagueSiteForFont.publicFontKey)
+    if (!href) return
+    const key = leagueSiteForFont.publicFontKey || 'plus-jakarta'
+    const id = `public-league-font-${key}`
+    if (document.getElementById(id)) return
+    const link = document.createElement('link')
+    link.id = id
+    link.rel = 'stylesheet'
+    link.href = href
+    document.head.appendChild(link)
+  }, [leagueSiteForFont.publicFontKey])
+
+  const shellPreset = resolveThemePreset(null, null, 'light')
 
   if (loading) {
     return (
       <div
         className="min-h-screen flex items-center justify-center text-sm font-semibold"
         style={{
-          fontFamily: 'Plus Jakarta Sans, sans-serif',
+          fontFamily: publicFontStack,
           background: shellPreset.pageBg,
           color: shellPreset.heading,
         }}
@@ -125,36 +178,41 @@ export default function JoinHubPage() {
     return (
       <div
         className="min-h-screen flex flex-col items-center justify-center px-6 text-center"
-        style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', background: shellPreset.pageBg }}
+        style={{ fontFamily: publicFontStack, background: shellPreset.pageBg }}
       >
         <p style={{ color: shellPreset.heading, fontWeight: 800, fontSize: '18px', marginBottom: '8px' }}>
           League not found
         </p>
         <p style={{ color: shellPreset.muted, fontSize: '14px', maxWidth: '360px' }}>
-          Check the link or ask your organizer for the correct registration URL.
+          {accessResolved && !signedInOrg
+            ? 'Check the link or ask your organizer for the correct URL. Organizers: use the address from Dashboard → Settings.'
+            : 'Check the link or ask your organizer for the correct registration URL.'}
         </p>
+        <LeagueNotFoundOrganizerHint signedInOrg={signedInOrg} currentSlug={slug} preset={shellPreset} variant="join" />
       </div>
     )
   }
 
   const { organization: org, competitiveSeason, seasonRegistrationOpen, leagueSite } = hub
-  const preset = resolveThemePreset(org.primary_color, org.league_theme_preset ?? undefined)
+  const brandIn = getPublicThemeInputsForOrg(org)
+  const preset = resolveThemePreset(brandIn.primaryColor, brandIn.presetId, brandIn.appearanceMode)
   const accent = preset.accent
   const heroTheme = publicHeroThemeFromPreset(preset)
 
   return (
-    <div style={{ minHeight: '100vh', background: preset.pageBg, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: preset.pageBg, fontFamily: publicFontStack }}>
       <NewsBanner message={org.news_banner} color={org.news_banner_color} />
 
       <div style={{ position: 'relative' }}>
         <PublicLeagueHeroBand
           orgName={org.name}
-          logoUrl={org.logo_url}
-          heroBackgroundUrl={leagueSite.heroBackgroundUrl}
+          logoUrl={brandIn.usePlatformBranding ? null : org.logo_url}
+          heroBackgroundUrl={brandIn.suppressCustomHero ? null : leagueSite.heroBackgroundUrl}
           tagline={leagueSite.heroTagline ?? DEFAULT_LEAGUE_HERO_TAGLINE}
           placeholderInitials={displayHeroInitials(leagueSite.heroInitials, org.name)}
           preset={preset}
           heroTheme={heroTheme}
+          usePlatformBranding={brandIn.usePlatformBranding}
           compact
         />
       </div>

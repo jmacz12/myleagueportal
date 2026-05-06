@@ -1,4 +1,13 @@
+import {
+  INTERNAL_PRESET_ID_BY_CHOICE,
+  appearanceModeForChoice,
+  normalizeLeagueThemePresetId,
+  type LeagueThemeChoiceId,
+} from '@/lib/league-theme-choice'
+
 const DEFAULT_BRAND = '#5a7a2a'
+
+export type LeagueAppearanceMode = 'light' | 'dark'
 
 export interface ThemePreset {
   id: string
@@ -107,6 +116,49 @@ function readableText(bg: string): string {
   return luminance > 0.62 ? '#1a1a0a' : '#ffffff'
 }
 
+/** sRGB relative luminance (WCAG), 0–1. */
+function relativeLuminance(hex: string): number {
+  const { r, g, b } = hexToRgb(hex)
+  const lin = (c: number) => {
+    const v = c / 255
+    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)
+  }
+  return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
+}
+
+function contrastRatio(fg: string, bg: string): number {
+  const L1 = relativeLuminance(fg) + 0.05
+  const L2 = relativeLuminance(bg) + 0.05
+  const hi = Math.max(L1, L2)
+  const lo = Math.min(L1, L2)
+  return hi / lo
+}
+
+/** Pull `text` toward black/white on `bg` until contrast is at least `minRatio`. */
+function nudgeTextForBackground(text: string, bg: string, minRatio: number): string {
+  if (contrastRatio(text, bg) >= minRatio) return text
+  const target = readableText(bg)
+  let cur = text
+  for (let i = 0; i < 18; i++) {
+    if (contrastRatio(cur, bg) >= minRatio) return cur
+    cur = mix(target, cur, 0.3)
+  }
+  return target
+}
+
+/** Ensure headings/body/muted read clearly on both page and card surfaces. */
+function harmonizePresetContrast(preset: ThemePreset): ThemePreset {
+  const { pageBg, surfaceBg } = preset
+  let { heading, body, muted } = preset
+  heading = nudgeTextForBackground(heading, pageBg, 4.5)
+  heading = nudgeTextForBackground(heading, surfaceBg, 4.5)
+  body = nudgeTextForBackground(body, pageBg, 4.25)
+  body = nudgeTextForBackground(body, surfaceBg, 4.25)
+  muted = nudgeTextForBackground(muted, pageBg, 3.1)
+  muted = nudgeTextForBackground(muted, surfaceBg, 3.1)
+  return { ...preset, heading, body, muted }
+}
+
 export function getThemePresets(brandColor: string | null | undefined): ThemePreset[] {
   const accent = normalizeHex(brandColor)
   const accentCool = shiftHue(accent, 48, 0.08, 0.02)
@@ -182,12 +234,48 @@ export function getThemePresets(brandColor: string | null | undefined): ThemePre
   ]
 }
 
+/** Shift a preset toward a darker page shell (Midnight) while keeping brand accent readable. */
+export function applyLeagueAppearanceMode(
+  preset: ThemePreset,
+  mode: LeagueAppearanceMode | null | undefined
+): ThemePreset {
+  if (!mode || mode === 'light') return harmonizePresetContrast(preset)
+  const pageBg = mix('#080a0d', preset.pageBg, 0.22)
+  const surfaceBg = mix('#10141c', preset.surfaceBg, 0.18)
+  const surfaceBorder = mix('#2a3344', preset.surfaceBorder, 0.5)
+  // Dark shell: explicit light type so modals, sticky bars, and forms stay readable (not tied to light preset hues).
+  return harmonizePresetContrast({
+    ...preset,
+    pageBg,
+    surfaceBg,
+    surfaceBorder,
+    heading: '#f9fafb',
+    body: '#e4e4e7',
+    muted: '#a1a1aa',
+    accent: preset.accent,
+    accentSoftBg: mix(preset.accent, '#151a22', 0.38),
+  })
+}
+
+/** Resolve one of the five named league themes (Classic, Bold, Soft, Bright, Midnight). */
+export function resolveLeagueThemeChoice(
+  brandColor: string | null | undefined,
+  choice: LeagueThemeChoiceId
+): ThemePreset {
+  const internalId = INTERNAL_PRESET_ID_BY_CHOICE[choice]
+  const mode = appearanceModeForChoice(choice)
+  const presets = getThemePresets(brandColor)
+  const base = presets.find((p) => p.id === internalId) || presets[0]
+  return applyLeagueAppearanceMode(base, mode)
+}
+
 export function resolveThemePreset(
   brandColor: string | null | undefined,
-  presetId: string | null | undefined
+  presetId: string | null | undefined,
+  appearanceMode: LeagueAppearanceMode | null | undefined = 'light'
 ): ThemePreset {
-  const presets = getThemePresets(brandColor)
-  return presets.find((p) => p.id === presetId) || presets[0]
+  const choice = normalizeLeagueThemePresetId(presetId, appearanceMode)
+  return resolveLeagueThemeChoice(brandColor, choice)
 }
 
 /** Dark public hero, sticky bar, and section bands derived from the active preset (organizer brand + preset id). */
@@ -212,19 +300,22 @@ export function publicHeroThemeFromPreset(preset: ThemePreset): PublicHeroTheme 
   const deep2 = mix('#100c18', ac, 0.34)
   const deep3 = mix('#030308', ac, 0.26)
   const glow = mix(ac, '#ffffff', 0.14)
+  // Hero band is always a dark gradient — keep title/subtitle near-white regardless of light/dark preset.
+  const heroTitle = '#fafafa'
+  const heroSub = mix('#e4e4e7', ac, 0.12)
   return {
     heroGradient: `linear-gradient(152deg, ${deep1} 0%, ${deep2} 52%, ${deep3} 100%)`,
     heroGlow: `radial-gradient(880px 480px at 88% 0%, ${withAlpha(glow, 0.42)} 0%, transparent 55%)`,
-    heroTitle: mix('#f4f1e8', preset.accentSoftBg, 0.22),
-    heroSubtitle: withAlpha(mix('#e8e4d8', ac, 0.12), 0.78),
+    heroTitle,
+    heroSubtitle: withAlpha(heroSub, 0.88),
     heroPlaceholderBg: mix('#14141c', ac, 0.28),
     heroPlaceholderBorder: mix(ac, '#ffffff', 0.35),
-    heroPlaceholderColor: mix('#f8f4ea', ac, 0.2),
+    heroPlaceholderColor: mix('#f8fafc', ac, 0.08),
     stickyBackground: withAlpha(mix(preset.surfaceBg, preset.pageBg, 0.35), 0.94),
     stickyBorder: withAlpha(preset.surfaceBorder, 0.88),
-    bandAltBg: mix(preset.pageBg, preset.heading, 0.045),
+    bandAltBg: mix(preset.pageBg, preset.surfaceBg, 0.28),
     footerBarBg: mix(deep2, ac, 0.1),
-    footerBarText: withAlpha('#f5f2ea', 0.74),
+    footerBarText: withAlpha('#f8fafc', 0.82),
   }
 }
 
