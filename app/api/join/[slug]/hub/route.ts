@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { EMPTY_LEAGUE_SITE, parseLeagueSitePayload } from '@/lib/league-site'
+import { isSeasonRegistrationWindowOpen } from '@/lib/seasonSignup'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -49,7 +50,7 @@ export async function GET(
   let { data: seasons, error: seasonsErr } = await supabaseAdmin
     .from('seasons')
     .select(
-      'id, name, start_date, end_date, type, is_active, allow_online_registration, online_registration_opens_at, online_registration_closes_at'
+      'id, name, start_date, end_date, type, is_active, allow_online_registration, online_registration_opens_at, online_registration_closes_at, signup_opens_mode, signup_opens_days_before'
     )
     .eq('organization_id', org.id)
     .eq('is_active', true)
@@ -60,7 +61,8 @@ export async function GET(
   if (
     seasonsErr &&
     (String(seasonsErr.message || '').includes('allow_online_registration') ||
-      String(seasonsErr.message || '').includes('online_registration_'))
+      String(seasonsErr.message || '').includes('online_registration_') ||
+      String(seasonsErr.message || '').includes('signup_opens'))
   ) {
     const r = await supabaseAdmin
       .from('seasons')
@@ -75,28 +77,12 @@ export async function GET(
       allow_online_registration: false,
       online_registration_opens_at: null,
       online_registration_closes_at: null,
+      signup_opens_mode: null,
+      signup_opens_days_before: null,
     }))
   }
 
   const competitiveSeason = seasons?.[0] ?? null
-
-  function registrationWindowAllows(cs: {
-    allow_online_registration?: boolean | null
-    online_registration_opens_at?: string | null
-    online_registration_closes_at?: string | null
-  }) {
-    if (!cs.allow_online_registration) return false
-    const now = Date.now()
-    if (cs.online_registration_opens_at) {
-      const t = new Date(cs.online_registration_opens_at).getTime()
-      if (now < t) return false
-    }
-    if (cs.online_registration_closes_at) {
-      const t = new Date(cs.online_registration_closes_at).getTime()
-      if (now > t) return false
-    }
-    return true
-  }
 
   const { data: seasonWaiver } = await supabaseAdmin
     .from('waivers')
@@ -117,7 +103,7 @@ export async function GET(
     leagueSite = parseLeagueSitePayload(siteRow.published)
   }
 
-  const seasonRegistrationOpen = !!(competitiveSeason && registrationWindowAllows(competitiveSeason))
+  const seasonRegistrationOpen = !!(competitiveSeason && isSeasonRegistrationWindowOpen(competitiveSeason))
 
   return NextResponse.json({
     organization: org,

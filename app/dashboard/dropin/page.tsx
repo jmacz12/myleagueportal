@@ -125,7 +125,7 @@ export default function DropinPage() {
                 On the Day
               </div>
               <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.7' }}>
-                Open the session and tap <strong>Manage</strong> to check players in, mark no-shows, and track payments. Sessions auto-close at midnight and move to History.
+                Tap a session row or card to open it and check players in, mark no-shows, and track payments. Sessions auto-close at midnight and move to History.
               </div>
             </div>
 

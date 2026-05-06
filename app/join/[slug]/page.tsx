@@ -9,6 +9,7 @@ import { PublicLeagueHeroBand } from '@/components/league-site/PublicLeagueHeroB
 import { publicHeroThemeFromPreset, resolveThemePreset } from '@/lib/leagueTheme'
 import type { LeagueSitePayload } from '@/lib/league-site'
 import { DEFAULT_LEAGUE_HERO_TAGLINE, EMPTY_LEAGUE_SITE, displayHeroInitials } from '@/lib/league-site'
+import { effectiveSignupOpensAtIso } from '@/lib/seasonSignup'
 
 interface HubOrg {
   id: string
@@ -27,6 +28,8 @@ interface CompetitiveSeason {
   start_date: string | null
   end_date: string | null
   allow_online_registration?: boolean
+  signup_opens_mode?: string | null
+  signup_opens_days_before?: number | null
   online_registration_opens_at?: string | null
   online_registration_closes_at?: string | null
 }
@@ -37,8 +40,9 @@ function seasonSignupClosedDetail(cs: CompetitiveSeason | null): string {
     return `Public registration is off for ${cs.name}. See league home or use drop-ins.`
   }
   const now = Date.now()
-  if (cs.online_registration_opens_at && now < new Date(cs.online_registration_opens_at).getTime()) {
-    return `Signups open ${new Date(cs.online_registration_opens_at).toLocaleString()}.`
+  const opensIso = effectiveSignupOpensAtIso(cs)
+  if (opensIso && now < new Date(opensIso).getTime()) {
+    return `Signups open ${new Date(opensIso).toLocaleString()}.`
   }
   if (cs.online_registration_closes_at && now > new Date(cs.online_registration_closes_at).getTime()) {
     return 'Online signups have closed. Try drop-ins or ask your league.'
