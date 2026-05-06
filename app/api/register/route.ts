@@ -22,6 +22,25 @@ export async function POST(req: Request) {
       guests,
     } = body
 
+    // Public registration UI uses PG/SG/SF/PF/C codes, while roster records
+    // are stored as Guard/Forward/Center in existing seed/admin flows.
+    function normalizePositions(raw: unknown): string[] {
+      if (!Array.isArray(raw)) return []
+      const mapped = raw
+        .map((p) => String(p).trim().toUpperCase())
+        .map((p) => {
+          if (p === 'PG' || p === 'SG') return 'Guard'
+          if (p === 'SF' || p === 'PF') return 'Forward'
+          if (p === 'C') return 'Center'
+          return p
+        })
+        .filter(Boolean)
+      return [...new Set(mapped)]
+    }
+
+    const normalizedPositions = normalizePositions(positions)
+    const sanitizedPhone = typeof phone === 'string' ? phone.replace(/\D/g, '') : ''
+
     if (!full_name || !organization_id) {
       return NextResponse.json(
         { error: 'Missing required fields' },
@@ -99,7 +118,7 @@ export async function POST(req: Request) {
           organization_id,
           full_name,
           email: email || null,
-          positions: Array.isArray(positions) ? positions : [],
+          positions: normalizedPositions,
           waiver_accepted: waiver_accepted ?? false,
           is_guest: false,
           checked_in: false,
@@ -195,25 +214,50 @@ export async function POST(req: Request) {
       }
     }
 
-    const { error: playerError } = await supabaseAdmin
+    const playerInsertBase = {
+      full_name,
+      email: email || null,
+      phone: sanitizedPhone || null,
+      /** Assigned later by organizer (dashboard) or future team jersey poll */
+      jersey_number: null,
+      positions: normalizedPositions,
+      organization_id,
+      season_id,
+      status: 'active',
+    }
+
+    let playerError: { code?: string; message?: string } | null = null
+
+    const withWaiverAttempt = await supabaseAdmin
       .from('players')
       .insert({
-        full_name,
-        email: email || null,
-        phone: phone || null,
-        /** Assigned later by organizer (dashboard) or future team jersey poll */
-        jersey_number: null,
-        positions: positions ?? [],
-        organization_id,
-        season_id,
+        ...playerInsertBase,
         waiver_accepted: waiver_accepted ?? false,
-        status: 'active',
       })
+
+    if (withWaiverAttempt.error) {
+      const msg = String(withWaiverAttempt.error.message || '')
+      if (/waiver_accepted|schema cache|column/i.test(msg)) {
+        // Backward-compatible fallback for databases where players.waiver_accepted
+        // has not been added yet.
+        const fallbackAttempt = await supabaseAdmin
+          .from('players')
+          .insert(playerInsertBase)
+        playerError = fallbackAttempt.error as { code?: string; message?: string } | null
+      } else {
+        playerError = withWaiverAttempt.error as { code?: string; message?: string } | null
+      }
+    }
 
     if (playerError) {
       console.error('Player insert error:', playerError)
       return NextResponse.json(
-        { error: 'Failed to register. Please try again.' },
+        {
+          error: 'Failed to register. Please try again.',
+          detail: process.env.NODE_ENV === 'development'
+            ? (playerError as { message?: string } | null)?.message
+            : undefined,
+        },
         { status: 500 }
       )
     }

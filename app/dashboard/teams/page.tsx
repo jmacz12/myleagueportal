@@ -17,33 +17,13 @@ interface Season {
   type: string
 }
 
-interface JerseyPollRow {
-  id: string
-  team_id: string
-  season_id: string
-  status: string
-  created_at: string
-  closed_at: string | null
-  responses: Array<{
-    id: string
-    player_id: string
-    preferred_number: number
-    submitted_at: string
-    conflict: boolean
-    player: { full_name: string; email: string | null; team_id: string | null }
-  }>
-}
-
 export default function TeamsPage() {
   const [teams, setTeams] = useState<Team[]>([])
   const [seasons, setSeasons] = useState<Season[]>([])
-  const [polls, setPolls] = useState<JerseyPollRow[]>([])
-  const [orgSlug, setOrgSlug] = useState('')
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [pollBusyId, setPollBusyId] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [selectedSeason, setSelectedSeason] = useState<string>('all')
   const [form, setForm] = useState({ name: '', color: '#5a7a2a', season_id: '' })
@@ -51,68 +31,18 @@ export default function TeamsPage() {
   useEffect(() => { fetchData() }, [])
 
   async function fetchData() {
-    const [teamsRes, seasonsRes, pollsRes] = await Promise.all([
+    const [teamsRes, seasonsRes] = await Promise.all([
       fetch('/api/teams'),
       fetch('/api/seasons'),
-      fetch('/api/jersey-polls'),
     ])
     const teamsData = await teamsRes.json()
     const seasonsData = await seasonsRes.json()
-    const pollsData = pollsRes.ok ? await pollsRes.json() : { polls: [] }
     setTeams(teamsData.teams || [])
-    setOrgSlug(teamsData.org_slug || '')
-    setPolls(pollsData.polls || [])
     setSeasons(seasonsData.seasons || [])
     if (seasonsData.seasons?.length > 0) {
       setForm(f => ({ ...f, season_id: seasonsData.seasons[0].id }))
     }
     setLoading(false)
-  }
-
-  function openPollForTeam(teamId: string) {
-    return polls.find(p => p.team_id === teamId && p.status === 'open')
-  }
-
-  async function startPoll(teamId: string) {
-    setPollBusyId(teamId)
-    const res = await fetch('/api/jersey-polls', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ team_id: teamId }),
-    })
-    const data = await res.json().catch(() => ({}))
-    setPollBusyId(null)
-    if (!res.ok) {
-      alert(data.error || 'Could not start poll')
-      return
-    }
-    fetchData()
-  }
-
-  async function closePoll(pollId: string) {
-    if (!confirm('Close this jersey poll? Players can no longer submit or change preferences.')) return
-    setPollBusyId(pollId)
-    const res = await fetch(`/api/jersey-polls/${pollId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'close' }),
-    })
-    setPollBusyId(null)
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}))
-      alert(data.error || 'Could not close poll')
-      return
-    }
-    fetchData()
-  }
-
-  function copyPollLink(pollId: string) {
-    const path = `/join/${orgSlug}/jersey-poll/${pollId}`
-    const url = typeof window !== 'undefined' ? `${window.location.origin}${path}` : path
-    void navigator.clipboard.writeText(url).then(
-      () => alert('Link copied to clipboard'),
-      () => alert(`Copy this link:\n${url}`)
-    )
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -287,14 +217,14 @@ export default function TeamsPage() {
           {/* Table Header */}
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'minmax(120px, 2fr) minmax(100px, 2fr) 56px minmax(140px, 1.4fr) 72px',
+            gridTemplateColumns: 'minmax(120px, 2fr) minmax(100px, 2fr) 56px 72px',
             gap: '8px',
             padding: '10px 20px',
             background: 'var(--bg-elevated)',
             borderBottom: '0.5px solid var(--border)',
             alignItems: 'center',
           }}>
-            {['Team', 'Season', '# plyrs', 'Jersey poll', ''].map((h, i) => (
+            {['Team', 'Season', '# plyrs', ''].map((h, i) => (
               <span key={i} style={{
                 fontSize: '10px',
                 fontWeight: '700',
@@ -306,15 +236,14 @@ export default function TeamsPage() {
           </div>
 
           {/* Rows */}
-          {filteredTeams.map((team, index) => {
-            const open = openPollForTeam(team.id)
+          {filteredTeams.map((team) => {
             const nPlayers = team.player_count ?? 0
             return (
               <div key={team.id}>
                 <div
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: 'minmax(120px, 2fr) minmax(100px, 2fr) 56px minmax(140px, 1.4fr) 72px',
+                    gridTemplateColumns: 'minmax(120px, 2fr) minmax(100px, 2fr) 56px 72px',
                     gap: '8px',
                     padding: '12px 20px',
                     borderBottom: '0.5px solid var(--border-light)',
@@ -345,45 +274,6 @@ export default function TeamsPage() {
                     {nPlayers}
                   </span>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: 0 }}>
-                    {open ? (
-                      <>
-                        <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--accent-text)' }}>Open · {open.responses.length} responses</span>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                          <button
-                            type="button"
-                            className="btn-secondary"
-                            disabled={!orgSlug || pollBusyId === open.id}
-                            onClick={() => copyPollLink(open.id)}
-                            style={{ fontSize: '11px', padding: '4px 8px' }}
-                          >
-                            Copy link
-                          </button>
-                          <button
-                            type="button"
-                            className="btn-secondary"
-                            disabled={pollBusyId === open.id}
-                            onClick={() => closePoll(open.id)}
-                            style={{ fontSize: '11px', padding: '4px 8px', color: '#b45309' }}
-                          >
-                            {pollBusyId === open.id ? '…' : 'Close'}
-                          </button>
-                        </div>
-                      </>
-                    ) : (
-                      <button
-                        type="button"
-                        className="btn-primary"
-                        disabled={nPlayers === 0 || pollBusyId === team.id || !orgSlug}
-                        title={nPlayers === 0 ? 'Assign players to this team first' : orgSlug ? '' : 'Set a league URL under Settings'}
-                        onClick={() => startPoll(team.id)}
-                        style={{ fontSize: '11px', padding: '6px 10px', alignSelf: 'flex-start' }}
-                      >
-                        {pollBusyId === team.id ? '…' : 'Start poll'}
-                      </button>
-                    )}
-                  </div>
-
                   <button
                     onClick={() => deleteTeam(team.id)}
                     disabled={deletingId === team.id}
@@ -403,45 +293,6 @@ export default function TeamsPage() {
                     {deletingId === team.id ? '...' : 'Delete'}
                   </button>
                 </div>
-
-                {open && open.responses.length > 0 && (
-                  <div
-                    style={{
-                      padding: '0 20px 14px 52px',
-                      background: index % 2 === 0 ? 'var(--bg-surface)' : 'var(--bg-elevated)',
-                      borderBottom: index < filteredTeams.length - 1 ? '0.5px solid var(--border-light)' : 'none',
-                    }}
-                  >
-                    <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)', marginBottom: '8px' }}>
-                      Preferences (poll)
-                    </div>
-                    <div style={{ overflowX: 'auto' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-                        <thead>
-                          <tr style={{ textAlign: 'left', color: 'var(--text-muted)' }}>
-                            <th style={{ padding: '4px 8px 4px 0', fontWeight: 600 }}>Player</th>
-                            <th style={{ padding: '4px 8px', fontWeight: 600 }}>Email</th>
-                            <th style={{ padding: '4px 0 4px 8px', fontWeight: 600 }}>#</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {open.responses.map((r) => (
-                            <tr key={r.id} style={{ borderTop: '0.5px solid var(--border-light)' }}>
-                              <td style={{ padding: '6px 8px 6px 0', fontWeight: 600 }}>{r.player.full_name}</td>
-                              <td style={{ padding: '6px 8px', wordBreak: 'break-all' }}>{r.player.email || '—'}</td>
-                              <td style={{ padding: '6px 0 6px 8px', fontFamily: 'monospace', fontWeight: 700 }}>
-                                {r.preferred_number}
-                                {r.conflict && (
-                                  <span style={{ marginLeft: '6px', fontSize: '10px', color: '#b45309', fontWeight: 700 }}>Conflict</span>
-                                )}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
               </div>
             )
           })}

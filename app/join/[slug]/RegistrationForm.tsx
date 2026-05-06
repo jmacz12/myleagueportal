@@ -81,6 +81,10 @@ export default function RegistrationForm({
     setGuests(guests.filter((_, i) => i !== idx))
   }
 
+  function sanitizePhone(value: string): string {
+    return value.replace(/\D/g, '')
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!waiverAccepted) { setError('You must accept the liability waiver to register.'); return }
@@ -106,7 +110,12 @@ export default function RegistrationForm({
         }),
       })
       const data = await res.json()
-      if (!res.ok) { setError(data.error || 'Something went wrong'); setLoading(false); return }
+      if (!res.ok) {
+        const detail = typeof data.detail === 'string' && data.detail ? ` (${data.detail})` : ''
+        setError((data.error || 'Something went wrong') + detail)
+        setLoading(false)
+        return
+      }
       setSuccess(true)
     } catch {
       setError('Something went wrong. Please try again.')
@@ -272,8 +281,13 @@ export default function RegistrationForm({
 
           <div>
             <label style={labelStyle}>Phone Number</label>
-            <input type="tel" placeholder="604-555-0123"
-              value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })}
+            <input
+              type="tel"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              placeholder="6045550123"
+              value={form.phone}
+              onChange={(e) => setForm({ ...form, phone: sanitizePhone(e.target.value) })}
               style={inputStyle} />
           </div>
 
