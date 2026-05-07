@@ -954,8 +954,50 @@ function LeagueHomeContent() {
               Schedule & venues
             </h2>
             <p style={{ margin: '0 0 22px', fontSize: '14px', color: preset.muted, lineHeight: 1.55, maxWidth: '560px' }}>
-              Upcoming drop-in sessions for this league. Competitive game fixtures will appear here when your organizer connects the schedule to this page.
+              Season games and drop-ins share one schedule feed. Type badges below make each item clear so booking actions only appear on drop-ins.
             </p>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '14px' }}>
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  padding: '4px 9px',
+                  borderRadius: '999px',
+                  border: `1px solid ${preset.surfaceBorder}`,
+                  background: preset.surfaceBg,
+                  color: preset.body,
+                }}
+              >
+                <span
+                  aria-hidden
+                  style={{ width: '8px', height: '8px', borderRadius: '999px', background: '#7c3aed' }}
+                />
+                Season game
+              </span>
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  padding: '4px 9px',
+                  borderRadius: '999px',
+                  border: `1px solid ${preset.surfaceBorder}`,
+                  background: preset.surfaceBg,
+                  color: preset.body,
+                }}
+              >
+                <span
+                  aria-hidden
+                  style={{ width: '8px', height: '8px', borderRadius: '999px', background: preset.accent }}
+                />
+                Drop-in
+              </span>
+            </div>
 
             {sessions.length === 0 ? (
               <div
@@ -968,7 +1010,7 @@ function LeagueHomeContent() {
                 }}
               >
                 <CalendarDays size={36} strokeWidth={1.25} style={{ color: preset.accent, marginBottom: '12px' }} aria-hidden />
-                <p style={{ color: preset.heading, fontWeight: 800, margin: 0 }}>No upcoming drop-ins</p>
+                <p style={{ color: preset.heading, fontWeight: 800, margin: 0 }}>No upcoming schedule items</p>
                 <p style={{ color: preset.muted, fontSize: '14px', margin: '8px 0 0' }}>Check back soon or ask your organizer for dates.</p>
               </div>
             ) : (
@@ -992,6 +1034,25 @@ function LeagueHomeContent() {
                       }}
                     >
                       <div style={{ minWidth: 0 }}>
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            fontSize: '10px',
+                            fontWeight: 800,
+                            letterSpacing: '0.04em',
+                            textTransform: 'uppercase',
+                            color: preset.accent,
+                            background: preset.accentSoftBg,
+                            border: `1px solid ${preset.surfaceBorder}`,
+                            borderRadius: '999px',
+                            padding: '3px 8px',
+                            marginBottom: '8px',
+                          }}
+                        >
+                          Drop-in
+                        </span>
                         <p style={{ margin: 0, fontSize: '16px', fontWeight: 900, color: preset.heading }}>{s.name || 'Drop-in session'}</p>
                         <p style={{ margin: '6px 0 0', fontSize: '13px', color: preset.muted }}>
                           {local.day} · {local.time}
@@ -1020,7 +1081,7 @@ function LeagueHomeContent() {
                           flexShrink: 0,
                         }}
                       >
-                        Reserve
+                        Reserve spot
                       </Link>
                     </div>
                   )

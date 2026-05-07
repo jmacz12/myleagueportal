@@ -10,7 +10,7 @@ const supabaseAdmin = createClient(
 )
 
 /**
- * Public hub payload: organization branding + active competitive season + season waiver.
+ * Public hub payload: organization branding + signup-eligible seasons + season waiver.
  * Used by /join/[slug] and /join/[slug]/register (no auth).
  */
 export async function GET(
@@ -34,7 +34,6 @@ export async function GET(
       'id, name, start_date, end_date, type, is_active, allow_online_registration, online_registration_opens_at, online_registration_closes_at, signup_opens_mode, signup_opens_days_before'
     )
     .eq('organization_id', org.id)
-    .eq('is_active', true)
     .eq('type', 'season')
     .order('start_date', { ascending: false })
     .limit(5)
@@ -49,7 +48,6 @@ export async function GET(
       .from('seasons')
       .select('id, name, start_date, end_date, type, is_active, allow_online_registration')
       .eq('organization_id', org.id)
-      .eq('is_active', true)
       .eq('type', 'season')
       .order('start_date', { ascending: false })
       .limit(5)
@@ -63,7 +61,11 @@ export async function GET(
     }))
   }
 
-  const competitiveSeason = seasons?.[0] ?? null
+  const allCompetitive = seasons || []
+  const signupSeasons = allCompetitive.filter((s) => isSeasonRegistrationWindowOpen(s))
+  const openNow = signupSeasons[0]
+  const activeFallback = allCompetitive.find((s) => !!s.is_active)
+  const competitiveSeason = openNow ?? activeFallback ?? allCompetitive[0] ?? null
 
   const { data: seasonWaiver } = await supabaseAdmin
     .from('waivers')
@@ -84,11 +86,13 @@ export async function GET(
     leagueSite = parseLeagueSitePayload(siteRow.published)
   }
 
-  const seasonRegistrationOpen = !!(competitiveSeason && isSeasonRegistrationWindowOpen(competitiveSeason))
+  const seasonRegistrationOpen = signupSeasons.length > 0
 
   return NextResponse.json({
     organization: org,
     competitiveSeason,
+    /** All seasons currently eligible for signup; register page can show a picker when >1. */
+    signupSeasons,
     seasonWaiver,
     /** True when online signup is on and inside optional opens/closes window */
     seasonRegistrationOpen,

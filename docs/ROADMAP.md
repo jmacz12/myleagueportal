@@ -4,6 +4,15 @@ Readable breakdown of what exists today versus what is planned. Update this file
 
 ---
 
+## Roadmap structure (past / current / future)
+
+- **Past (shipped):** `Phase 1–3 — Foundation & core`, plus dated entries in **Changelog**.
+- **Current (active):** `Phase 4` and `Phase 5` (in progress / polishing).
+- **Future (planned):** `Phase 6`, `Phase 7`, `Phase 8`, and `Product direction` bullets marked planned/deferred.
+- **History log:** `Changelog` is the authoritative timeline of delivered changes.
+
+---
+
 ## Product direction — public league & team pages (plan tiers, target)
 
 Most of this is **not built yet**; this section records **Basic / Pro / Enterprise** intent so public surfaces and billing stay aligned.
@@ -20,6 +29,7 @@ Most of this is **not built yet**; this section records **Basic / Pro / Enterpri
 - **League home (Basic):** **House public theme** (MyLeaguePortal default green + Classic + Bright); **hosted-on** lockup instead of league logo on public; teams, registration, and drop-ins unchanged. **Custom league website** (hero, sections, fonts) is **Pro+**; Basic visitors do not see org custom colors/hero on the public web.
 - **Team directory** → **public team pages** at `**/league/[slug]/teams/[teamId]`** (identity, season, **roster** without contact info, jersey poll link when open). **Roster on public** for all plans (names, jersey #, positions)—**no emails/phones on public** by default; plain roster (no stat strips). **Shipped:** tabbed layout (**Overview / News / Schedule / Roster / Stats** with `**?tab=`**); **Overview** can show a **Watch live** button when **`teams.stream_url`** is set (organizer-managed; external YouTube/Twitch/etc. for now).
 - **No public team/player stats** on Basic.
+- **League schedule UI (single list):** Keep season + drop-in items in one list, but require strong **type indicators** (`Season game` vs `Drop-in`) and action-safe CTAs (e.g. reserve/join only appears on drop-ins).
 
 ### Pro
 
@@ -33,6 +43,7 @@ Most of this is **not built yet**; this section records **Basic / Pro / Enterpri
 - **Optional logo-assisted branding (Pro):** Provide an **“Extract suggested brand color from logo”** helper; saved brand color remains the source of truth.
 - **Video / stream:** featured **YouTube** and **Twitch** (embeds and/or prominent outbound links) on **league home** / team surfaces. **Shipped (MVP):** per-team **stream URL** on the public team **Overview** tab (`**teams.stream_url`**). **Planned:** a **league-owned “live game”** route that the team page can link to when the team has an active broadcast (first-party stream / scoreboard hub)—replacing or augmenting the generic outbound URL.
 - **Stream overlay:** **Basic overlay** for OBS/streaming—**template-based**, limited customization (on-brand, not full white-label).
+- **Personalized schedule highlight:** signed-in players can see `Your upcoming games` (priority rows at top + `You’re playing` markers), while the full schedule remains visible to everyone.
 
 ### Enterprise
 
@@ -186,6 +197,7 @@ Use this when validating `**league_site_content`**, organization_editors, and `*
 
 ### Changelog
 
+- **2026-05-11:** **Roadmap structure + schedule direction update:** Added explicit roadmap framing for **Past / Current / Future** sections. Captured schedule IA decision to keep a **single combined schedule list** with required type indicators (**Season game** vs **Drop-in**) and safe CTA behavior. Added planned **Pro** personalization for signed-in players (`Your upcoming games` + `You’re playing` highlights).
 - **2026-05-11:** **Public team page tabs + stream/house rules + manage “Page & links”:** `**/league/[slug]/teams/[teamId]`** — **Overview / News / Schedule / Roster / Stats** (`**?tab=`** shareable). **Basic:** **Stats** tab shows a **locked** preview with upgrade CTA; **Pro:** full season stat columns + last-game line; **Enterprise:** **Game log** on **Stats**; **Pro** sees a locked upsell for the full log. **Overview:** optional **Watch live** (`**teams.stream_url`**) and **House rules** (`**teams.house_rules`**); jersey poll + next game + news preview + sponsors shell. Migration **`20260511120000_team_stream_house_rules.sql`**; **`PATCH /api/teams/[teamId]/public-page`**. **Manage team** adds **Page & links** (edit stream URL, house rules, reminder to use **Dashboard → Games** for score sheets) plus renamed **Logo & poll** / **News** / **Events** tabs. **Next:** deep link from Overview to an in-app **live game / stream** page when that surface exists (see Pro **Video / stream** bullet).
 - **2026-05-06:** **Public team page shows team news + calendar:** `**GET /api/join/[slug]/teams/[teamId]`** returns `**team_news`** and `**team_calendar_upcoming`** from `**team_news_posts`** / `**team_calendar_events`**; `**/league/[slug]/teams/[teamId]`** renders **Team news** and **Team calendar · upcoming** (with map links) above the roster when data exists.
 - **2026-05-06:** **Team Manager mode now functional (news + calendar):** added team-scoped data + APIs for Team Manager workspace: `**team_news_posts`** and `**team_calendar_events`** (migration `**20260507013000_team_manager_news_calendar.sql**`), endpoints under `**/api/teams/[teamId]/news`** and `**/api/teams/[teamId]/calendar`** (+ CSV import route), and wired `**/dashboard/teams/[teamId]`** tabs for create/list/delete team posts and events.

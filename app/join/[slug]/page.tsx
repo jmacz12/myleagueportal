@@ -58,6 +58,7 @@ function seasonSignupClosedDetail(cs: CompetitiveSeason | null): string {
 interface HubResponse {
   organization: HubOrg
   competitiveSeason: CompetitiveSeason | null
+  signupSeasons?: CompetitiveSeason[]
   seasonRegistrationOpen: boolean
   leagueSite: LeagueSitePayload
 }
@@ -194,6 +195,7 @@ export default function JoinHubPage() {
   }
 
   const { organization: org, competitiveSeason, seasonRegistrationOpen, leagueSite } = hub
+  const signupSeasons = hub.signupSeasons || []
   const brandIn = getPublicThemeInputsForOrg(org)
   const preset = resolveThemePreset(brandIn.primaryColor, brandIn.presetId, brandIn.appearanceMode)
   const accent = preset.accent
@@ -309,7 +311,9 @@ export default function JoinHubPage() {
                   Join the season
                 </div>
                 <div style={{ fontSize: '13px', color: preset.muted, lineHeight: 1.45 }}>
-                  {competitiveSeason.name}
+                  {signupSeasons.length > 1
+                    ? `${signupSeasons.length} seasons open — choose one`
+                    : competitiveSeason.name}
                 </div>
               </div>
               <ChevronRight size={22} color={preset.muted} style={{ flexShrink: 0 }} aria-hidden />

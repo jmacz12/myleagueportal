@@ -36,6 +36,16 @@ interface HubPayload {
     online_registration_opens_at?: string | null
     online_registration_closes_at?: string | null
   } | null
+  signupSeasons?: Array<{
+    id: string
+    name: string
+    start_date?: string | null
+    allow_online_registration?: boolean
+    signup_opens_mode?: string | null
+    signup_opens_days_before?: number | null
+    online_registration_opens_at?: string | null
+    online_registration_closes_at?: string | null
+  }>
   seasonWaiver: { id: string; title: string; content: string } | null
   seasonRegistrationOpen: boolean
   leagueSite: LeagueSitePayload
@@ -64,6 +74,7 @@ export default function SeasonRegisterPage() {
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
   const [data, setData] = useState<HubPayload | null>(null)
+  const [selectedSeasonId, setSelectedSeasonId] = useState<string>('')
   const [signedInOrg, setSignedInOrg] = useState<{ slug: string; name: string } | null>(null)
   const [accessResolved, setAccessResolved] = useState(false)
 
@@ -87,6 +98,7 @@ export default function SeasonRegisterPage() {
         setData({
           organization: json.organization,
           competitiveSeason: json.competitiveSeason ?? null,
+          signupSeasons: Array.isArray(json.signupSeasons) ? json.signupSeasons : [],
           seasonWaiver: json.seasonWaiver ?? null,
           seasonRegistrationOpen: !!json.seasonRegistrationOpen,
           leagueSite: json.leagueSite ?? EMPTY_LEAGUE_SITE,
@@ -99,6 +111,17 @@ export default function SeasonRegisterPage() {
       cancelled = true
     }
   }, [slug])
+
+  useEffect(() => {
+    const seasons = data?.signupSeasons || []
+    if (seasons.length > 0) {
+      setSelectedSeasonId((prev) => (prev && seasons.some((s) => s.id === prev) ? prev : seasons[0].id))
+      return
+    }
+    if (data?.competitiveSeason?.id) {
+      setSelectedSeasonId(data.competitiveSeason.id)
+    }
+  }, [data])
 
   useEffect(() => {
     let cancelled = false
@@ -164,11 +187,14 @@ export default function SeasonRegisterPage() {
   }
 
   const { organization: org, competitiveSeason, seasonWaiver, seasonRegistrationOpen, leagueSite } = data
+  const signupSeasons = data.signupSeasons || []
+  const selectedSeason =
+    signupSeasons.find((s) => s.id === selectedSeasonId) || competitiveSeason || signupSeasons[0] || null
   const regBrand = getPublicThemeInputsForOrg(org)
   const preset = resolveThemePreset(regBrand.primaryColor, regBrand.presetId, regBrand.appearanceMode)
   const heroTheme = publicHeroThemeFromPreset(preset)
 
-  if (!competitiveSeason || !seasonRegistrationOpen) {
+  if (!selectedSeason || !seasonRegistrationOpen) {
     return (
       <div style={{ minHeight: '100vh', background: preset.pageBg, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
         <NewsBanner message={org.news_banner} color={org.news_banner_color} />
@@ -212,7 +238,7 @@ export default function SeasonRegisterPage() {
             }}
           >
             <p style={{ color: preset.heading, fontWeight: 800, margin: '0 0 8px', fontSize: '17px' }}>
-              {!competitiveSeason ? 'No active season' : 'Season signup closed'}
+              {!competitiveSeason ? 'No season signup available' : 'Season signup closed'}
             </p>
             <p style={{ color: preset.muted, fontSize: '14px', margin: 0, lineHeight: 1.55 }}>
               {seasonSignupClosedDetail(competitiveSeason)}
@@ -267,8 +293,36 @@ export default function SeasonRegisterPage() {
             letterSpacing: '0.02em',
           }}
         >
-          {competitiveSeason.name}
+          {selectedSeason.name}
         </p>
+        {signupSeasons.length > 1 ? (
+          <div style={{ marginBottom: '14px' }}>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: preset.muted, marginBottom: '6px' }}>
+              Choose a season
+            </label>
+            <select
+              value={selectedSeason.id}
+              onChange={(e) => setSelectedSeasonId(e.target.value)}
+              style={{
+                width: '100%',
+                borderRadius: '10px',
+                border: `1px solid ${preset.surfaceBorder}`,
+                background: preset.surfaceBg,
+                color: preset.heading,
+                padding: '10px 12px',
+                fontSize: '14px',
+                fontWeight: 700,
+                fontFamily: 'inherit',
+              }}
+            >
+              {signupSeasons.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
         <h1
           style={{
             fontSize: '22px',
@@ -283,7 +337,7 @@ export default function SeasonRegisterPage() {
 
         <RegistrationForm
           organizationId={org.id}
-          seasonId={competitiveSeason.id}
+          seasonId={selectedSeason.id}
           leagueName={org.name}
           primaryColor={org.primary_color || undefined}
           preset={preset}

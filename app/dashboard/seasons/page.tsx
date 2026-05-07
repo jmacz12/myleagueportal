@@ -88,7 +88,7 @@ function signupOpensSummaryLines(season: Season): { opens: string; closes: strin
   }
   let opens = ''
   if (mode === 'open_now') {
-    opens = 'Open now when this season is active'
+    opens = 'Open now (public join is available immediately)'
   } else if (mode === 'scheduled') {
     const d = season.signup_opens_days_before ?? 3
     const eff = effectiveSignupOpensAtIso(season)

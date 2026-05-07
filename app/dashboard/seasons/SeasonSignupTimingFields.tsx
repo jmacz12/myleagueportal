@@ -3,7 +3,7 @@
 /** Same choices as Drop-ins: when public season signup opens on the join page. */
 
 const OPTIONS = [
-  { value: 'open_now', title: 'Open now', sub: 'Sign up as soon as the season is active' },
+  { value: 'open_now', title: 'Open now', sub: 'Sign up is available right away on the join page' },
   { value: 'closed', title: 'Keep closed', sub: 'No signup on the join page until you change this' },
   { value: 'scheduled', title: 'Schedule opening', sub: 'X days before season start date' },
   { value: 'custom', title: 'Custom date & time', sub: 'Pick exactly when signups open' },
