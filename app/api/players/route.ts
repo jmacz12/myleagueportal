@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { auth } from '@clerk/nextjs/server'
+import { getOrgAccessForClerkUser } from '@/lib/org-access'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -11,13 +12,10 @@ export async function GET() {
   const { userId } = await auth()
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: org } = await supabaseAdmin
-    .from('organizations')
-    .select('id')
-    .eq('clerk_user_id', userId)
-    .single()
+  const access = await getOrgAccessForClerkUser(userId)
+  if (!access) return NextResponse.json({ error: 'No organization found' }, { status: 404 })
 
-  if (!org) return NextResponse.json({ error: 'No organization found' }, { status: 404 })
+  const org = { id: access.organization.id }
 
   const { data: players } = await supabaseAdmin
     .from('players')
@@ -32,13 +30,10 @@ export async function PATCH(req: Request) {
   const { userId } = await auth()
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: org } = await supabaseAdmin
-    .from('organizations')
-    .select('id')
-    .eq('clerk_user_id', userId)
-    .single()
+  const access = await getOrgAccessForClerkUser(userId)
+  if (!access) return NextResponse.json({ error: 'No organization found' }, { status: 404 })
 
-  if (!org) return NextResponse.json({ error: 'No organization found' }, { status: 404 })
+  const org = { id: access.organization.id }
 
   const { player_id, team_id, jersey_number } = await req.json()
   if (!player_id) return NextResponse.json({ error: 'player_id is required' }, { status: 400 })
@@ -101,13 +96,10 @@ export async function DELETE(req: Request) {
   const { userId } = await auth()
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: org } = await supabaseAdmin
-    .from('organizations')
-    .select('id')
-    .eq('clerk_user_id', userId)
-    .single()
+  const access = await getOrgAccessForClerkUser(userId)
+  if (!access) return NextResponse.json({ error: 'No organization found' }, { status: 404 })
 
-  if (!org) return NextResponse.json({ error: 'No organization found' }, { status: 404 })
+  const org = { id: access.organization.id }
 
   const { player_id } = await req.json()
   if (!player_id) return NextResponse.json({ error: 'player_id is required' }, { status: 400 })

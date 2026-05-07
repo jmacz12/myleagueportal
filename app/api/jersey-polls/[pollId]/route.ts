@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { auth } from '@clerk/nextjs/server'
+import { getOrgAccessForClerkUser } from '@/lib/org-access'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -14,11 +15,14 @@ export async function PATCH(
   const { userId } = await auth()
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const access = await getOrgAccessForClerkUser(userId)
+  if (!access) return NextResponse.json({ error: 'No organization found' }, { status: 404 })
+
   const { data: org } = await supabaseAdmin
     .from('organizations')
     .select('id')
-    .eq('clerk_user_id', userId)
-    .single()
+    .eq('id', access.organization.id)
+    .maybeSingle()
 
   if (!org) return NextResponse.json({ error: 'No organization found' }, { status: 404 })
 

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { auth } from '@clerk/nextjs/server'
+import { getOrgAccessForClerkUser } from '@/lib/org-access'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -11,11 +12,14 @@ export async function GET() {
   const { userId } = await auth()
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const access = await getOrgAccessForClerkUser(userId)
+  if (!access) return NextResponse.json({ error: 'No organization found' }, { status: 404 })
+
   const { data: org } = await supabaseAdmin
     .from('organizations')
-    .select('id, slug')
-    .eq('clerk_user_id', userId)
-    .single()
+    .select('id, slug, plan')
+    .eq('id', access.organization.id)
+    .maybeSingle()
 
   if (!org) return NextResponse.json({ error: 'No organization found' }, { status: 404 })
 
@@ -41,6 +45,8 @@ export async function GET() {
   return NextResponse.json({
     teams: list.map((t) => ({ ...t, player_count: counts[t.id] || 0 })),
     org_slug: org.slug,
+    org_plan: org.plan ?? 'basic',
+    org_role: access.role,
   })
 }
 

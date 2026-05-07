@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { seedSeasonGamesWithStats } from '@/lib/dev-seed-season-games'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -166,11 +167,17 @@ async function deleteSeedDropinsForOrg(organizationId: string) {
  *
  *   curl -X POST http://localhost:3000/api/dev/seed-teams-players \
  *     -H "Content-Type: application/json" \
- *     -d "{\"slug\":\"vancouvarites\",\"replace\":true,\"fullPortalDemo\":true}"
+ *     -d "{\"slug\":\"vancouvarites\",\"replace\":true,\"fullPortalDemo\":true,\"withGamesAndStats\":true,\"previewPublicTier\":\"enterprise\"}"
  *
  * `fullPortalDemo`: max **8** seed teams, **25** total roster players, season registration window opened,
  * **[SEED]** drop-in sessions with sample registrations, and rich TEXT/NEWS league home content.
  * Implies league site demo content (same as `withLeagueSiteDemo`).
+ *
+ * `withGamesAndStats`: after teams/players, inserts **final** round-robin `games` + `player_game_stats`
+ * so `/league/[slug]/teams/[id]` shows record, rank, and stat columns (use `previewPublicTier` to preview Pro/Enterprise).
+ *
+ * `previewPublicTier`: optional `"pro"` | `"enterprise"` — **dev only** sets `organizations.plan` for this org
+ * so the public team page tier gates render (revert in Dashboard / Supabase when done).
  */
 export async function POST(req: Request) {
   if (process.env.NODE_ENV !== 'development') {
@@ -181,12 +188,17 @@ export async function POST(req: Request) {
   let replace = false
   let withLeagueSiteDemo = false
   let fullPortalDemo = false
+  let withGamesAndStats = false
+  let previewPublicTier: 'pro' | 'enterprise' | null = null
   try {
     const body = await req.json()
     slug = typeof body.slug === 'string' ? body.slug : ''
     replace = body.replace === true
     withLeagueSiteDemo = body.withLeagueSiteDemo === true
     fullPortalDemo = body.fullPortalDemo === true
+    withGamesAndStats = body.withGamesAndStats === true
+    const pt = body.previewPublicTier
+    if (pt === 'pro' || pt === 'enterprise') previewPublicTier = pt
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
@@ -243,6 +255,16 @@ export async function POST(req: Request) {
 
     const seedTeamIds = (seedTeams || []).map((t) => t.id)
     if (seedTeamIds.length > 0) {
+      const { data: gh } = await supabaseAdmin.from('games').select('id').in('home_team_id', seedTeamIds)
+      const { data: ga } = await supabaseAdmin.from('games').select('id').in('away_team_id', seedTeamIds)
+      const gameIdSet = new Set<string>()
+      for (const g of gh || []) if (g.id) gameIdSet.add(g.id)
+      for (const g of ga || []) if (g.id) gameIdSet.add(g.id)
+      const gameIds = [...gameIdSet]
+      if (gameIds.length > 0) {
+        await supabaseAdmin.from('player_game_stats').delete().in('game_id', gameIds)
+        await supabaseAdmin.from('games').delete().in('id', gameIds)
+      }
       await supabaseAdmin.from('players').delete().in('team_id', seedTeamIds)
       await supabaseAdmin.from('teams').delete().in('id', seedTeamIds)
     }
@@ -555,16 +577,61 @@ export async function POST(req: Request) {
     }
   }
 
+  let gamesSeeded: { games_created: number; stats_rows: number } | null = null
+  if (withGamesAndStats && teamsOut.length >= 2 && seasonId) {
+    const g = await seedSeasonGamesWithStats(supabaseAdmin, {
+      organizationId: org.id,
+      seasonId,
+      teams: teamsOut,
+    })
+    if (!g.ok) {
+      return NextResponse.json({ error: g.error }, { status: 500 })
+    }
+    gamesSeeded = { games_created: g.games_created, stats_rows: g.stats_rows }
+
+    if (teamsOut[0]?.id) {
+      await supabaseAdmin
+        .from('teams')
+        .update({
+          logo_url:
+            'https://images.unsplash.com/photo-1546519638-68e109498ffc?auto=format&fit=crop&w=128&h=128&q=80',
+        })
+        .eq('id', teamsOut[0].id)
+    }
+  }
+
+  let planPreviewNote = ''
+  if (previewPublicTier) {
+    const { error: planErr } = await supabaseAdmin
+      .from('organizations')
+      .update({ plan: previewPublicTier })
+      .eq('id', org.id)
+    if (planErr) {
+      return NextResponse.json(
+        { error: `Could not set preview plan: ${planErr.message}` },
+        { status: 500 }
+      )
+    }
+    planPreviewNote = ` Organization plan temporarily set to "${previewPublicTier}" for public page preview — revert in Supabase or Stripe when done.`
+  }
+
   const teamHint = teamsOut.map((t) => t.name).join(', ')
 
   return NextResponse.json({
     ok: true,
-    message: fullPortalDemo
-      ? `Portal demo: ${teamsOut.length} teams (25 roster players max seed), season signup window opened, TEXT/NEWS league home, [SEED] drop-ins with registrations. Visit /league/${slug.trim()}, /join/${slug.trim()}, /join/${slug.trim()}/dropins. Delete [SEED] rows from dashboard when done.`
-      : `Open /league/${slug.trim()} — seed teams: ${teamHint}. Remove later from Dashboard → Teams / Players if you like.`,
+    message:
+      (fullPortalDemo
+        ? `Portal demo: ${teamsOut.length} teams (25 roster players max seed), season signup window opened, TEXT/NEWS league home, [SEED] drop-ins with registrations. Visit /league/${slug.trim()}, /join/${slug.trim()}, /join/${slug.trim()}/dropins. Delete [SEED] rows from dashboard when done.`
+        : `Open /league/${slug.trim()} — seed teams: ${teamHint}. Remove later from Dashboard → Teams / Players if you like.`) +
+      (gamesSeeded
+        ? ` Games: ${gamesSeeded.games_created} finals, ${gamesSeeded.stats_rows} stat rows. Open a team page under /league/${slug.trim()}/teams/<teamId>.`
+        : '') +
+      planPreviewNote,
     season_id: seasonId,
     teams: teamsOut,
     league_site_demo: leagueSiteDemo,
     full_portal_demo: fullPortalDemo,
+    games_seeded: gamesSeeded,
+    preview_plan: previewPublicTier,
   })
 }

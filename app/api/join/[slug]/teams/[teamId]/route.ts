@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { EMPTY_LEAGUE_SITE, parseLeagueSitePayload } from '@/lib/league-site'
+import { fetchOrganizationForPublicJoin, normalizeJoinSlugParam } from '@/lib/join-public-org'
+import { buildPublicTeamSeasonExtras } from '@/lib/public-team-page-payload'
+import { normalizePublicTeamTier } from '@/lib/public-team-season-view'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -16,31 +19,89 @@ function formatPosition(row: {
 }
 
 /**
- * Public team page payload — roster without email/phone (Basic tier).
+ * Public team page payload — roster without email/phone.
+ * Basic: identity + roster + poll link only.
+ * Pro: + record, rank, five headline stat totals, last game teaser, optional team logo.
+ * Enterprise: + TOV/PF columns + recent games list (still uses recorded games only).
  */
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ slug: string; teamId: string }> }
 ) {
-  const { slug, teamId } = await params
-
-  const { data: org, error: orgError } = await supabaseAdmin
-    .from('organizations')
-    .select('id, name, slug, primary_color, logo_url, league_theme_preset, league_appearance_mode, plan')
-    .eq('slug', slug)
-    .single()
-
-  if (orgError || !org) {
+  const { slug: slugRaw, teamId } = await params
+  const slug = normalizeJoinSlugParam(slugRaw)
+  if (!slug) {
     return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
   }
 
-  const { data: team, error: teamError } = await supabaseAdmin
+  const orgHub = await fetchOrganizationForPublicJoin(supabaseAdmin, slug)
+  if (!orgHub?.id) {
+    return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
+  }
+
+  const org = {
+    id: orgHub.id,
+    name: orgHub.name,
+    slug: orgHub.slug,
+    primary_color: orgHub.primary_color,
+    logo_url: orgHub.logo_url,
+    league_theme_preset: orgHub.league_theme_preset,
+    league_appearance_mode: orgHub.league_appearance_mode,
+    plan: orgHub.plan,
+  }
+
+  type TeamRow = {
+    id: string
+    name: string
+    color: string | null
+    season_id: string
+    organization_id: string
+    logo_url?: string | null
+    stream_url?: string | null
+    house_rules?: string | null
+  }
+
+  let team: TeamRow | null = null
+
+  let teamFull = await supabaseAdmin
     .from('teams')
-    .select('id, name, color, season_id, organization_id')
+    .select('id, name, color, season_id, organization_id, logo_url, stream_url, house_rules')
     .eq('id', teamId)
     .single()
 
-  if (teamError || !team || team.organization_id !== org.id) {
+  if (teamFull.error) {
+    const msg = String(teamFull.error.message || '')
+    if (msg.includes('stream_url') || msg.includes('house_rules') || msg.includes('column')) {
+      teamFull = await supabaseAdmin
+        .from('teams')
+        .select('id, name, color, season_id, organization_id, logo_url')
+        .eq('id', teamId)
+        .single()
+    }
+  }
+
+  if (teamFull.error) {
+    const msg = String(teamFull.error.message || '')
+    if (msg.includes('logo_url') || msg.includes('column')) {
+      const fallback = await supabaseAdmin
+        .from('teams')
+        .select('id, name, color, season_id, organization_id')
+        .eq('id', teamId)
+        .single()
+      if (!fallback.error && fallback.data) {
+        team = {
+          ...(fallback.data as Omit<TeamRow, 'logo_url' | 'stream_url' | 'house_rules'>),
+          logo_url: null,
+          stream_url: null,
+          house_rules: null,
+        }
+      }
+    }
+  } else if (teamFull.data) {
+    team = teamFull.data as TeamRow
+  }
+
+  if (!team || team.organization_id !== org.id) {
     return NextResponse.json({ error: 'Team not found' }, { status: 404 })
   }
 
@@ -85,6 +146,59 @@ export async function GET(
     position_label: formatPosition(p as { positions?: string[] | null }),
   }))
 
+  const tier = normalizePublicTeamTier(org.plan)
+  const rosterIds = roster.map((r) => r.id)
+
+  const extras = await buildPublicTeamSeasonExtras(supabaseAdmin, {
+    organizationId: org.id,
+    teamId,
+    seasonId: team.season_id,
+    rosterPlayerIds: rosterIds,
+    tier,
+  })
+
+  const nowIso = new Date().toISOString()
+  const [newsRes, calRes] = await Promise.all([
+    supabaseAdmin
+      .from('team_news_posts')
+      .select('id, title, body, pinned, created_at')
+      .eq('team_id', teamId)
+      .eq('organization_id', org.id)
+      .order('pinned', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(12),
+    supabaseAdmin
+      .from('team_calendar_events')
+      .select('id, title, starts_at, ends_at, location, notes')
+      .eq('team_id', teamId)
+      .eq('organization_id', org.id)
+      .gte('starts_at', nowIso)
+      .order('starts_at', { ascending: true })
+      .limit(15),
+  ])
+
+  const team_news =
+    !newsRes.error && Array.isArray(newsRes.data)
+      ? newsRes.data.map((row) => ({
+          id: row.id as string,
+          title: row.title as string,
+          body: row.body as string,
+          pinned: Boolean(row.pinned),
+          created_at: row.created_at as string,
+        }))
+      : []
+  const team_calendar_upcoming =
+    !calRes.error && Array.isArray(calRes.data)
+      ? calRes.data.map((row) => ({
+          id: row.id as string,
+          title: row.title as string,
+          starts_at: row.starts_at as string,
+          ends_at: (row.ends_at as string | null) ?? null,
+          location: (row.location as string | null) ?? null,
+          notes: (row.notes as string | null) ?? null,
+        }))
+      : []
+
   return NextResponse.json({
     organization: {
       name: org.name,
@@ -95,14 +209,28 @@ export async function GET(
       league_appearance_mode: org.league_appearance_mode ?? 'light',
       plan: org.plan ?? 'basic',
     },
+    public_tier: tier,
     team: {
       id: team.id,
       name: team.name,
       color: team.color,
+      logo_url: team.logo_url ?? null,
       season_name: season?.name || 'Season',
+      stream_url: team.stream_url ?? null,
+      house_rules: team.house_rules ?? null,
     },
     roster,
     open_jersey_poll_id: openPoll?.id ?? null,
     publicFontKey,
+    season_record: extras.season_record,
+    league_rank: extras.league_rank,
+    league_team_count: extras.league_team_count,
+    player_totals: extras.player_totals,
+    last_game: extras.last_game,
+    recent_games: extras.recent_games,
+    next_game: extras.next_game,
+    leader_badges: extras.leader_badges,
+    team_news,
+    team_calendar_upcoming,
   })
 }

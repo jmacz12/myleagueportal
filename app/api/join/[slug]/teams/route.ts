@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { fetchOrganizationForPublicJoin, normalizeJoinSlugParam } from '@/lib/join-public-org'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -13,17 +14,17 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ slug: string }> }
 ) {
-  const { slug } = await params
-
-  const { data: org, error: orgError } = await supabaseAdmin
-    .from('organizations')
-    .select('id')
-    .eq('slug', slug)
-    .single()
-
-  if (orgError || !org) {
+  const { slug: slugRaw } = await params
+  const slug = normalizeJoinSlugParam(slugRaw)
+  if (!slug) {
     return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
   }
+
+  const orgHub = await fetchOrganizationForPublicJoin(supabaseAdmin, slug)
+  if (!orgHub?.id) {
+    return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
+  }
+  const org = { id: orgHub.id }
 
   const { data: teams, error: teamsError } = await supabaseAdmin
     .from('teams')

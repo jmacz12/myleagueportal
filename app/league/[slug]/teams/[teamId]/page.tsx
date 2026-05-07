@@ -1,42 +1,19 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { useParams } from 'next/navigation'
-import { ChevronLeft, Shirt } from 'lucide-react'
+import { useParams, useRouter } from 'next/navigation'
+import { ChevronLeft, Settings2, Trophy } from 'lucide-react'
+import { LeagueTeamManagePanel } from '@/components/league-team-manage-panel'
 import { publicHeroThemeFromPreset, resolveThemePreset } from '@/lib/leagueTheme'
 import { getPublicThemeInputsForOrg } from '@/lib/public-league-branding'
 import { googleFontStylesheetHref, resolvePublicLeagueFontStack } from '@/lib/public-league-fonts'
-
-interface TeamPayload {
-  organization: {
-    name: string
-    slug: string
-    primary_color: string | null
-    logo_url: string | null
-    league_theme_preset?: string | null
-    league_appearance_mode?: string | null
-    plan?: string | null
-  }
-  team: {
-    id: string
-    name: string
-    color: string | null
-    season_name: string
-  }
-  roster: {
-    id: string
-    full_name: string
-    jersey_number: number | null
-    position_label: string | null
-  }[]
-  open_jersey_poll_id: string | null
-  /** League website typography (Pro+); aligns with league home / join hub */
-  publicFontKey: string | null
-}
+import { PublicTeamTabPanels } from './public-team-tab-panels'
+import type { PublicTeamTab, TeamPayload } from './team-page-types'
 
 export default function LeaguePublicTeamPage() {
   const params = useParams()
+  const router = useRouter()
   const slug = params.slug as string
   const teamId = params.teamId as string
 
@@ -45,36 +22,144 @@ export default function LeaguePublicTeamPage() {
   const [loadErrorDetail, setLoadErrorDetail] = useState<string | null>(null)
   const [data, setData] = useState<TeamPayload | null>(null)
   const [stickyVisible, setStickyVisible] = useState(false)
+  const [isStaff, setIsStaff] = useState(false)
+  const [manageOpen, setManageOpen] = useState(false)
+  const [publicTab, setPublicTab] = useState<PublicTeamTab>('overview')
+  const contentMaxWidth = '920px'
+
+  const refreshPayload = useCallback(async () => {
+    if (!slug || !teamId) return
+    try {
+      const res = await fetch(
+        `/api/join/${encodeURIComponent(slug)}/teams/${encodeURIComponent(teamId)}`
+      )
+      const json = await res.json().catch(() => null)
+      if (res.ok && json?.team && json?.organization) {
+        setData(json as TeamPayload)
+      }
+    } catch {
+      /* keep existing data */
+    }
+  }, [slug, teamId])
 
   useEffect(() => {
     let cancelled = false
     async function load() {
+      if (!slug || !teamId) {
+        setNotFound(true)
+        setData(null)
+        setLoadErrorDetail('This team link is missing a league or team id.')
+        setLoading(false)
+        return
+      }
+
       setLoading(true)
       setNotFound(false)
       setLoadErrorDetail(null)
-      const res = await fetch(`/api/join/${slug}/teams/${teamId}`)
-      if (cancelled) return
-      const json = await res.json().catch(() => null)
-      if (!res.ok || !json?.team || !json?.organization) {
+
+      const controller = new AbortController()
+      const timeoutMs = 25000
+      const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs)
+
+      try {
+        const res = await fetch(
+          `/api/join/${encodeURIComponent(slug)}/teams/${encodeURIComponent(teamId)}`,
+          { signal: controller.signal }
+        )
+        if (cancelled) return
+        const json = await res.json().catch(() => null)
+        if (!res.ok || !json?.team || !json?.organization) {
+          setNotFound(true)
+          setData(null)
+          const hint =
+            typeof json?.error === 'string'
+              ? json.error
+              : !res.ok
+                ? `Could not load team (${res.status}).`
+                : null
+          setLoadErrorDetail(hint)
+        } else {
+          setData(json as TeamPayload)
+        }
+      } catch (err) {
+        if (cancelled) return
         setNotFound(true)
         setData(null)
-        const hint =
-          typeof json?.error === 'string'
-            ? json.error
-            : !res.ok
-              ? `Could not load team (${res.status}).`
-              : null
-        setLoadErrorDetail(hint)
-      } else {
-        setData(json as TeamPayload)
+        const aborted =
+          (err instanceof DOMException && err.name === 'AbortError') ||
+          (err instanceof Error && err.name === 'AbortError')
+        setLoadErrorDetail(
+          aborted
+            ? `Request timed out after ${timeoutMs / 1000}s. Is the dev server running on this origin, and is Supabase reachable?`
+            : 'Could not load this page. Check your network or try again.'
+        )
+      } finally {
+        window.clearTimeout(timeoutId)
+        if (!cancelled) setLoading(false)
       }
-      setLoading(false)
     }
-    load()
+    void load()
     return () => {
       cancelled = true
     }
   }, [slug, teamId])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const q = new URLSearchParams(window.location.search)
+    setManageOpen(q.get('manage') === '1')
+  }, [slug, teamId])
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const res = await fetch('/api/me/org-access')
+      if (cancelled) return
+      if (!res.ok) {
+        setIsStaff(false)
+        return
+      }
+      const json = await res.json().catch(() => ({}))
+      const a = json.access
+      setIsStaff(!!(a && a.slug === slug && (a.role === 'owner' || a.role === 'editor')))
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [slug])
+
+  function openManage() {
+    setManageOpen(true)
+    const u = new URL(window.location.href)
+    u.searchParams.set('manage', '1')
+    router.replace(`${u.pathname}?${u.searchParams.toString()}`, { scroll: false })
+  }
+
+  function closeManage() {
+    setManageOpen(false)
+    const u = new URL(window.location.href)
+    u.searchParams.delete('manage')
+    const next = u.searchParams.toString()
+    router.replace(next ? `${u.pathname}?${next}` : u.pathname, { scroll: false })
+  }
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const q = new URLSearchParams(window.location.search)
+    const t = q.get('tab')
+    const allowed: PublicTeamTab[] = ['overview', 'news', 'schedule', 'roster', 'stats']
+    if (t && allowed.includes(t as PublicTeamTab)) setPublicTab(t as PublicTeamTab)
+    else setPublicTab('overview')
+  }, [slug, teamId])
+
+  function setPublicTabQuery(next: PublicTeamTab) {
+    setPublicTab(next)
+    const u = new URL(window.location.href)
+    if (next === 'overview') u.searchParams.delete('tab')
+    else u.searchParams.set('tab', next)
+    const qs = u.searchParams.toString()
+    router.replace(qs ? `${u.pathname}?${qs}` : u.pathname, { scroll: false })
+  }
 
   useEffect(() => {
     const onScroll = () => setStickyVisible(window.scrollY > 72)
@@ -96,6 +181,11 @@ export default function LeaguePublicTeamPage() {
   const displayLogoUrl =
     publicBrandInputs?.usePlatformBranding ? null : data?.organization.logo_url ?? null
 
+  const tier = data?.public_tier ?? 'basic'
+  const proLike = tier === 'pro' || tier === 'enterprise'
+  const heroLogoSrc =
+    proLike && data?.team.logo_url ? data.team.logo_url : displayLogoUrl
+
   const publicFontStack = useMemo(
     () => resolvePublicLeagueFontStack(data?.publicFontKey),
     [data?.publicFontKey]
@@ -116,14 +206,30 @@ export default function LeaguePublicTeamPage() {
 
   const accent = data?.team.color || preset.accent
   const heroTheme = useMemo(() => publicHeroThemeFromPreset(preset), [preset])
+  const nextGameMapsHref = useMemo(() => {
+    if (!data?.next_game?.location) return null
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(data.next_game.location)}`
+  }, [data?.next_game?.location])
 
   if (loading) {
     return (
       <div
-        className="min-h-screen flex items-center justify-center text-sm font-semibold"
+        className="min-h-screen flex flex-col items-center justify-center gap-4 px-6 text-sm font-semibold"
         style={{ background: preset.pageBg, color: preset.heading, fontFamily: publicFontStack }}
       >
-        Loading…
+        <span>Loading…</span>
+        {slug ? (
+          <Link
+            href={`/league/${slug}`}
+            style={{ color: preset.accent, fontWeight: 700, fontSize: '13px', textDecoration: 'none' }}
+          >
+            ← Back to league home
+          </Link>
+        ) : (
+          <Link href="/" style={{ color: preset.accent, fontWeight: 700, fontSize: '13px', textDecoration: 'none' }}>
+            ← Home
+          </Link>
+        )}
       </div>
     )
   }
@@ -152,11 +258,23 @@ export default function LeaguePublicTeamPage() {
     )
   }
 
-  const { organization: org, team, roster, open_jersey_poll_id } = data
+  const { organization: org, team, roster, season_record, league_rank, league_team_count, last_game } = data
   const teamStripe = team.color || preset.accent
+
+  let watchHref: string | null = null
+  if (team.stream_url?.trim()) {
+    const raw = team.stream_url.trim()
+    try {
+      const u = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`)
+      if (u.protocol === 'http:' || u.protocol === 'https:') watchHref = u.href
+    } catch {
+      watchHref = null
+    }
+  }
 
   return (
     <div style={{ minHeight: '100vh', background: preset.pageBg, fontFamily: publicFontStack }}>
+      <div style={{ height: '6px', width: '100%', background: teamStripe }} aria-hidden />
       <div
         style={{
           position: 'fixed',
@@ -180,7 +298,7 @@ export default function LeaguePublicTeamPage() {
         }}
         aria-hidden={!stickyVisible}
       >
-        <div style={{ width: '100%', maxWidth: '720px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ width: '100%', maxWidth: contentMaxWidth, display: 'flex', alignItems: 'center', gap: '10px' }}>
           <Link
             href={`/league/${slug}`}
             style={{ color: preset.heading, display: 'flex', alignItems: 'center', flexShrink: 0 }}
@@ -188,8 +306,8 @@ export default function LeaguePublicTeamPage() {
           >
             <ChevronLeft size={22} aria-hidden />
           </Link>
-          {displayLogoUrl ? (
-            <img src={displayLogoUrl} alt="" style={{ height: '32px', width: '32px', objectFit: 'cover', borderRadius: '8px', flexShrink: 0 }} />
+          {heroLogoSrc ? (
+            <img src={heroLogoSrc} alt="" style={{ height: '32px', width: '32px', objectFit: 'cover', borderRadius: '8px', flexShrink: 0 }} />
           ) : (
             <div
               style={{
@@ -203,6 +321,21 @@ export default function LeaguePublicTeamPage() {
             />
           )}
           <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
+              <Link
+                href={`/league/${slug}`}
+                style={{ fontSize: '11px', fontWeight: 700, color: preset.muted, textDecoration: 'none' }}
+              >
+                Leagues
+              </Link>
+              <span style={{ fontSize: '10px', color: preset.muted }}>›</span>
+              <Link
+                href={`/league/${slug}`}
+                style={{ fontSize: '11px', fontWeight: 700, color: preset.muted, textDecoration: 'none', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+              >
+                {org.name}
+              </Link>
+            </div>
             <div style={{ fontSize: '10px', fontWeight: 700, color: preset.muted, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
               {org.name}
             </div>
@@ -223,7 +356,7 @@ export default function LeaguePublicTeamPage() {
         }}
       >
         <div style={{ pointerEvents: 'none', position: 'absolute', inset: 0, background: heroTheme.heroGlow }} />
-        <div style={{ position: 'relative', maxWidth: '720px', margin: '0 auto' }}>
+        <div style={{ position: 'relative', maxWidth: contentMaxWidth, margin: '0 auto' }}>
           <Link
             href={`/league/${slug}`}
             style={{
@@ -241,52 +374,78 @@ export default function LeaguePublicTeamPage() {
             League home
           </Link>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-            {displayLogoUrl ? (
-              <img
-                src={displayLogoUrl}
-                alt={org.name}
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0 }}>
+              {heroLogoSrc ? (
+                <img
+                  src={heroLogoSrc}
+                  alt={org.name}
+                  style={{
+                    height: '56px',
+                    width: '56px',
+                    objectFit: 'cover',
+                    borderRadius: '14px',
+                    border: `2px solid ${heroTheme.heroPlaceholderBorder}`,
+                    flexShrink: 0,
+                  }}
+                />
+              ) : (
+                <div
+                  style={{
+                    height: '56px',
+                    width: '56px',
+                    borderRadius: '14px',
+                    background: heroTheme.heroPlaceholderBg,
+                    border: `2px solid ${heroTheme.heroPlaceholderBorder}`,
+                    flexShrink: 0,
+                  }}
+                />
+              )}
+              <div style={{ minWidth: 0 }}>
+                <p style={{ color: heroTheme.heroSubtitle, fontSize: '12px', margin: 0, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                  {org.name}
+                </p>
+                <h1
+                  style={{
+                    fontSize: 'clamp(24px, 5vw, 32px)',
+                    fontWeight: 800,
+                    color: heroTheme.heroTitle,
+                    margin: '4px 0 0',
+                    letterSpacing: '-0.02em',
+                    lineHeight: 1.1,
+                  }}
+                >
+                  {team.name}
+                </h1>
+              </div>
+            </div>
+            {isStaff ? (
+              <button
+                type="button"
+                onClick={() => (manageOpen ? closeManage() : openManage())}
                 style={{
-                  height: '56px',
-                  width: '56px',
-                  objectFit: 'cover',
-                  borderRadius: '14px',
-                  border: `2px solid ${heroTheme.heroPlaceholderBorder}`,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
                   flexShrink: 0,
-                }}
-              />
-            ) : (
-              <div
-                style={{
-                  height: '56px',
-                  width: '56px',
-                  borderRadius: '14px',
-                  background: heroTheme.heroPlaceholderBg,
-                  border: `2px solid ${heroTheme.heroPlaceholderBorder}`,
-                  flexShrink: 0,
-                }}
-              />
-            )}
-            <div style={{ minWidth: 0 }}>
-              <p style={{ color: heroTheme.heroSubtitle, fontSize: '12px', margin: 0, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                {org.name}
-              </p>
-              <h1
-                style={{
-                  fontSize: 'clamp(24px, 5vw, 32px)',
-                  fontWeight: 800,
+                  padding: '9px 14px',
+                  borderRadius: '999px',
+                  border: '1px solid rgba(255,255,255,0.35)',
+                  background: manageOpen ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.12)',
                   color: heroTheme.heroTitle,
-                  margin: '4px 0 0',
-                  letterSpacing: '-0.02em',
-                  lineHeight: 1.1,
+                  fontSize: '12px',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
                 }}
               >
-                {team.name}
-              </h1>
-            </div>
+                <Settings2 size={16} aria-hidden />
+                {manageOpen ? 'Close manage' : 'Manage team'}
+              </button>
+            ) : null}
           </div>
           <p style={{ color: heroTheme.heroSubtitle, fontSize: '14px', margin: '14px 0 0', lineHeight: 1.45 }}>{team.season_name}</p>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '14px' }}>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '14px', alignItems: 'center' }}>
             <span
               style={{
                 fontSize: '11px',
@@ -313,111 +472,77 @@ export default function LeaguePublicTeamPage() {
             >
               Public Roster
             </span>
+            {proLike && season_record ? (
+              <span
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  color: heroTheme.heroTitle,
+                  background: 'rgba(255,255,255,0.12)',
+                  borderRadius: '999px',
+                  padding: '5px 10px',
+                  border: '1px solid rgba(255,255,255,0.18)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                }}
+              >
+                <Trophy size={12} aria-hidden />
+                {season_record.wins}-{season_record.losses}
+              </span>
+            ) : null}
+            {proLike && league_rank != null && (league_team_count ?? 0) > 1 ? (
+              <span
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  color: heroTheme.heroTitle,
+                  background: 'rgba(255,255,255,0.12)',
+                  borderRadius: '999px',
+                  padding: '5px 10px',
+                  border: '1px solid rgba(255,255,255,0.18)',
+                }}
+              >
+                Rank #{league_rank} / {league_team_count}
+              </span>
+            ) : null}
           </div>
+          {proLike && last_game ? (
+            <p style={{ color: heroTheme.heroSubtitle, fontSize: '13px', margin: '12px 0 0', lineHeight: 1.45 }}>
+              Last final:{' '}
+              <strong style={{ color: heroTheme.heroTitle }}>
+                {last_game.won ? 'W' : 'L'} {last_game.team_points}-{last_game.opp_points}
+              </strong>{' '}
+              vs {last_game.opponent_name}
+              {last_game.scheduled_at
+                ? ` · ${new Date(last_game.scheduled_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
+                : ''}
+            </p>
+          ) : null}
         </div>
       </div>
 
-      <div style={{ maxWidth: '720px', margin: '0 auto', padding: '20px 20px 56px' }}>
-
-        {open_jersey_poll_id ? (
-          <Link
-            href={`/join/${slug}/jersey-poll/${open_jersey_poll_id}`}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-              background: preset.surfaceBg,
-              border: `1px solid ${preset.surfaceBorder}`,
-              borderRadius: '14px',
-              padding: '14px 16px',
-              textDecoration: 'none',
-              color: 'inherit',
-              marginBottom: '14px',
-              boxShadow: '0 6px 16px -12px rgba(0,0,0,0.3)',
-            }}
-          >
-            <div
-              style={{
-                width: '40px',
-                height: '40px',
-                borderRadius: '12px',
-                background: preset.accentSoftBg,
-                color: preset.accent,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-              }}
-            >
-              <Shirt size={20} strokeWidth={1.6} aria-hidden />
-            </div>
-            <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
-              <div style={{ fontSize: '15px', fontWeight: 800, color: preset.heading, marginBottom: '2px' }}>
-                Jersey number poll
-              </div>
-              <div style={{ fontSize: '13px', color: preset.muted, lineHeight: 1.45 }}>
-                Submit or update your preferred number for this team.
-              </div>
-            </div>
-            <span style={{ fontSize: '11px', fontWeight: 700, color: preset.accent, background: preset.accentSoftBg, borderRadius: '999px', padding: '4px 8px' }}>
-              Open
-            </span>
-          </Link>
-        ) : null}
-
-        <div
-          style={{
-            background: preset.surfaceBg,
-            border: `1px solid ${preset.surfaceBorder}`,
-            borderRadius: '16px',
-            overflow: 'hidden',
-            boxShadow: '0 8px 20px -14px rgba(0,0,0,0.35)',
-          }}
-        >
-          <div
-            style={{
-              padding: '14px 18px',
-              borderBottom: `1px solid ${preset.surfaceBorder}`,
-              fontSize: '13px',
-              letterSpacing: '0.06em',
-              textTransform: 'uppercase',
-              fontWeight: 800,
-              color: preset.muted,
-            }}
-          >
-            Roster
+      <div style={{ maxWidth: contentMaxWidth, margin: '0 auto', padding: '20px 20px 56px' }}>
+        {manageOpen && isStaff ? (
+          <div style={{ marginBottom: '20px' }}>
+            <LeagueTeamManagePanel
+              teamId={teamId}
+              orgSlug={slug}
+              variant="public"
+              onClose={closeManage}
+              onDataChanged={() => void refreshPayload()}
+            />
           </div>
-          {roster.length === 0 ? (
-            <div style={{ padding: '24px 18px', color: preset.body, fontSize: '14px', textAlign: 'center' }}>
-              No players assigned to this team yet.
-            </div>
-          ) : (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
-                <thead>
-                  <tr style={{ background: preset.accentSoftBg, color: preset.body, textAlign: 'left' }}>
-                    <th style={{ padding: '10px 14px', fontWeight: 700 }}>#</th>
-                    <th style={{ padding: '10px 14px', fontWeight: 700 }}>Player</th>
-                    <th style={{ padding: '10px 14px', fontWeight: 700 }}>Pos.</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {roster.map((p) => (
-                    <tr key={p.id} style={{ borderTop: `1px solid ${preset.surfaceBorder}`, color: preset.heading }}>
-                      <td style={{ padding: '12px 14px', color: preset.muted, fontVariantNumeric: 'tabular-nums' }}>
-                        {p.jersey_number !== null && p.jersey_number !== undefined ? p.jersey_number : '—'}
-                      </td>
-                      <td style={{ padding: '12px 14px', fontWeight: 600 }}>{p.full_name}</td>
-                      <td style={{ padding: '12px 14px', color: preset.muted }}>
-                        {p.position_label || '—'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+        ) : null}
+        <PublicTeamTabPanels
+          data={data}
+          slug={slug}
+          preset={preset}
+          publicTab={publicTab}
+          setPublicTabQuery={setPublicTabQuery}
+          watchHref={watchHref}
+          nextGameMapsHref={nextGameMapsHref}
+        />
       </div>
 
       <div
