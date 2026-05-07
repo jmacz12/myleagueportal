@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { auth } from '@clerk/nextjs/server'
 import { appearanceModeForChoice, normalizeLeagueThemePresetId } from '@/lib/league-theme-choice'
+import {
+  evaluateLeagueIdentityChange,
+  leagueIdentityFieldsChanged,
+} from '@/lib/league-identity-change-policy'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -27,10 +31,29 @@ export async function GET() {
   let { data: orgWithTz, error: orgWithTzError } = await supabaseAdmin
     .from('organizations')
     .select(
-      'id, name, slug, primary_color, logo_url, plan, stripe_customer_id, stripe_subscription_id, news_banner, news_banner_color, league_timezone, league_theme_preset, league_appearance_mode, brand_color_change_count, brand_color_change_period_start'
+      'id, name, slug, primary_color, logo_url, plan, stripe_customer_id, stripe_subscription_id, news_banner, news_banner_color, league_timezone, league_theme_preset, league_appearance_mode, brand_color_change_count, brand_color_change_period_start, league_name_change_count, league_name_last_changed_at'
     )
     .eq('clerk_user_id', userId)
     .single()
+
+  // DB without league identity columns yet — retry without them.
+  if (orgWithTzError) {
+    const r2 = await supabaseAdmin
+      .from('organizations')
+      .select(
+        'id, name, slug, primary_color, logo_url, plan, stripe_customer_id, stripe_subscription_id, news_banner, news_banner_color, league_timezone, league_theme_preset, league_appearance_mode, brand_color_change_count, brand_color_change_period_start'
+      )
+      .eq('clerk_user_id', userId)
+      .single()
+    if (!r2.error && r2.data) {
+      orgWithTz = {
+        ...r2.data,
+        league_name_change_count: 0,
+        league_name_last_changed_at: null,
+      } as typeof orgWithTz
+      orgWithTzError = null
+    }
+  }
 
   // Backward compatibility for databases that do not yet have league_timezone.
   const { data: orgWithoutTz } = orgWithTzError
@@ -51,6 +74,8 @@ export async function GET() {
         league_appearance_mode: 'light',
         brand_color_change_count: 0,
         brand_color_change_period_start: null,
+        league_name_change_count: 0,
+        league_name_last_changed_at: null,
       }
       : null)
 
@@ -63,11 +88,29 @@ export async function PATCH(req: Request) {
   const { userId } = await auth()
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: org } = await supabaseAdmin
+  let { data: org, error: orgFetchError } = await supabaseAdmin
     .from('organizations')
-    .select('id, plan, primary_color, brand_color_change_count, brand_color_change_period_start')
+    .select(
+      'id, name, slug, plan, primary_color, brand_color_change_count, brand_color_change_period_start, league_name_change_count, league_name_last_changed_at'
+    )
     .eq('clerk_user_id', userId)
     .single()
+
+  if (orgFetchError || !org) {
+    const r2 = await supabaseAdmin
+      .from('organizations')
+      .select('id, name, slug, plan, primary_color, brand_color_change_count, brand_color_change_period_start')
+      .eq('clerk_user_id', userId)
+      .single()
+    if (r2.data) {
+      org = {
+        ...r2.data,
+        league_name_change_count: 0,
+        league_name_last_changed_at: null,
+      } as typeof org
+      orgFetchError = null
+    }
+  }
 
   if (!org) return NextResponse.json({ error: 'No organization found' }, { status: 404 })
 
@@ -100,6 +143,29 @@ export async function PATCH(req: Request) {
       { status: 400 }
     )
   }
+
+  const identityPolicy = evaluateLeagueIdentityChange({
+    plan: org.plan,
+    storedName: org.name,
+    storedSlug: org.slug,
+    incomingName: name,
+    incomingSlug: slug,
+    changeCount: org.league_name_change_count,
+    lastChangedAt: org.league_name_last_changed_at,
+  })
+  if (!identityPolicy.ok) {
+    return NextResponse.json(
+      { error: identityPolicy.error, nextEligibleAt: identityPolicy.nextEligibleAt },
+      { status: 400 }
+    )
+  }
+
+  const identityApplied = leagueIdentityFieldsChanged({
+    storedName: org.name,
+    storedSlug: org.slug,
+    incomingName: name,
+    incomingSlug: slug,
+  })
 
   // Allow update of name, slug, and news_banner
   const updateData: any = {
@@ -152,6 +218,11 @@ export async function PATCH(req: Request) {
     }
   }
 
+  if (identityApplied) {
+    updateData.league_name_change_count = (org.league_name_change_count ?? 0) + 1
+    updateData.league_name_last_changed_at = new Date().toISOString()
+  }
+
   const { error } = await supabaseAdmin
     .from('organizations')
     .update(updateData)
@@ -165,7 +236,9 @@ export async function PATCH(req: Request) {
       msg.includes('league_theme_preset') ||
       msg.includes('brand_color_change_count') ||
       msg.includes('brand_color_change_period_start') ||
-      msg.includes('league_appearance_mode')
+      msg.includes('league_appearance_mode') ||
+      msg.includes('league_name_change_count') ||
+      msg.includes('league_name_last_changed_at')
     ) {
       const fallbackUpdate = { ...updateData }
       delete fallbackUpdate.league_timezone
@@ -173,6 +246,8 @@ export async function PATCH(req: Request) {
       delete fallbackUpdate.league_appearance_mode
       delete fallbackUpdate.brand_color_change_count
       delete fallbackUpdate.brand_color_change_period_start
+      delete fallbackUpdate.league_name_change_count
+      delete fallbackUpdate.league_name_last_changed_at
 
       const { error: fallbackError } = await supabaseAdmin
         .from('organizations')

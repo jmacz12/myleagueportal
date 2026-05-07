@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation'
 import { ChevronLeft, Shirt } from 'lucide-react'
 import { publicHeroThemeFromPreset, resolveThemePreset } from '@/lib/leagueTheme'
 import { getPublicThemeInputsForOrg } from '@/lib/public-league-branding'
+import { googleFontStylesheetHref, resolvePublicLeagueFontStack } from '@/lib/public-league-fonts'
 
 interface TeamPayload {
   organization: {
@@ -30,6 +31,8 @@ interface TeamPayload {
     position_label: string | null
   }[]
   open_jersey_poll_id: string | null
+  /** League website typography (Pro+); aligns with league home / join hub */
+  publicFontKey: string | null
 }
 
 export default function LeaguePublicTeamPage() {
@@ -85,6 +88,32 @@ export default function LeaguePublicTeamPage() {
     const b = getPublicThemeInputsForOrg(data.organization)
     return resolveThemePreset(b.primaryColor, b.presetId, b.appearanceMode)
   }, [data])
+
+  const publicBrandInputs = useMemo(
+    () => (data?.organization ? getPublicThemeInputsForOrg(data.organization) : null),
+    [data?.organization]
+  )
+  const displayLogoUrl =
+    publicBrandInputs?.usePlatformBranding ? null : data?.organization.logo_url ?? null
+
+  const publicFontStack = useMemo(
+    () => resolvePublicLeagueFontStack(data?.publicFontKey),
+    [data?.publicFontKey]
+  )
+
+  useEffect(() => {
+    const href = googleFontStylesheetHref(data?.publicFontKey)
+    if (!href) return
+    const key = data?.publicFontKey || 'plus-jakarta'
+    const id = `public-league-font-${key}`
+    if (document.getElementById(id)) return
+    const link = document.createElement('link')
+    link.id = id
+    link.rel = 'stylesheet'
+    link.href = href
+    document.head.appendChild(link)
+  }, [data?.publicFontKey])
+
   const accent = data?.team.color || preset.accent
   const heroTheme = useMemo(() => publicHeroThemeFromPreset(preset), [preset])
 
@@ -92,7 +121,7 @@ export default function LeaguePublicTeamPage() {
     return (
       <div
         className="min-h-screen flex items-center justify-center text-sm font-semibold"
-        style={{ background: preset.pageBg, color: preset.heading, fontFamily: 'Plus Jakarta Sans, sans-serif' }}
+        style={{ background: preset.pageBg, color: preset.heading, fontFamily: publicFontStack }}
       >
         Loading…
       </div>
@@ -103,7 +132,7 @@ export default function LeaguePublicTeamPage() {
     return (
       <div
         className="min-h-screen flex flex-col items-center justify-center px-6 text-center"
-        style={{ background: preset.pageBg, fontFamily: 'Plus Jakarta Sans, sans-serif' }}
+        style={{ background: preset.pageBg, fontFamily: publicFontStack }}
       >
         <p style={{ color: preset.heading, fontWeight: 800, fontSize: '18px', marginBottom: '8px' }}>
           Team not found
@@ -127,7 +156,7 @@ export default function LeaguePublicTeamPage() {
   const teamStripe = team.color || preset.accent
 
   return (
-    <div style={{ minHeight: '100vh', background: preset.pageBg, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: preset.pageBg, fontFamily: publicFontStack }}>
       <div
         style={{
           position: 'fixed',
@@ -159,8 +188,8 @@ export default function LeaguePublicTeamPage() {
           >
             <ChevronLeft size={22} aria-hidden />
           </Link>
-          {org.logo_url ? (
-            <img src={org.logo_url} alt="" style={{ height: '32px', width: '32px', objectFit: 'cover', borderRadius: '8px', flexShrink: 0 }} />
+          {displayLogoUrl ? (
+            <img src={displayLogoUrl} alt="" style={{ height: '32px', width: '32px', objectFit: 'cover', borderRadius: '8px', flexShrink: 0 }} />
           ) : (
             <div
               style={{
@@ -213,9 +242,9 @@ export default function LeaguePublicTeamPage() {
           </Link>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-            {org.logo_url ? (
+            {displayLogoUrl ? (
               <img
-                src={org.logo_url}
+                src={displayLogoUrl}
                 alt={org.name}
                 style={{
                   height: '56px',

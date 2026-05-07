@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { ImagePlus, Loader2 } from 'lucide-react'
 import ThemeSelector from './ThemeSelector'
 import { contrastTextForAccent, resolveLeagueThemeChoice } from '@/lib/leagueTheme'
@@ -11,6 +11,7 @@ import {
   normalizeLeagueThemePresetId,
   type LeagueThemeChoiceId,
 } from '@/lib/league-theme-choice'
+import { leagueIdentityUiHint } from '@/lib/league-identity-change-policy'
 
 interface OrgSettings {
   name: string
@@ -25,6 +26,8 @@ interface OrgSettings {
   league_appearance_mode?: string | null
   brand_color_change_count?: number | null
   brand_color_change_period_start?: string | null
+  league_name_change_count?: number | null
+  league_name_last_changed_at?: string | null
 }
 
 const PRO_BRAND_COLOR_CHANGES_PER_MONTH = 5
@@ -318,6 +321,16 @@ export default function SettingsPage() {
   const proColorChangesUsed = Number(settings?.brand_color_change_count || 0)
   const proColorChangesRemaining = Math.max(0, PRO_BRAND_COLOR_CHANGES_PER_MONTH - proColorChangesUsed)
 
+  const identityUi = useMemo(
+    () =>
+      leagueIdentityUiHint({
+        plan: settings?.plan,
+        changeCount: settings?.league_name_change_count,
+        lastChangedAt: settings?.league_name_last_changed_at,
+      }),
+    [settings?.plan, settings?.league_name_change_count, settings?.league_name_last_changed_at]
+  )
+
   const planFeatures: Record<string, string[]> = {
     basic: ['50 players max', '1 active season', 'Standard branding', 'Basic roster management'],
     pro: ['150 players max', '3 concurrent seasons', 'Custom logo & colors', 'Waitlist automation', 'Live scoring table'],
@@ -506,8 +519,21 @@ export default function SettingsPage() {
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div>
             <label className="label">League Name</label>
-            <input type="text" required value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })} className="input" />
+            <input
+              type="text"
+              required
+              value={form.name}
+              readOnly={!identityUi.canEditName}
+              onChange={(e) => {
+                if (!identityUi.canEditName) return
+                setForm({ ...form, name: e.target.value })
+              }}
+              className="input"
+              style={{ opacity: identityUi.canEditName ? 1 : 0.85 }}
+            />
+            <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px', lineHeight: 1.45 }}>
+              {identityUi.helperText}
+            </p>
           </div>
 
           <div>
@@ -597,12 +623,15 @@ export default function SettingsPage() {
                 </span>
               )}
             </label>
-            <div style={{ display: 'flex', alignItems: 'center', border: '0.5px solid var(--border)', borderRadius: '8px', overflow: 'hidden', background: settings?.plan === 'basic' ? 'var(--bg-elevated)' : 'var(--input-bg)', opacity: settings?.plan === 'basic' ? 0.7 : 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', border: '0.5px solid var(--border)', borderRadius: '8px', overflow: 'hidden', background: settings?.plan === 'basic' ? 'var(--bg-elevated)' : 'var(--input-bg)', opacity: settings?.plan === 'basic' || !identityUi.canEditSlug ? 0.7 : 1 }}>
               <span style={{ background: 'var(--bg-elevated)', padding: '9px 12px', fontSize: '13px', color: 'var(--text-muted)', borderRight: '0.5px solid var(--border)', flexShrink: 0 }}>/join/</span>
-              <input type="text" required value={form.slug} readOnly={settings?.plan === 'basic'}
-                onChange={(e) => { if (settings?.plan === 'basic') return; setForm({ ...form, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') }) }}
+              <input type="text" required value={form.slug} readOnly={settings?.plan === 'basic' || !identityUi.canEditSlug}
+                onChange={(e) => {
+                  if (settings?.plan === 'basic' || !identityUi.canEditSlug) return
+                  setForm({ ...form, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })
+                }}
                 style={{ flex: 1, padding: '9px 12px', fontSize: '13px', color: 'var(--text-primary)', background: 'transparent', border: 'none', outline: 'none', fontFamily: 'inherit' }} />
-              {settings?.plan === 'basic' && <span style={{ padding: '0 12px', color: 'var(--text-muted)', fontSize: '11px', fontWeight: '700' }}>Locked</span>}
+              {(settings?.plan === 'basic' || !identityUi.canEditSlug) && <span style={{ padding: '0 12px', color: 'var(--text-muted)', fontSize: '11px', fontWeight: '700' }}>Locked</span>}
             </div>
             <button type="button" onClick={() => { navigator.clipboard.writeText(`myleagueportal.com/join/${form.slug}`); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
               style={{ marginTop: '6px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', color: 'var(--accent)', fontWeight: '600', padding: 0, display: 'flex', alignItems: 'center', gap: '4px' }}>

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { EMPTY_LEAGUE_SITE, parseLeagueSitePayload } from '@/lib/league-site'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -66,6 +67,17 @@ export async function GET(
     .eq('status', 'open')
     .maybeSingle()
 
+  let publicFontKey: string | null = EMPTY_LEAGUE_SITE.publicFontKey
+  const { data: siteRow, error: siteErr } = await supabaseAdmin
+    .from('league_site_content')
+    .select('published')
+    .eq('organization_id', org.id)
+    .maybeSingle()
+
+  if (!siteErr && siteRow?.published != null) {
+    publicFontKey = parseLeagueSitePayload(siteRow.published).publicFontKey
+  }
+
   const roster = (players || []).map((p) => ({
     id: p.id,
     full_name: p.full_name,
@@ -91,5 +103,6 @@ export async function GET(
     },
     roster,
     open_jersey_poll_id: openPoll?.id ?? null,
+    publicFontKey,
   })
 }

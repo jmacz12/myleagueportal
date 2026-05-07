@@ -17,9 +17,23 @@ interface Season {
   type: string
 }
 
+interface JerseyPollSummary {
+  id: string
+  team_id: string
+  status: string
+  responses: {
+    id: string
+    preferred_number: number
+    conflict?: boolean
+    player: { full_name: string; email: string | null }
+  }[]
+}
+
 export default function TeamsPage() {
   const [teams, setTeams] = useState<Team[]>([])
   const [seasons, setSeasons] = useState<Season[]>([])
+  const [orgSlug, setOrgSlug] = useState('')
+  const [jerseyPolls, setJerseyPolls] = useState<JerseyPollSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -27,22 +41,77 @@ export default function TeamsPage() {
   const [error, setError] = useState('')
   const [selectedSeason, setSelectedSeason] = useState<string>('all')
   const [form, setForm] = useState({ name: '', color: '#5a7a2a', season_id: '' })
+  const [jerseyModalTeamId, setJerseyModalTeamId] = useState<string | null>(null)
+  const [jerseyBusy, setJerseyBusy] = useState(false)
+  const [jerseyModalError, setJerseyModalError] = useState('')
+  const [copiedPollHint, setCopiedPollHint] = useState(false)
 
   useEffect(() => { fetchData() }, [])
 
   async function fetchData() {
-    const [teamsRes, seasonsRes] = await Promise.all([
+    const [teamsRes, seasonsRes, pollsRes] = await Promise.all([
       fetch('/api/teams'),
       fetch('/api/seasons'),
+      fetch('/api/jersey-polls'),
     ])
     const teamsData = await teamsRes.json()
     const seasonsData = await seasonsRes.json()
+    const pollsData = pollsRes.ok ? await pollsRes.json() : { polls: [] }
     setTeams(teamsData.teams || [])
+    setOrgSlug(typeof teamsData.org_slug === 'string' ? teamsData.org_slug : '')
     setSeasons(seasonsData.seasons || [])
+    setJerseyPolls(pollsData.polls || [])
     if (seasonsData.seasons?.length > 0) {
       setForm(f => ({ ...f, season_id: seasonsData.seasons[0].id }))
     }
     setLoading(false)
+  }
+
+  async function openJerseyPoll(teamId: string) {
+    setJerseyBusy(true)
+    setJerseyModalError('')
+    const res = await fetch('/api/jersey-polls', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ team_id: teamId }),
+    })
+    const data = await res.json().catch(() => ({}))
+    setJerseyBusy(false)
+    if (!res.ok) {
+      setJerseyModalError(typeof data.error === 'string' ? data.error : 'Could not open poll.')
+      return
+    }
+    await fetchData()
+  }
+
+  async function closeJerseyPoll(pollId: string) {
+    if (!confirm('Close this poll? Players can no longer submit or change preferences.')) return
+    setJerseyBusy(true)
+    setJerseyModalError('')
+    const res = await fetch(`/api/jersey-polls/${pollId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'close' }),
+    })
+    const data = await res.json().catch(() => ({}))
+    setJerseyBusy(false)
+    if (!res.ok) {
+      setJerseyModalError(typeof data.error === 'string' ? data.error : 'Could not close poll.')
+      return
+    }
+    await fetchData()
+  }
+
+  async function copyPollUrl(pollId: string) {
+    if (!orgSlug || typeof window === 'undefined') return
+    const url = `${window.location.origin}/join/${orgSlug}/jersey-poll/${pollId}`
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopiedPollHint(true)
+      window.setTimeout(() => setCopiedPollHint(false), 2000)
+    } catch {
+      setJerseyModalError('Could not copy — copy the link manually from the address bar after opening the poll.')
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -77,6 +146,11 @@ export default function TeamsPage() {
   const filteredTeams = selectedSeason === 'all'
     ? teams
     : teams.filter(t => t.season_id === selectedSeason)
+
+  const jerseyModalTeam = jerseyModalTeamId ? teams.find((t) => t.id === jerseyModalTeamId) : undefined
+  const jerseyModalOpenPoll = jerseyModalTeamId
+    ? jerseyPolls.find((p) => p.team_id === jerseyModalTeamId && p.status === 'open')
+    : undefined
 
   return (
     <div style={{ maxWidth: '760px' }}>
@@ -217,14 +291,14 @@ export default function TeamsPage() {
           {/* Table Header */}
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'minmax(120px, 2fr) minmax(100px, 2fr) 56px 72px',
+            gridTemplateColumns: 'minmax(120px, 2fr) minmax(100px, 2fr) 56px minmax(168px, 2fr) 72px',
             gap: '8px',
             padding: '10px 20px',
             background: 'var(--bg-elevated)',
             borderBottom: '0.5px solid var(--border)',
             alignItems: 'center',
           }}>
-            {['Team', 'Season', '# plyrs', ''].map((h, i) => (
+            {['Team', 'Season', '# plyrs', 'Public / poll', ''].map((h, i) => (
               <span key={i} style={{
                 fontSize: '10px',
                 fontWeight: '700',
@@ -243,7 +317,7 @@ export default function TeamsPage() {
                 <div
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: 'minmax(120px, 2fr) minmax(100px, 2fr) 56px 72px',
+                    gridTemplateColumns: 'minmax(120px, 2fr) minmax(100px, 2fr) 56px minmax(168px, 2fr) 72px',
                     gap: '8px',
                     padding: '12px 20px',
                     borderBottom: '0.5px solid var(--border-light)',
@@ -274,6 +348,30 @@ export default function TeamsPage() {
                     {nPlayers}
                   </span>
 
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-start' }}>
+                    {orgSlug ? (
+                      <a
+                        href={`/league/${orgSlug}/teams/${team.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ fontSize: '12px', fontWeight: 600, color: 'var(--accent)', textDecoration: 'none' }}
+                      >
+                        Public team page ↗
+                      </a>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setJerseyModalError('')
+                        setJerseyModalTeamId(team.id)
+                      }}
+                      className="btn-secondary"
+                      style={{ fontSize: '11px', padding: '4px 10px', fontWeight: 600 }}
+                    >
+                      Jersey numbers…
+                    </button>
+                  </div>
+
                   <button
                     onClick={() => deleteTeam(team.id)}
                     disabled={deletingId === team.id}
@@ -298,6 +396,183 @@ export default function TeamsPage() {
           })}
         </div>
       )}
+
+      {jerseyModalTeamId && jerseyModalTeam ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="jersey-modal-title"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 100,
+            background: 'rgba(15, 23, 42, 0.45)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+          }}
+          onClick={() => {
+            if (!jerseyBusy) setJerseyModalTeamId(null)
+          }}
+        >
+          <div
+            className="card"
+            style={{ maxWidth: '460px', width: '100%', maxHeight: '88vh', overflow: 'auto' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="jersey-modal-title" style={{ fontSize: '17px', fontWeight: 800, margin: '0 0 8px', color: 'var(--text-primary)' }}>
+              Jersey number requests
+            </h2>
+            <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '0 0 16px', lineHeight: 1.45 }}>
+              <strong style={{ color: 'var(--text-primary)' }}>{jerseyModalTeam.name}</strong>
+              {' — '}Players use your public poll link to choose a preferred number. Final numbers are still assigned on{' '}
+              <a href="/dashboard/players" style={{ color: 'var(--accent)', fontWeight: 600 }}>Players</a>.
+            </p>
+
+            {jerseyModalError ? (
+              <div style={{
+                background: '#fef2f2',
+                border: '0.5px solid #fecaca',
+                borderRadius: '8px',
+                padding: '10px 12px',
+                fontSize: '13px',
+                color: '#b91c1c',
+                marginBottom: '12px',
+              }}>
+                {jerseyModalError}
+              </div>
+            ) : null}
+
+            {jerseyModalOpenPoll ? (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', flexWrap: 'wrap' }}>
+                  <span style={{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.06em',
+                    color: '#15803d',
+                    background: '#dcfce7',
+                    padding: '4px 8px',
+                    borderRadius: '6px',
+                  }}>
+                    Poll open
+                  </span>
+                  {copiedPollHint ? (
+                    <span style={{ fontSize: '12px', color: 'var(--accent)', fontWeight: 600 }}>Link copied</span>
+                  ) : null}
+                </div>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '14px' }}>
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    disabled={jerseyBusy || !orgSlug}
+                    style={{ fontSize: '13px' }}
+                    onClick={() => void copyPollUrl(jerseyModalOpenPoll.id)}
+                  >
+                    Copy poll link
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    disabled={jerseyBusy}
+                    style={{ fontSize: '13px' }}
+                    onClick={() => void closeJerseyPoll(jerseyModalOpenPoll.id)}
+                  >
+                    Close poll
+                  </button>
+                </div>
+
+                <div style={{
+                  border: '0.5px solid var(--border)',
+                  borderRadius: '10px',
+                  overflow: 'hidden',
+                  marginBottom: '12px',
+                }}>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 72px 72px',
+                    gap: '8px',
+                    padding: '8px 12px',
+                    background: 'var(--bg-elevated)',
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.06em',
+                    color: 'var(--text-muted)',
+                  }}>
+                    <span>Player</span>
+                    <span style={{ textAlign: 'center' }}>#</span>
+                    <span style={{ textAlign: 'center' }}>Note</span>
+                  </div>
+                  {jerseyModalOpenPoll.responses.length === 0 ? (
+                    <div style={{ padding: '16px', fontSize: '13px', color: 'var(--text-muted)', textAlign: 'center' }}>
+                      No responses yet. Copy the poll link and share it with your team.
+                    </div>
+                  ) : (
+                    jerseyModalOpenPoll.responses.map((r) => (
+                      <div
+                        key={r.id}
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: '1fr 72px 72px',
+                          gap: '8px',
+                          padding: '10px 12px',
+                          borderTop: '0.5px solid var(--border-light)',
+                          alignItems: 'center',
+                          fontSize: '13px',
+                        }}
+                      >
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {r.player.full_name}
+                          </div>
+                          {r.player.email ? (
+                            <div style={{ fontSize: '11px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {r.player.email}
+                            </div>
+                          ) : null}
+                        </div>
+                        <span style={{ textAlign: 'center', fontFamily: 'monospace', fontWeight: 700 }}>
+                          {r.preferred_number}
+                        </span>
+                        <span style={{ textAlign: 'center', fontSize: '11px', fontWeight: 700, color: r.conflict ? '#b45309' : 'var(--text-muted)' }}>
+                          {r.conflict ? 'Conflict' : '—'}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </>
+            ) : (
+              <div style={{ marginBottom: '14px' }}>
+                <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '12px', lineHeight: 1.45 }}>
+                  Open a poll to collect preferred jersey numbers. Only one open poll per team at a time.
+                </p>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  disabled={jerseyBusy}
+                  onClick={() => void openJerseyPoll(jerseyModalTeam.id)}
+                >
+                  {jerseyBusy ? '…' : 'Request jersey numbers'}
+                </button>
+              </div>
+            )}
+
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={jerseyBusy}
+              style={{ width: '100%' }}
+              onClick={() => setJerseyModalTeamId(null)}
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
