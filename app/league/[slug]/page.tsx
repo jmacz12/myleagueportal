@@ -68,10 +68,36 @@ interface PublicTeamRow {
   id: string
   name: string
   color: string | null
+  logo_url?: string | null
   season_id: string | null
   season_name: string
   player_count: number
   open_jersey_poll_id: string | null
+}
+
+interface LeagueScheduleItem {
+  id: string
+  source_id: string
+  type: 'season_game' | 'drop_in'
+  name: string
+  scheduled_at: string
+  location_label?: string | null
+  fee_amount?: number | null
+  is_user_playing?: boolean
+}
+
+interface LeagueStandingRow {
+  team_id: string
+  team_name: string
+  wins: number
+  losses: number
+  pct: number
+}
+
+interface LeagueLeaderRow {
+  player_name: string
+  stat: string
+  total: number
 }
 
 function LeagueSiteSections({
@@ -140,10 +166,11 @@ function formatSeasonDates(cs: CompetitiveSeason): string | null {
   }
 }
 
-type LeaguePublicTabId = 'home' | 'schedule' | 'standings' | 'teams' | 'about'
+type LeaguePublicTabId = 'home' | 'news' | 'schedule' | 'standings' | 'teams' | 'about'
 
 const LEAGUE_TAB_META: { id: LeaguePublicTabId; label: string }[] = [
   { id: 'home', label: 'Home' },
+  { id: 'news', label: 'News' },
   { id: 'schedule', label: 'Schedule' },
   { id: 'standings', label: 'Standings' },
   { id: 'teams', label: 'Teams' },
@@ -151,7 +178,7 @@ const LEAGUE_TAB_META: { id: LeaguePublicTabId; label: string }[] = [
 ]
 
 function parseLeaguePublicTab(v: string | null): LeaguePublicTabId {
-  if (v === 'schedule' || v === 'standings' || v === 'teams' || v === 'about') return v
+  if (v === 'news' || v === 'schedule' || v === 'standings' || v === 'teams' || v === 'about') return v
   return 'home'
 }
 
@@ -269,6 +296,9 @@ function LeagueHomeContent() {
   const [sessions, setSessions] = useState<
     { id: string; name?: string; scheduled_at: string; fee_amount?: number; max_players?: number; signups?: unknown[] }[]
   >([])
+  const [scheduleItems, setScheduleItems] = useState<LeagueScheduleItem[]>([])
+  const [standingsRows, setStandingsRows] = useState<LeagueStandingRow[]>([])
+  const [leadersRows, setLeadersRows] = useState<LeagueLeaderRow[]>([])
   const [stickyVisible, setStickyVisible] = useState(false)
   const [canManageSite, setCanManageSite] = useState(false)
   const [siteAccessRole, setSiteAccessRole] = useState<'owner' | 'editor' | null>(null)
@@ -296,26 +326,34 @@ function LeagueHomeContent() {
     async function load() {
       setLoading(true)
       setNotFound(false)
-      const [hubRes, teamsRes, sesRes] = await Promise.all([
+      const [hubRes, teamsRes, sesRes, standingsRes] = await Promise.all([
         fetch(`/api/join/${slug}/hub`),
         fetch(`/api/join/${slug}/teams`),
         fetch(`/api/join/${slug}/sessions`),
+        fetch(`/api/join/${slug}/standings`),
       ])
       if (cancelled) return
       if (hubRes.status === 404) {
         setNotFound(true)
         setHub(null)
         setTeams([])
+        setScheduleItems([])
+        setStandingsRows([])
+        setLeadersRows([])
         setLoading(false)
         return
       }
       const hubJson = await hubRes.json().catch(() => null)
       const teamsJson = await teamsRes.json().catch(() => ({}))
       const sesJson = await sesRes.json().catch(() => ({}))
+      const standingsJson = await standingsRes.json().catch(() => ({}))
       if (!hubJson?.organization) {
         setNotFound(true)
         setHub(null)
         setTeams([])
+        setScheduleItems([])
+        setStandingsRows([])
+        setLeadersRows([])
       } else {
         setHub({
           organization: hubJson.organization,
@@ -325,6 +363,24 @@ function LeagueHomeContent() {
         })
         setTeams(Array.isArray(teamsJson.teams) ? teamsJson.teams : [])
         setSessions(Array.isArray(sesJson.sessions) ? sesJson.sessions : [])
+        setScheduleItems(
+          Array.isArray(sesJson.scheduleItems)
+            ? sesJson.scheduleItems
+            : Array.isArray(sesJson.sessions)
+              ? sesJson.sessions.map((s: { id: string; name?: string; scheduled_at: string; fee_amount?: number; location?: string | null }) => ({
+                  id: `dropin:${s.id}`,
+                  source_id: s.id,
+                  type: 'drop_in' as const,
+                  name: s.name || 'Drop-in session',
+                  scheduled_at: s.scheduled_at,
+                  fee_amount: typeof s.fee_amount === 'number' ? s.fee_amount : null,
+                  location_label: s.location ?? null,
+                  is_user_playing: false,
+                }))
+              : []
+        )
+        setStandingsRows(Array.isArray(standingsJson.standings) ? standingsJson.standings : [])
+        setLeadersRows(Array.isArray(standingsJson.leaders) ? standingsJson.leaders : [])
       }
       setLoading(false)
     }
@@ -383,6 +439,15 @@ function LeagueHomeContent() {
     if (!hub) return EMPTY_LEAGUE_SITE
     return editMode && draftSite ? draftSite : hub.leagueSite
   }, [hub, editMode, draftSite])
+
+  const newsSections = useMemo(
+    () => displaySite.sections.filter((s) => s.type === 'news'),
+    [displaySite.sections]
+  )
+  const aboutSections = useMemo(
+    () => displaySite.sections.filter((s) => s.type !== 'news'),
+    [displaySite.sections]
+  )
 
   const publicFontStack = useMemo(
     () => resolvePublicLeagueFontStack(displaySite.publicFontKey),
@@ -511,6 +576,21 @@ function LeagueHomeContent() {
   const totalPlayers = teams.reduce((sum, t) => sum + t.player_count, 0)
   const planSlug = String(org.plan || 'basic').toLowerCase()
   const isProLike = planSlug === 'pro' || planSlug === 'enterprise'
+  const rankedScheduleItems = [...scheduleItems].sort((a, b) => {
+    const aTs = new Date(a.scheduled_at).getTime()
+    const bTs = new Date(b.scheduled_at).getTime()
+    const aPlaying = a.is_user_playing ? 1 : 0
+    const bPlaying = b.is_user_playing ? 1 : 0
+    if (aPlaying !== bPlaying) return bPlaying - aPlaying
+    // For personalized items, season fixtures rank above drop-ins.
+    if (aPlaying === 1 && bPlaying === 1 && a.type !== b.type) {
+      return a.type === 'season_game' ? -1 : 1
+    }
+    return aTs - bTs
+  })
+  const personalizedSchedule = rankedScheduleItems
+    .filter((item) => !!item.is_user_playing)
+    .slice(0, 3)
   const publicBrandInputs = getPublicThemeInputsForOrg(org)
   const websiteLockedForPlan = planSlug === 'basic'
 
@@ -669,6 +749,12 @@ function LeagueHomeContent() {
                     }
                   : h
               )
+            }}
+            onAppearanceMetaApplied={(m) => {
+              setAppearanceApi({
+                proBrandColorChangesRemaining: m.proBrandColorChangesRemaining,
+                proBrandColorChangesMonthlyLimit: m.proBrandColorChangesMonthlyLimit,
+              })
             }}
             orgAppearanceMode={org.league_appearance_mode}
             onPreviewChange={isProLike && siteAccessRole === 'owner' ? setAppearancePreview : undefined}
@@ -937,7 +1023,8 @@ function LeagueHomeContent() {
                   </span>
                 </div>
                 <p style={{ margin: '16px 0 0', fontSize: '13px', color: preset.muted, lineHeight: 1.55 }}>
-                  Stories, photos, and long-form updates from your organizer live on the <strong style={{ color: preset.heading }}>About</strong> tab.
+                  Latest updates live on <strong style={{ color: preset.heading }}>News</strong>; league background and media live on{' '}
+                  <strong style={{ color: preset.heading }}>About</strong>.
                 </p>
               </div>
             ) : (
@@ -999,7 +1086,33 @@ function LeagueHomeContent() {
               </span>
             </div>
 
-            {sessions.length === 0 ? (
+            {personalizedSchedule.length > 0 ? (
+              <div
+                style={{
+                  marginBottom: '16px',
+                  padding: '12px 14px',
+                  background: preset.accentSoftBg,
+                  border: `1px solid ${preset.surfaceBorder}`,
+                  borderRadius: '12px',
+                }}
+              >
+                <p style={{ margin: 0, fontSize: '12px', fontWeight: 900, color: preset.heading, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                  Your upcoming games
+                </p>
+                <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '7px' }}>
+                  {personalizedSchedule.map((item) => {
+                    const local = formatDropInSessionLocal(item.scheduled_at, org.league_timezone)
+                    return (
+                      <div key={`personal-${item.id}`} style={{ fontSize: '13px', color: preset.body }}>
+                        <strong style={{ color: preset.heading }}>{item.name}</strong> · {local.day} · {local.time}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ) : null}
+
+            {rankedScheduleItems.length === 0 ? (
               <div
                 style={{
                   padding: '36px 24px',
@@ -1015,15 +1128,16 @@ function LeagueHomeContent() {
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                {sessions.map((s) => {
-                  const local = formatDropInSessionLocal(s.scheduled_at, org.league_timezone)
-                  const loc = (s as { location_label?: string; venue_name?: string }).location_label || (s as { venue_name?: string }).venue_name
+                {rankedScheduleItems.map((item) => {
+                  const local = formatDropInSessionLocal(item.scheduled_at, org.league_timezone)
+                  const isDropin = item.type === 'drop_in'
+                  const loc = item.location_label
                   return (
                     <div
-                      key={s.id}
+                      key={item.id}
                       style={{
                         background: preset.surfaceBg,
-                        border: `1px solid ${preset.surfaceBorder}`,
+                        border: `1px solid ${item.is_user_playing ? preset.accent : preset.surfaceBorder}`,
                         borderRadius: '14px',
                         padding: '18px 20px',
                         display: 'flex',
@@ -1043,17 +1157,39 @@ function LeagueHomeContent() {
                             fontWeight: 800,
                             letterSpacing: '0.04em',
                             textTransform: 'uppercase',
-                            color: preset.accent,
-                            background: preset.accentSoftBg,
+                            color: isDropin ? preset.accent : '#6d28d9',
+                            background: isDropin ? preset.accentSoftBg : '#f3e8ff',
                             border: `1px solid ${preset.surfaceBorder}`,
                             borderRadius: '999px',
                             padding: '3px 8px',
                             marginBottom: '8px',
                           }}
                         >
-                          Drop-in
+                          {isDropin ? 'Drop-in' : 'Season game'}
                         </span>
-                        <p style={{ margin: 0, fontSize: '16px', fontWeight: 900, color: preset.heading }}>{s.name || 'Drop-in session'}</p>
+                        {item.is_user_playing ? (
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              fontSize: '10px',
+                              fontWeight: 900,
+                              letterSpacing: '0.04em',
+                              textTransform: 'uppercase',
+                              color: preset.heading,
+                              background: preset.accentSoftBg,
+                              border: `1px solid ${preset.surfaceBorder}`,
+                              borderRadius: '999px',
+                              padding: '3px 8px',
+                              marginLeft: '8px',
+                              marginBottom: '8px',
+                            }}
+                          >
+                            You&apos;re playing
+                          </span>
+                        ) : null}
+                        <p style={{ margin: 0, fontSize: '16px', fontWeight: 900, color: preset.heading }}>{item.name || 'Schedule item'}</p>
                         <p style={{ margin: '6px 0 0', fontSize: '13px', color: preset.muted }}>
                           {local.day} · {local.time}
                           {local.zone ? ` ${local.zone}` : ''}
@@ -1064,25 +1200,39 @@ function LeagueHomeContent() {
                             <span>{loc}</span>
                           </p>
                         ) : null}
-                        {typeof s.fee_amount === 'number' ? (
-                          <p style={{ margin: '10px 0 0', fontSize: '14px', fontWeight: 800, color: preset.accent }}>${s.fee_amount}</p>
+                        {isDropin && typeof item.fee_amount === 'number' ? (
+                          <p style={{ margin: '10px 0 0', fontSize: '14px', fontWeight: 800, color: preset.accent }}>${item.fee_amount}</p>
                         ) : null}
                       </div>
-                      <Link
-                        href={`/join/${slug}/dropins`}
-                        style={{
-                          fontSize: '13px',
-                          fontWeight: 800,
-                          textDecoration: 'none',
-                          padding: '10px 18px',
-                          borderRadius: '10px',
-                          background: preset.accent,
-                          color: contrastTextForAccent(preset.accent),
-                          flexShrink: 0,
-                        }}
-                      >
-                        Reserve spot
-                      </Link>
+                      {isDropin ? (
+                        <Link
+                          href={`/join/${slug}/dropins`}
+                          style={{
+                            fontSize: '13px',
+                            fontWeight: 800,
+                            textDecoration: 'none',
+                            padding: '10px 18px',
+                            borderRadius: '10px',
+                            background: preset.accent,
+                            color: contrastTextForAccent(preset.accent),
+                            flexShrink: 0,
+                          }}
+                        >
+                          {item.is_user_playing ? 'Manage spot' : 'Reserve spot'}
+                        </Link>
+                      ) : (
+                        <span
+                          style={{
+                            fontSize: '12px',
+                            fontWeight: 700,
+                            color: preset.muted,
+                            padding: '10px 0',
+                            flexShrink: 0,
+                          }}
+                        >
+                          Season fixture
+                        </span>
+                      )}
                     </div>
                   )
                 })}
@@ -1098,6 +1248,38 @@ function LeagueHomeContent() {
           </div>
         ) : null}
 
+        {activeTab === 'news' ? (
+          <div style={{ paddingTop: '28px' }}>
+            <h2 style={{ fontSize: 'clamp(20px, 2.5vw, 24px)', fontWeight: 900, color: preset.heading, margin: '0 0 8px', letterSpacing: '-0.02em' }}>
+              League news
+            </h2>
+            <p style={{ margin: '0 0 18px', fontSize: '14px', color: preset.muted, lineHeight: 1.55, maxWidth: '560px' }}>
+              Weekly updates from organizers. Team pages also surface these league updates on their News tabs.
+            </p>
+            {newsSections.length > 0 ? (
+              <LeagueSiteSections
+                site={{ ...displaySite, sections: newsSections }}
+                preset={preset}
+              />
+            ) : (
+              <div
+                style={{
+                  padding: '36px 24px',
+                  textAlign: 'center',
+                  background: preset.surfaceBg,
+                  border: `1px dashed ${preset.surfaceBorder}`,
+                  borderRadius: '16px',
+                }}
+              >
+                <p style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: preset.heading }}>No league news posted yet</p>
+                <p style={{ margin: '10px 0 0', fontSize: '14px', color: preset.muted, lineHeight: 1.55 }}>
+                  Organizers can add a <strong style={{ color: preset.heading }}>News</strong> section from <strong style={{ color: preset.heading }}>Edit page</strong>.
+                </p>
+              </div>
+            )}
+          </div>
+        ) : null}
+
         {activeTab === 'standings' ? (
           <div style={{ paddingTop: '24px' }}>
             {isProLike ? (
@@ -1108,21 +1290,77 @@ function LeagueHomeContent() {
                 <p style={{ margin: '0 0 20px', fontSize: '14px', color: preset.muted, lineHeight: 1.55, maxWidth: '560px' }}>
                   When games are recorded, league standings and stat leaders can be highlighted here for fans and players.
                 </p>
-                <div
-                  style={{
-                    background: preset.surfaceBg,
-                    border: `1px solid ${preset.surfaceBorder}`,
-                    borderRadius: '16px',
-                    padding: '28px 24px',
-                    textAlign: 'center',
-                  }}
-                >
-                  <BarChart3 size={32} strokeWidth={1.5} style={{ color: preset.accent, margin: '0 auto 12px' }} aria-hidden />
-                  <p style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: preset.heading }}>Standings go live with game results</p>
-                  <p style={{ margin: '10px 0 0', fontSize: '14px', color: preset.muted, lineHeight: 1.55, maxWidth: '420px', marginLeft: 'auto', marginRight: 'auto' }}>
-                    Your organizer records scores from the dashboard; this hub will fill in as that data rolls out.
-                  </p>
-                </div>
+                {standingsRows.length > 0 ? (
+                  <div
+                    style={{
+                      background: preset.surfaceBg,
+                      border: `1px solid ${preset.surfaceBorder}`,
+                      borderRadius: '16px',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+                      <thead>
+                        <tr style={{ background: preset.accentSoftBg, color: preset.body, textAlign: 'left' }}>
+                          <th style={{ padding: '10px 12px', fontWeight: 800 }}>#</th>
+                          <th style={{ padding: '10px 12px', fontWeight: 800 }}>Team</th>
+                          <th style={{ padding: '10px 12px', fontWeight: 800, textAlign: 'center' }}>W</th>
+                          <th style={{ padding: '10px 12px', fontWeight: 800, textAlign: 'center' }}>L</th>
+                          <th style={{ padding: '10px 12px', fontWeight: 800, textAlign: 'center' }}>PCT</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {standingsRows.map((row, idx) => (
+                          <tr key={row.team_id} style={{ borderTop: `1px solid ${preset.surfaceBorder}` }}>
+                            <td style={{ padding: '10px 12px', color: preset.muted }}>{idx + 1}</td>
+                            <td style={{ padding: '10px 12px', color: preset.heading, fontWeight: 700 }}>{row.team_name}</td>
+                            <td style={{ padding: '10px 12px', textAlign: 'center', color: preset.body }}>{row.wins}</td>
+                            <td style={{ padding: '10px 12px', textAlign: 'center', color: preset.body }}>{row.losses}</td>
+                            <td style={{ padding: '10px 12px', textAlign: 'center', color: preset.body }}>{row.pct.toFixed(3)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      background: preset.surfaceBg,
+                      border: `1px solid ${preset.surfaceBorder}`,
+                      borderRadius: '16px',
+                      padding: '28px 24px',
+                      textAlign: 'center',
+                    }}
+                  >
+                    <BarChart3 size={32} strokeWidth={1.5} style={{ color: preset.accent, margin: '0 auto 12px' }} aria-hidden />
+                    <p style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: preset.heading }}>Standings go live with game results</p>
+                    <p style={{ margin: '10px 0 0', fontSize: '14px', color: preset.muted, lineHeight: 1.55, maxWidth: '420px', marginLeft: 'auto', marginRight: 'auto' }}>
+                      Your organizer records scores from the dashboard; this hub will fill in as that data rolls out.
+                    </p>
+                  </div>
+                )}
+                {leadersRows.length > 0 ? (
+                  <div
+                    style={{
+                      marginTop: '14px',
+                      background: preset.surfaceBg,
+                      border: `1px solid ${preset.surfaceBorder}`,
+                      borderRadius: '14px',
+                      padding: '12px 14px',
+                    }}
+                  >
+                    <p style={{ margin: '0 0 8px', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: preset.muted }}>
+                      Current leaders
+                    </p>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                      {leadersRows.map((row) => (
+                        <span key={`${row.stat}-${row.player_name}`} style={{ fontSize: '13px', color: preset.body }}>
+                          <strong style={{ color: preset.heading }}>{row.stat}</strong>: {row.player_name} ({Math.round(row.total)})
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </>
             ) : (
               <>
@@ -1213,10 +1451,12 @@ function LeagueHomeContent() {
                     <Link key={t.id} href={`/league/${slug}/teams/${t.id}`} style={{ textDecoration: 'none' }}>
                       <div
                         style={{
-                          background: `linear-gradient(100deg, ${teamAccent}14 0%, ${preset.surfaceBg} 48%)`,
-                          border: `1px solid ${preset.surfaceBorder}`,
+                          background: preset.surfaceBg,
+                          borderTop: `1px solid ${preset.surfaceBorder}`,
+                          borderRight: `1px solid ${preset.surfaceBorder}`,
+                          borderBottom: `1px solid ${preset.surfaceBorder}`,
                           borderRadius: '16px',
-                          padding: '16px 16px 16px 14px',
+                          padding: '14px 14px 14px 12px',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'space-between',
@@ -1232,24 +1472,33 @@ function LeagueHomeContent() {
                               height: '40px',
                               borderRadius: '12px',
                               flexShrink: 0,
-                              background: teamAccent,
-                              color: contrastTextForAccent(teamAccent),
+                              background: `${teamAccent}1a`,
+                              border: `1px solid ${preset.surfaceBorder}`,
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
-                              fontSize: '15px',
-                              fontWeight: 900,
+                              overflow: 'hidden',
                             }}
                             aria-hidden
                           >
-                            {t.name.trim().charAt(0).toUpperCase()}
+                            {t.logo_url ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={t.logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            ) : (
+                              <span style={{ fontSize: '15px', fontWeight: 900, color: contrastTextForAccent(teamAccent), background: teamAccent, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                {t.name.trim().charAt(0).toUpperCase()}
+                              </span>
+                            )}
                           </div>
                           <div style={{ minWidth: 0 }}>
                             <div style={{ fontSize: '15px', fontWeight: 900, color: preset.heading, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '-0.02em' }}>
                               {t.name}
                             </div>
-                            <div style={{ fontSize: '12px', color: preset.muted, fontWeight: 600 }}>
-                              {t.player_count} player{t.player_count === 1 ? '' : 's'} · {t.season_name || 'Season'}
+                            <div style={{ fontSize: '12px', color: preset.muted, fontWeight: 700 }}>
+                              {t.season_name || 'Season'}
+                            </div>
+                            <div style={{ fontSize: '12px', color: preset.body, fontWeight: 600, marginTop: '1px' }}>
+                              {t.player_count} player{t.player_count === 1 ? '' : 's'}
                             </div>
                           </div>
                         </div>
@@ -1280,7 +1529,7 @@ function LeagueHomeContent() {
         ) : null}
 
         {activeTab === 'about' ? (
-          <div style={{ paddingTop: displaySite.sections.length || editMode ? '28px' : '24px' }}>
+          <div style={{ paddingTop: aboutSections.length || editMode ? '28px' : '24px' }}>
             {editMode && draftSite && websiteLockedForPlan ? (
               <div style={{ marginBottom: '20px' }}>
                 <div
@@ -1301,12 +1550,12 @@ function LeagueHomeContent() {
                   </Link>{' '}
                   to edit.
                 </div>
-                {hub.leagueSite.sections.length > 0 ? (
+                {hub.leagueSite.sections.filter((sec) => sec.type !== 'news').length > 0 ? (
                   <div style={{ marginTop: '18px', opacity: 0.85 }}>
                     <p style={{ fontSize: '12px', fontWeight: 800, color: preset.muted, marginBottom: '12px' }}>
-                      Published content (read-only preview)
+                      Published About content (read-only preview)
                     </p>
-                    <LeagueSiteSections site={hub.leagueSite} preset={preset} />
+                    <LeagueSiteSections site={{ ...hub.leagueSite, sections: hub.leagueSite.sections.filter((sec) => sec.type !== 'news') }} preset={preset} />
                   </div>
                 ) : null}
               </div>
@@ -1317,8 +1566,8 @@ function LeagueHomeContent() {
                 preset={preset}
                 maxGalleryImages={draftGalleryLimit}
               />
-            ) : displaySite.sections.length > 0 ? (
-              <LeagueSiteSections site={displaySite} preset={preset} />
+            ) : aboutSections.length > 0 ? (
+              <LeagueSiteSections site={{ ...displaySite, sections: aboutSections }} preset={preset} />
             ) : (
               <div
                 style={{
@@ -1330,9 +1579,9 @@ function LeagueHomeContent() {
                 }}
               >
                 <Info size={32} strokeWidth={1.25} style={{ color: preset.muted, margin: '0 auto 12px' }} aria-hidden />
-                <p style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: preset.heading }}>No published sections yet</p>
+                <p style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: preset.heading }}>No About sections yet</p>
                 <p style={{ margin: '10px 0 0', fontSize: '14px', color: preset.muted, lineHeight: 1.55, maxWidth: '400px', marginLeft: 'auto', marginRight: 'auto' }}>
-                  When your organizer adds text, news, or photo galleries in the league website editor, they&apos;ll show here — not on the Home tab — so this page stays easy to scan.
+                  Add text or media sections in Edit page to tell the league story and showcase evergreen content.
                 </p>
               </div>
             )}

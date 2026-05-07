@@ -90,8 +90,28 @@ const PORTAL_TEAM_NAMES = [
 
 const PORTAL_TEAM_COLORS = ['#b91c1c', '#1d4ed8', '#0d9488', '#ca8a04', '#7c3aed', '#db2777', '#ea580c', '#4d7c0f']
 
-/** Total 25 players across 8 teams */
-const PLAYERS_PER_TEAM = [4, 4, 3, 3, 3, 3, 3, 2]
+/** Professional demo depth: 10 players per team across 8 teams. */
+const PLAYERS_PER_TEAM = [10, 10, 10, 10, 10, 10, 10, 10]
+
+const POSITION_SETS = [
+  ['Guard'],
+  ['Forward'],
+  ['Center'],
+  ['Guard', 'Forward'],
+  ['Forward', 'Center'],
+  ['Guard', 'Center'],
+]
+
+const TEAM_LOGO_URLS = [
+  'https://images.unsplash.com/photo-1546519638-68e109498ffc?auto=format&fit=crop&w=256&h=256&q=80',
+  'https://images.unsplash.com/photo-1519861537823-943991f648fd?auto=format&fit=crop&w=256&h=256&q=80',
+  'https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=256&h=256&q=80',
+  'https://images.unsplash.com/photo-1515523110820-721ae40296e9?auto=format&fit=crop&w=256&h=256&q=80',
+  'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&w=256&h=256&q=80',
+  'https://images.unsplash.com/photo-1518091043644-c1d4457512c6?auto=format&fit=crop&w=256&h=256&q=80',
+  'https://images.unsplash.com/photo-1504450758481-7338eba7524a?auto=format&fit=crop&w=256&h=256&q=80',
+  'https://images.unsplash.com/photo-1552667466-07770ae110d0?auto=format&fit=crop&w=256&h=256&q=80',
+]
 
 const FIRST_NAMES = [
   'Alex',
@@ -169,7 +189,7 @@ async function deleteSeedDropinsForOrg(organizationId: string) {
  *     -H "Content-Type: application/json" \
  *     -d "{\"slug\":\"vancouvarites\",\"replace\":true,\"fullPortalDemo\":true,\"withGamesAndStats\":true,\"previewPublicTier\":\"enterprise\"}"
  *
- * `fullPortalDemo`: max **8** seed teams, **25** total roster players, season registration window opened,
+ * `fullPortalDemo`: max **8** seed teams, **80** total roster players, season registration window opened,
  * **[SEED]** drop-in sessions with sample registrations, and rich TEXT/NEWS league home content.
  * Implies league site demo content (same as `withLeagueSiteDemo`).
  *
@@ -190,6 +210,10 @@ export async function POST(req: Request) {
   let fullPortalDemo = false
   let withGamesAndStats = false
   let previewPublicTier: 'pro' | 'enterprise' | null = null
+  let cleanupSeedNames = false
+  let targetTeamName = ''
+  let renameTeamTo = ''
+  let enrichTeam = false
   try {
     const body = await req.json()
     slug = typeof body.slug === 'string' ? body.slug : ''
@@ -197,6 +221,10 @@ export async function POST(req: Request) {
     withLeagueSiteDemo = body.withLeagueSiteDemo === true
     fullPortalDemo = body.fullPortalDemo === true
     withGamesAndStats = body.withGamesAndStats === true
+    cleanupSeedNames = body.cleanupSeedNames === true
+    targetTeamName = typeof body.targetTeamName === 'string' ? body.targetTeamName.trim() : ''
+    renameTeamTo = typeof body.renameTeamTo === 'string' ? body.renameTeamTo.trim() : ''
+    enrichTeam = body.enrichTeam === true
     const pt = body.previewPublicTier
     if (pt === 'pro' || pt === 'enterprise') previewPublicTier = pt
   } catch {
@@ -227,6 +255,177 @@ export async function POST(req: Request) {
       },
       { status: 404 }
     )
+  }
+
+  if (cleanupSeedNames) {
+    const { data: seedTeams } = await supabaseAdmin
+      .from('teams')
+      .select('id, name')
+      .eq('organization_id', org.id)
+      .like('name', `${SEED_PREFIX}%`)
+
+    let renamed = 0
+    for (const row of seedTeams || []) {
+      const clean = String(row.name || '').replace(SEED_PREFIX, '').trim()
+      if (!clean) continue
+      const { error } = await supabaseAdmin
+        .from('teams')
+        .update({ name: clean })
+        .eq('id', row.id)
+      if (!error) renamed++
+    }
+
+    return NextResponse.json({
+      ok: true,
+      message: `Removed ${SEED_PREFIX} prefix from ${renamed} team name(s).`,
+      renamedTeams: renamed,
+    })
+  }
+
+  if (enrichTeam && targetTeamName) {
+    const { data: team } = await supabaseAdmin
+      .from('teams')
+      .select('id, name, season_id')
+      .eq('organization_id', org.id)
+      .eq('name', targetTeamName)
+      .maybeSingle()
+    if (!team?.id) {
+      return NextResponse.json({ error: `Team not found: ${targetTeamName}` }, { status: 404 })
+    }
+
+    if (renameTeamTo) {
+      await supabaseAdmin.from('teams').update({ name: renameTeamTo }).eq('id', team.id)
+    }
+
+    const { data: existingPlayers } = await supabaseAdmin
+      .from('players')
+      .select('id')
+      .eq('team_id', team.id)
+
+    const existingCount = (existingPlayers || []).length
+    const targetCount = 10
+    if (existingCount < targetCount) {
+      const stamp = `${Date.now()}`
+      const addRows: Record<string, unknown>[] = []
+      for (let i = existingCount; i < targetCount; i++) {
+        const fn = FIRST_NAMES[i % FIRST_NAMES.length]
+        const ln = LAST_NAMES[(i + 5) % LAST_NAMES.length]
+        const full = `${fn} ${ln}`
+        addRows.push({
+          full_name: full,
+          email: `seed.enrich.${stamp}.${i}@example.test`,
+          phone: null,
+          jersey_number: 3 + i,
+          positions: POSITION_SETS[i % POSITION_SETS.length],
+          avatar_url: `https://api.dicebear.com/8.x/thumbs/svg?seed=${encodeURIComponent(full)}`,
+          organization_id: org.id,
+          season_id: team.season_id,
+          team_id: team.id,
+          status: 'active',
+        })
+      }
+      let ins = await supabaseAdmin.from('players').insert(addRows)
+      if (ins.error && String(ins.error.message || '').includes('avatar_url')) {
+        const fallback = addRows.map((r) => {
+          const x = { ...r }
+          delete (x as { avatar_url?: string }).avatar_url
+          return x
+        })
+        ins = await supabaseAdmin.from('players').insert(fallback)
+      }
+      if (ins.error) return NextResponse.json({ error: ins.error.message }, { status: 500 })
+    }
+
+    const { data: players } = await supabaseAdmin
+      .from('players')
+      .select('id')
+      .eq('team_id', team.id)
+      .order('full_name', { ascending: true })
+    const playerIds = (players || []).map((p) => p.id)
+
+    const { data: finalGames } = await supabaseAdmin
+      .from('games')
+      .select('id')
+      .eq('organization_id', org.id)
+      .eq('season_id', team.season_id)
+      .eq('status', 'final')
+      .or(`home_team_id.eq.${team.id},away_team_id.eq.${team.id}`)
+
+    if (!finalGames || finalGames.length === 0) {
+      const { data: opp } = await supabaseAdmin
+        .from('teams')
+        .select('id')
+        .eq('organization_id', org.id)
+        .eq('season_id', team.season_id)
+        .neq('id', team.id)
+        .limit(1)
+        .maybeSingle()
+      if (opp?.id) {
+        const gDate = new Date()
+        gDate.setDate(gDate.getDate() - 3)
+        const { data: created } = await supabaseAdmin
+          .from('games')
+          .insert({
+            organization_id: org.id,
+            season_id: team.season_id,
+            home_team_id: team.id,
+            away_team_id: opp.id,
+            scheduled_at: gDate.toISOString(),
+            status: 'final',
+            home_score: 82,
+            away_score: 76,
+            location: 'Vancouver Arena Court 1',
+          })
+          .select('id')
+          .single()
+        if (created?.id) {
+          finalGames?.push({ id: created.id })
+        }
+      }
+    }
+
+    for (const g of finalGames || []) {
+      const { data: existingStats } = await supabaseAdmin
+        .from('player_game_stats')
+        .select('player_id')
+        .eq('game_id', g.id)
+        .in('player_id', playerIds)
+      const existingSet = new Set((existingStats || []).map((s) => s.player_id))
+      const rows: Record<string, unknown>[] = []
+      for (let i = 0; i < Math.min(8, playerIds.length); i++) {
+        const pid = playerIds[i]
+        if (existingSet.has(pid)) continue
+        rows.push({
+          game_id: g.id,
+          player_id: pid,
+          organization_id: org.id,
+          pts: 7 + ((i * 3) % 16),
+          reb: 2 + ((i * 2) % 8),
+          ast: 1 + ((i * 2) % 6),
+          stl: i % 3,
+          blk: i % 2,
+          tov: i % 4,
+          pf: 1 + (i % 3),
+        })
+      }
+      if (rows.length > 0) {
+        const { error } = await supabaseAdmin.from('player_game_stats').insert(rows)
+        if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      }
+    }
+
+    const { count } = await supabaseAdmin
+      .from('players')
+      .select('*', { count: 'exact', head: true })
+      .eq('team_id', team.id)
+
+    return NextResponse.json({
+      ok: true,
+      message: `Team enriched: ${renameTeamTo || targetTeamName}`,
+      teamId: team.id,
+      players: count ?? 0,
+      gamesTouched: (finalGames || []).length,
+    })
   }
 
   if (fullPortalDemo && !replace) {
@@ -364,11 +563,20 @@ export async function POST(req: Request) {
 
   if (fullPortalDemo) {
     for (let t = 0; t < PORTAL_TEAM_NAMES.length; t++) {
+      const streamSlug = PORTAL_TEAM_NAMES[t]
+        .replace(SEED_PREFIX, '')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
       const { data: row, error } = await supabaseAdmin
         .from('teams')
         .insert({
           name: PORTAL_TEAM_NAMES[t],
           color: PORTAL_TEAM_COLORS[t % PORTAL_TEAM_COLORS.length],
+          logo_url: TEAM_LOGO_URLS[t % TEAM_LOGO_URLS.length],
+          stream_url: `https://www.youtube.com/watch?v=dQw4w9WgXcQ&team=${streamSlug}`,
+          house_rules:
+            'Arrive 20 minutes early for warmup and scorer check-in.\nWear matching tops and reversible backup.\nCall fouls once, then play on.\nBring dark/light jerseys and water every game night.',
           season_id: seasonId,
           organization_id: org.id,
         })
@@ -388,13 +596,14 @@ export async function POST(req: Request) {
         const fn = FIRST_NAMES[playerIdx % FIRST_NAMES.length]
         const ln = LAST_NAMES[playerIdx % LAST_NAMES.length]
         const full_name = `${fn} ${ln}`
-        const positions = [['Guard'], ['Forward'], ['Center']][playerIdx % 3]
+        const positions = POSITION_SETS[playerIdx % POSITION_SETS.length]
         playerRows.push({
           full_name,
           email: `seed.portal.${stamp}.${playerIdx}@example.test`,
           phone: null,
           jersey_number: 10 + ((playerIdx * 3) % 55),
           positions,
+          avatar_url: `https://api.dicebear.com/8.x/thumbs/svg?seed=${encodeURIComponent(full_name)}`,
           organization_id: org.id,
           season_id: seasonId,
           team_id: teamsOut[ti].id,
@@ -404,13 +613,115 @@ export async function POST(req: Request) {
       }
     }
 
-    const { error: playersErr } = await supabaseAdmin.from('players').insert(playerRows)
+    let { error: playersErr } = await supabaseAdmin.from('players').insert(playerRows)
+    if (playersErr && String(playersErr.message || '').includes('avatar_url')) {
+      const fallbackRows = playerRows.map((row) => {
+        const next = { ...row }
+        delete (next as { avatar_url?: string }).avatar_url
+        return next
+      })
+      const retry = await supabaseAdmin.from('players').insert(fallbackRows)
+      playersErr = retry.error
+    }
     if (playersErr) {
       await supabaseAdmin.from('teams').delete().in(
         'id',
         teamsOut.map((x) => x.id)
       )
       return NextResponse.json({ error: playersErr.message }, { status: 500 })
+    }
+
+    const { data: seededPlayers } = await supabaseAdmin
+      .from('players')
+      .select('id, team_id, full_name')
+      .eq('organization_id', org.id)
+      .in(
+        'team_id',
+        teamsOut.map((x) => x.id)
+      )
+
+    const playersByTeam = new Map<string, { id: string; full_name: string }[]>()
+    for (const row of seededPlayers || []) {
+      if (!row.team_id) continue
+      const list = playersByTeam.get(row.team_id) || []
+      list.push({ id: row.id, full_name: row.full_name || 'Player' })
+      playersByTeam.set(row.team_id, list)
+    }
+
+    const now = Date.now()
+    const newsRows: Record<string, unknown>[] = []
+    const eventRows: Record<string, unknown>[] = []
+    for (let ti = 0; ti < teamsOut.length; ti++) {
+      const team = teamsOut[ti]
+      const baseTitle = team.name.replace(SEED_PREFIX, '').trim()
+      newsRows.push(
+        {
+          organization_id: org.id,
+          team_id: team.id,
+          season_id: seasonId,
+          title: `${baseTitle} announce leadership group`,
+          body: `Captains confirmed for ${baseTitle}. Team standards this season: fast transition defense, organized substitutions, and strong bench communication.`,
+          pinned: true,
+        },
+        {
+          organization_id: org.id,
+          team_id: team.id,
+          season_id: seasonId,
+          title: `${baseTitle} weekly film review`,
+          body: `Film review runs every Tuesday night after the final game. Focus this month is spacing on half-court sets and late-clock shot selection.`,
+          pinned: false,
+        }
+      )
+
+      for (let ei = 0; ei < 4; ei++) {
+        const starts = new Date(now + (ti * 2 + ei * 4 + 2) * 24 * 3600 * 1000)
+        starts.setHours(19 + (ei % 2), 0, 0, 0)
+        const ends = new Date(starts.getTime() + 90 * 60 * 1000)
+        eventRows.push({
+          organization_id: org.id,
+          team_id: team.id,
+          season_id: seasonId,
+          title: ei % 2 === 0 ? 'Team practice' : 'Tactical walk-through',
+          starts_at: starts.toISOString(),
+          ends_at: ends.toISOString(),
+          location: 'Vancouver Community Court',
+          notes:
+            'Bring both jersey colors. First 20 minutes: mobility + warmup. Last 15 minutes: special situations.',
+          source: 'manual',
+        })
+      }
+    }
+
+    if (newsRows.length > 0) {
+      await supabaseAdmin.from('team_news_posts').insert(newsRows)
+    }
+    if (eventRows.length > 0) {
+      await supabaseAdmin.from('team_calendar_events').insert(eventRows)
+    }
+
+    for (let ti = 0; ti < Math.min(3, teamsOut.length); ti++) {
+      const team = teamsOut[ti]
+      const players = playersByTeam.get(team.id) || []
+      if (players.length === 0) continue
+      const { data: poll } = await supabaseAdmin
+        .from('jersey_polls')
+        .insert({
+          organization_id: org.id,
+          team_id: team.id,
+          season_id: seasonId,
+          status: 'open',
+        })
+        .select('id')
+        .single()
+      if (!poll?.id) continue
+      const responses = players.slice(0, Math.min(7, players.length)).map((p, idx) => ({
+        poll_id: poll.id,
+        player_id: p.id,
+        preferred_number: 3 + ((idx * 7 + ti) % 35),
+      }))
+      if (responses.length > 0) {
+        await supabaseAdmin.from('jersey_poll_responses').insert(responses)
+      }
     }
 
     const sessionSpecs = [
@@ -589,14 +900,25 @@ export async function POST(req: Request) {
     }
     gamesSeeded = { games_created: g.games_created, stats_rows: g.stats_rows }
 
-    if (teamsOut[0]?.id) {
-      await supabaseAdmin
-        .from('teams')
-        .update({
-          logo_url:
-            'https://images.unsplash.com/photo-1546519638-68e109498ffc?auto=format&fit=crop&w=128&h=128&q=80',
-        })
-        .eq('id', teamsOut[0].id)
+    const upcomingRows: Record<string, unknown>[] = []
+    for (let i = 0; i < Math.min(teamsOut.length, 6); i += 2) {
+      const home = teamsOut[i]
+      const away = teamsOut[i + 1]
+      if (!home || !away) continue
+      const when = new Date(Date.now() + (i + 3) * 24 * 3600 * 1000)
+      when.setHours(20, 0, 0, 0)
+      upcomingRows.push({
+        organization_id: org.id,
+        season_id: seasonId,
+        home_team_id: home.id,
+        away_team_id: away.id,
+        scheduled_at: when.toISOString(),
+        status: 'scheduled',
+        location: 'Vancouver Arena Court 2',
+      })
+    }
+    if (upcomingRows.length > 0) {
+      await supabaseAdmin.from('games').insert(upcomingRows)
     }
   }
 
@@ -621,7 +943,7 @@ export async function POST(req: Request) {
     ok: true,
     message:
       (fullPortalDemo
-        ? `Portal demo: ${teamsOut.length} teams (25 roster players max seed), season signup window opened, TEXT/NEWS league home, [SEED] drop-ins with registrations. Visit /league/${slug.trim()}, /join/${slug.trim()}, /join/${slug.trim()}/dropins. Delete [SEED] rows from dashboard when done.`
+        ? `Portal demo: ${teamsOut.length} teams (80 roster players max seed), season signup window opened, TEXT/NEWS league home, [SEED] drop-ins with registrations. Visit /league/${slug.trim()} and /join/${slug.trim()}/dropins. Delete [SEED] rows from dashboard when done.`
         : `Open /league/${slug.trim()} — seed teams: ${teamHint}. Remove later from Dashboard → Teams / Players if you like.`) +
       (gamesSeeded
         ? ` Games: ${gamesSeeded.games_created} finals, ${gamesSeeded.stats_rows} stat rows. Open a team page under /league/${slug.trim()}/teams/<teamId>.`

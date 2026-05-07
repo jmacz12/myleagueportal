@@ -111,11 +111,25 @@ export async function GET(
     .eq('id', team.season_id)
     .maybeSingle()
 
-  const { data: players, error: playersError } = await supabaseAdmin
+  let playersRes = await supabaseAdmin
     .from('players')
-    .select('id, full_name, jersey_number, positions')
+    .select('id, full_name, jersey_number, positions, avatar_url')
     .eq('team_id', teamId)
     .order('full_name', { ascending: true })
+
+  if (playersRes.error) {
+    const msg = String(playersRes.error.message || '')
+    if (msg.includes('avatar_url') || msg.includes('column')) {
+      playersRes = await supabaseAdmin
+        .from('players')
+        .select('id, full_name, jersey_number, positions')
+        .eq('team_id', teamId)
+        .order('full_name', { ascending: true })
+    }
+  }
+
+  const players = playersRes.data
+  const playersError = playersRes.error
 
   if (playersError) {
     return NextResponse.json({ error: 'Failed to load roster' }, { status: 500 })
@@ -129,6 +143,7 @@ export async function GET(
     .maybeSingle()
 
   let publicFontKey: string | null = EMPTY_LEAGUE_SITE.publicFontKey
+  let leagueNews: Array<{ id: string; title: string; body: string; pinned: boolean; created_at: string }> = []
   const { data: siteRow, error: siteErr } = await supabaseAdmin
     .from('league_site_content')
     .select('published')
@@ -136,7 +151,18 @@ export async function GET(
     .maybeSingle()
 
   if (!siteErr && siteRow?.published != null) {
-    publicFontKey = parseLeagueSitePayload(siteRow.published).publicFontKey
+    const parsedSite = parseLeagueSitePayload(siteRow.published)
+    publicFontKey = parsedSite.publicFontKey
+    leagueNews = parsedSite.sections
+      .filter((sec): sec is Extract<(typeof parsedSite.sections)[number], { type: 'news' }> => sec.type === 'news')
+      .slice(0, 6)
+      .map((sec, idx) => ({
+        id: `league-news-${idx}-${sec.id}`,
+        title: sec.title,
+        body: sec.body,
+        pinned: idx === 0,
+        created_at: new Date().toISOString(),
+      }))
   }
 
   const roster = (players || []).map((p) => ({
@@ -144,6 +170,7 @@ export async function GET(
     full_name: p.full_name,
     jersey_number: p.jersey_number,
     position_label: formatPosition(p as { positions?: string[] | null }),
+    avatar_url: (p as { avatar_url?: string | null }).avatar_url ?? null,
   }))
 
   const tier = normalizePublicTeamTier(org.plan)
@@ -231,6 +258,7 @@ export async function GET(
     next_game: extras.next_game,
     leader_badges: extras.leader_badges,
     team_news,
+    league_news: leagueNews,
     team_calendar_upcoming,
   })
 }

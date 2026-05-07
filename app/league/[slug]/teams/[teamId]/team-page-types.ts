@@ -65,6 +65,7 @@ export interface TeamPayload {
     full_name: string
     jersey_number: number | null
     position_label: string | null
+    avatar_url?: string | null
   }[]
   open_jersey_poll_id: string | null
   publicFontKey: string | null
@@ -77,6 +78,7 @@ export interface TeamPayload {
   next_game?: NextGameView | null
   leader_badges?: Record<string, Partial<Record<keyof PlayerTotalsRow, true>>> | null
   team_news?: TeamNewsItem[]
+  league_news?: TeamNewsItem[]
   team_calendar_upcoming?: TeamCalendarItem[]
 }
 

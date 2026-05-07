@@ -159,6 +159,7 @@ export function LeagueSiteLookControls({
   orgThemePreset,
   orgAppearanceMode,
   onAppearanceApplied,
+  onAppearanceMetaApplied,
   onPreviewChange,
   websiteLockedForPlan,
   appearanceMeta,
@@ -175,6 +176,10 @@ export function LeagueSiteLookControls({
     primary_color: string | null
     league_theme_preset: string
     league_appearance_mode: LeagueAppearanceMode
+  }) => void
+  onAppearanceMetaApplied?: (m: {
+    proBrandColorChangesRemaining: number | null
+    proBrandColorChangesMonthlyLimit: number
   }) => void
   /** Live page preview while editing (Pro/Enterprise owners only). */
   onPreviewChange?: (v: {
@@ -247,6 +252,18 @@ export function LeagueSiteLookControls({
           primary_color: data.organization.primary_color ?? null,
           league_theme_preset: String(data.organization.league_theme_preset || 'classic'),
           league_appearance_mode: sanitizeLeagueAppearanceMode(data.organization.league_appearance_mode),
+        })
+      }
+      if (onAppearanceMetaApplied) {
+        onAppearanceMetaApplied({
+          proBrandColorChangesRemaining:
+            typeof data.proBrandColorChangesRemaining === 'number'
+              ? data.proBrandColorChangesRemaining
+              : null,
+          proBrandColorChangesMonthlyLimit:
+            typeof data.proBrandColorChangesMonthlyLimit === 'number'
+              ? data.proBrandColorChangesMonthlyLimit
+              : 5,
         })
       }
     } finally {
@@ -616,11 +633,6 @@ export function LeagueSiteHeroEditOverlay({
       >
         Clear
       </button>
-      {heroBackgroundUrl ? (
-        <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.75)', maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {heroBackgroundUrl}
-        </span>
-      ) : null}
       </div>
       <div
         style={{

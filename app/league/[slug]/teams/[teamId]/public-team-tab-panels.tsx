@@ -46,8 +46,14 @@ export function PublicTeamTabPanels({
     next_game,
     leader_badges,
     team_news = [],
+    league_news = [],
     team_calendar_upcoming = [],
   } = data
+
+  const mergedNews = [...league_news, ...team_news].sort((a, b) => {
+    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  })
 
   const tier = data.public_tier ?? 'basic'
   const proLike = tier === 'pro' || tier === 'enterprise'
@@ -100,7 +106,7 @@ export function PublicTeamTabPanels({
           }}
         >
           <Megaphone size={14} aria-hidden style={{ color: preset.accent }} />
-          Team news
+          Team & league news
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
           {showPosts.map((post, i) => (
@@ -346,31 +352,46 @@ export function PublicTeamTabPanels({
                       </td>
                       <td style={{ padding: '12px 14px', fontWeight: 600 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-                          <div
-                            style={{
-                              width: '24px',
-                              height: '24px',
-                              borderRadius: '999px',
-                              border: `1px solid ${preset.surfaceBorder}`,
-                              background: preset.accentSoftBg,
-                              color: preset.body,
-                              fontSize: '10px',
-                              fontWeight: 800,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              flexShrink: 0,
-                            }}
-                            aria-hidden
-                          >
-                            {p.full_name
-                              .split(' ')
-                              .filter(Boolean)
-                              .slice(0, 2)
-                              .map((w) => w[0])
-                              .join('')
-                              .toUpperCase()}
-                          </div>
+                          {p.avatar_url ? (
+                            <img
+                              src={p.avatar_url}
+                              alt=""
+                              style={{
+                                width: '24px',
+                                height: '24px',
+                                borderRadius: '999px',
+                                border: `1px solid ${preset.surfaceBorder}`,
+                                objectFit: 'cover',
+                                flexShrink: 0,
+                              }}
+                            />
+                          ) : (
+                            <div
+                              style={{
+                                width: '24px',
+                                height: '24px',
+                                borderRadius: '999px',
+                                border: `1px solid ${preset.surfaceBorder}`,
+                                background: preset.accentSoftBg,
+                                color: preset.body,
+                                fontSize: '10px',
+                                fontWeight: 800,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0,
+                              }}
+                              aria-hidden
+                            >
+                              {p.full_name
+                                .split(' ')
+                                .filter(Boolean)
+                                .slice(0, 2)
+                                .map((w) => w[0])
+                                .join('')
+                                .toUpperCase()}
+                            </div>
+                          )}
                           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.full_name}</span>
                         </div>
                       </td>
@@ -386,15 +407,30 @@ export function PublicTeamTabPanels({
                                 color: preset.body,
                               }}
                             >
-                              {fmtPts(totals?.[s.key as keyof PlayerTotalsRow] as number | undefined)}
-                              {leader_badges?.[p.id]?.[s.key as keyof PlayerTotalsRow] ? (
+                              <span
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '4px',
+                                }}
+                              >
+                                <span style={{ minWidth: '22px', textAlign: 'right' }}>
+                                  {fmtPts(totals?.[s.key as keyof PlayerTotalsRow] as number | undefined)}
+                                </span>
                                 <span
-                                  title="Top 5 in league"
-                                  style={{ marginLeft: '4px', verticalAlign: 'middle', display: 'inline-flex', alignItems: 'center' }}
+                                  title={leader_badges?.[p.id]?.[s.key as keyof PlayerTotalsRow] ? 'Top 5 in league' : undefined}
+                                  style={{
+                                    width: '11px',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    visibility: leader_badges?.[p.id]?.[s.key as keyof PlayerTotalsRow] ? 'visible' : 'hidden',
+                                  }}
                                 >
                                   <Crown size={11} color={preset.accent} aria-hidden />
                                 </span>
-                              ) : null}
+                              </span>
                             </td>
                           ))
                         : null}
@@ -654,7 +690,7 @@ export function PublicTeamTabPanels({
               ) : null}
             </div>
           ) : null}
-          {team_news.length > 0 ? <div style={{ marginBottom: '14px' }}>{renderNewsBlock(team_news, false)}</div> : null}
+          {mergedNews.length > 0 ? <div style={{ marginBottom: '14px' }}>{renderNewsBlock(mergedNews, false)}</div> : null}
           {tier === 'enterprise' ? (
             <div
               style={{
@@ -683,7 +719,7 @@ export function PublicTeamTabPanels({
         </>
       ) : null}
 
-      {publicTab === 'news' ? renderNewsBlock(team_news, true) : null}
+      {publicTab === 'news' ? renderNewsBlock(mergedNews, true) : null}
       {publicTab === 'schedule' ? renderCalendarBlock() : null}
       {publicTab === 'roster' ? renderRosterTable(false) : null}
       {publicTab === 'stats' && tier === 'basic' ? (

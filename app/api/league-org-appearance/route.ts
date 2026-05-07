@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 import { getOrgAccessForClerkUser } from '@/lib/org-access'
 import { appearanceModeForChoice, normalizeLeagueThemePresetId, type LeagueThemeChoiceId } from '@/lib/league-theme-choice'
 import { sanitizeLeagueAppearanceMode } from '@/lib/public-league-branding'
+import { proBrandColorChangesRemaining } from '@/lib/pro-brand-color-limits'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -72,15 +73,103 @@ export async function PATCH(req: Request) {
     }
   }
 
-  const { data: org, error: orgErr } = await supabaseAdmin
-    .from('organizations')
-    .select(
-      'id, plan, primary_color, league_theme_preset, league_appearance_mode, brand_color_change_count, brand_color_change_period_start'
-    )
-    .eq('id', access.organization.id)
-    .single()
+  const fullSelect =
+    'id, plan, primary_color, league_theme_preset, league_appearance_mode, brand_color_change_count, brand_color_change_period_start'
+  const legacySelect = 'id, plan, primary_color'
 
-  if (orgErr || !org) return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
+  let { data: org, error: orgErr } = await supabaseAdmin
+    .from('organizations')
+    .select(fullSelect)
+    .eq('id', access.organization.id)
+    .maybeSingle()
+
+  // Backward compatibility when newer appearance columns are missing in target DB.
+  if (orgErr && String(orgErr.message || '').includes('column')) {
+    const legacy = await supabaseAdmin
+      .from('organizations')
+      .select(legacySelect)
+      .eq('id', access.organization.id)
+      .maybeSingle()
+    if (legacy.data) {
+      org = {
+        ...legacy.data,
+        league_theme_preset: 'classic',
+        league_appearance_mode: 'light',
+        brand_color_change_count: 0,
+        brand_color_change_period_start: null,
+      } as typeof org
+      orgErr = null
+    }
+  }
+
+  if (!org) {
+    const slugLookup = await supabaseAdmin
+      .from('organizations')
+      .select(fullSelect)
+      .eq('slug', access.organization.slug)
+      .maybeSingle()
+    if (slugLookup.data) {
+      org = slugLookup.data
+      orgErr = null
+    }
+    if (!org && slugLookup.error && String(slugLookup.error.message || '').includes('column')) {
+      const legacySlug = await supabaseAdmin
+        .from('organizations')
+        .select(legacySelect)
+        .eq('slug', access.organization.slug)
+        .maybeSingle()
+      if (legacySlug.data) {
+        org = {
+          ...legacySlug.data,
+          league_theme_preset: 'classic',
+          league_appearance_mode: 'light',
+          brand_color_change_count: 0,
+          brand_color_change_period_start: null,
+        } as typeof org
+        orgErr = null
+      }
+    }
+  }
+
+  if (!org) {
+    // Fallback: if org-access points to a stale/missing row, recover by owner mapping.
+    const ownerLookup = await supabaseAdmin
+      .from('organizations')
+      .select(fullSelect)
+      .eq('clerk_user_id', userId)
+      .maybeSingle()
+    if (ownerLookup.data) {
+      org = ownerLookup.data
+      orgErr = null
+    }
+    if (!org && ownerLookup.error && String(ownerLookup.error.message || '').includes('column')) {
+      const legacyOwnerLookup = await supabaseAdmin
+        .from('organizations')
+        .select(legacySelect)
+        .eq('clerk_user_id', userId)
+        .maybeSingle()
+      if (legacyOwnerLookup.data) {
+        org = {
+          ...legacyOwnerLookup.data,
+          league_theme_preset: 'classic',
+          league_appearance_mode: 'light',
+          brand_color_change_count: 0,
+          brand_color_change_period_start: null,
+        } as typeof org
+        orgErr = null
+      }
+    }
+  }
+
+  if (orgErr || !org) {
+    return NextResponse.json(
+      {
+        error:
+          'Organization not found for this signed-in account. Reopen Dashboard → Settings, then retry. If this persists, sign out/in and confirm you are in the correct league workspace.',
+      },
+      { status: 404 }
+    )
+  }
 
   let presetIncoming: string | undefined
   let modeIncoming: string | undefined
@@ -187,6 +276,15 @@ export async function PATCH(req: Request) {
             (org as { league_appearance_mode?: string }).league_appearance_mode
           ),
         },
+        proBrandColorChangesRemaining: proBrandColorChangesRemaining({
+          plan,
+          brand_color_change_count: Number(updateData.brand_color_change_count ?? org.brand_color_change_count ?? 0),
+          brand_color_change_period_start:
+            typeof updateData.brand_color_change_period_start === 'string'
+              ? updateData.brand_color_change_period_start
+              : (org.brand_color_change_period_start as string | null),
+        }),
+        proBrandColorChangesMonthlyLimit: PRO_BRAND_COLOR_CHANGES_PER_MONTH,
       })
     }
     return NextResponse.json({ error: 'Failed to save appearance' }, { status: 500 })
@@ -194,7 +292,9 @@ export async function PATCH(req: Request) {
 
   const { data: fresh } = await supabaseAdmin
     .from('organizations')
-    .select('primary_color, league_theme_preset, league_appearance_mode')
+    .select(
+      'plan, primary_color, league_theme_preset, league_appearance_mode, brand_color_change_count, brand_color_change_period_start'
+    )
     .eq('id', org.id)
     .single()
 
@@ -209,5 +309,13 @@ export async function PATCH(req: Request) {
       league_theme_preset: themeChoice,
       league_appearance_mode: appearanceModeForChoice(themeChoice),
     },
+    proBrandColorChangesRemaining: proBrandColorChangesRemaining({
+      plan: fresh?.plan ?? plan,
+      brand_color_change_count: fresh?.brand_color_change_count ?? org.brand_color_change_count,
+      brand_color_change_period_start:
+        (fresh?.brand_color_change_period_start as string | null | undefined) ??
+        (org.brand_color_change_period_start as string | null),
+    }),
+    proBrandColorChangesMonthlyLimit: PRO_BRAND_COLOR_CHANGES_PER_MONTH,
   })
 }

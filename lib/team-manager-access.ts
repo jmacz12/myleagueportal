@@ -13,7 +13,7 @@ export async function getTeamManagerAccess(
   organizationId: string
   teamId: string
   plan: string
-  role: 'owner' | 'editor'
+  role: 'owner' | 'editor' | 'manager'
 } | null> {
   if (!userId || !teamId) return null
   const access = await getOrgAccessForClerkUser(userId)
@@ -38,6 +38,6 @@ export async function getTeamManagerAccess(
     organizationId: access.organization.id,
     teamId: team.id,
     plan: String(org.plan || 'basic').toLowerCase(),
-    role: access.role,
+    role: access.role === 'owner' || access.role === 'editor' ? access.role : 'manager',
   }
 }

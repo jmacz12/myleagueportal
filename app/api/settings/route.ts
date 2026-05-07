@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { auth } from '@clerk/nextjs/server'
 import { appearanceModeForChoice, normalizeLeagueThemePresetId } from '@/lib/league-theme-choice'
+import { getOrgAccessForClerkUser } from '@/lib/org-access'
 import {
   evaluateLeagueIdentityChange,
   leagueIdentityFieldsChanged,
@@ -27,13 +28,18 @@ function sanitizePresetAndMode(value: unknown, modeHint: unknown): { preset: str
 export async function GET() {
   const { userId } = await auth()
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const access = await getOrgAccessForClerkUser(userId)
+  if (!access) return NextResponse.json({ error: 'No organization found' }, { status: 404 })
+  if (access.role !== 'owner') {
+    return NextResponse.json({ error: 'Only league owners can manage league settings.' }, { status: 403 })
+  }
 
   let { data: orgWithTz, error: orgWithTzError } = await supabaseAdmin
     .from('organizations')
     .select(
       'id, name, slug, primary_color, logo_url, plan, stripe_customer_id, stripe_subscription_id, news_banner, news_banner_color, league_timezone, league_theme_preset, league_appearance_mode, brand_color_change_count, brand_color_change_period_start, league_name_change_count, league_name_last_changed_at'
     )
-    .eq('clerk_user_id', userId)
+    .eq('id', access.organization.id)
     .single()
 
   // DB without league identity columns yet — retry without them.
@@ -43,7 +49,7 @@ export async function GET() {
       .select(
         'id, name, slug, primary_color, logo_url, plan, stripe_customer_id, stripe_subscription_id, news_banner, news_banner_color, league_timezone, league_theme_preset, league_appearance_mode, brand_color_change_count, brand_color_change_period_start'
       )
-      .eq('clerk_user_id', userId)
+      .eq('id', access.organization.id)
       .single()
     if (!r2.error && r2.data) {
       orgWithTz = {
@@ -60,7 +66,7 @@ export async function GET() {
     ? await supabaseAdmin
         .from('organizations')
         .select('id, name, slug, primary_color, logo_url, plan, stripe_customer_id, stripe_subscription_id, news_banner, news_banner_color')
-        .eq('clerk_user_id', userId)
+        .eq('id', access.organization.id)
         .single()
     : { data: null as any }
 
@@ -87,20 +93,25 @@ export async function GET() {
 export async function PATCH(req: Request) {
   const { userId } = await auth()
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const access = await getOrgAccessForClerkUser(userId)
+  if (!access) return NextResponse.json({ error: 'No organization found' }, { status: 404 })
+  if (access.role !== 'owner') {
+    return NextResponse.json({ error: 'Only league owners can manage league settings.' }, { status: 403 })
+  }
 
   let { data: org, error: orgFetchError } = await supabaseAdmin
     .from('organizations')
     .select(
       'id, name, slug, plan, primary_color, brand_color_change_count, brand_color_change_period_start, league_name_change_count, league_name_last_changed_at'
     )
-    .eq('clerk_user_id', userId)
+    .eq('id', access.organization.id)
     .single()
 
   if (orgFetchError || !org) {
     const r2 = await supabaseAdmin
       .from('organizations')
       .select('id, name, slug, plan, primary_color, brand_color_change_count, brand_color_change_period_start')
-      .eq('clerk_user_id', userId)
+      .eq('id', access.organization.id)
       .single()
     if (r2.data) {
       org = {

@@ -113,20 +113,19 @@ export default function LeaguePublicTeamPage() {
   useEffect(() => {
     let cancelled = false
     ;(async () => {
-      const res = await fetch('/api/me/org-access')
+      const res = await fetch(`/api/teams/${teamId}/manage-access`)
       if (cancelled) return
       if (!res.ok) {
         setIsStaff(false)
         return
       }
       const json = await res.json().catch(() => ({}))
-      const a = json.access
-      setIsStaff(!!(a && a.slug === slug && (a.role === 'owner' || a.role === 'editor')))
+      setIsStaff(json?.canManage === true)
     })()
     return () => {
       cancelled = true
     }
-  }, [slug])
+  }, [teamId])
 
   function openManage() {
     setManageOpen(true)

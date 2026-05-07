@@ -28,7 +28,7 @@ export async function GET(
 
   const { data: teams, error: teamsError } = await supabaseAdmin
     .from('teams')
-    .select('id, name, color, season_id')
+    .select('id, name, color, season_id, logo_url')
     .eq('organization_id', org.id)
     .order('name', { ascending: true })
 
@@ -79,6 +79,7 @@ export async function GET(
       id: t.id,
       name: t.name,
       color: t.color,
+      logo_url: t.logo_url ?? null,
       season_id: t.season_id,
       season_name: (t.season_id && seasonName.get(t.season_id)) || 'Season',
       player_count: counts[t.id] || 0,
