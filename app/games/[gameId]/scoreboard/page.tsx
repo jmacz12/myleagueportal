@@ -43,7 +43,8 @@ export default async function PublicScoreboard({
     return player && awayTeam && s.team_id === awayTeam.id
   }) || []
 
-  const statHeaders = ['#', 'Player', 'PTS', 'AST', 'REB', 'STL', 'BLK', 'TOV', 'PF']
+  const statHeaders = ['#', 'Player', 'PTS', '2PM', '3PM', 'FTM', 'AST', 'REB', 'STL', 'BLK', 'TOV', 'PF']
+  const statKeys = ['pts', 'fg2m', 'fg3m', 'ftm', 'ast', 'reb', 'stl', 'blk', 'tov', 'pf'] as const
 
   function StatTable({ teamStats, teamName, teamColor }: {
     teamStats: any[]
@@ -58,8 +59,8 @@ export default async function PublicScoreboard({
           )}
           <div style={{ fontSize: '14px', fontWeight: '800', color: '#1a1a0a' }}>{teamName}</div>
         </div>
-        <div style={{ background: 'white', borderRadius: '10px', overflow: 'hidden', border: '0.5px solid #d4c9a8' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '32px 1fr repeat(7, 40px)', gap: '4px', padding: '8px 14px', background: '#ede5cc' }}>
+        <div style={{ background: 'white', borderRadius: '10px', overflow: 'hidden', border: '0.5px solid #d4c9a8', overflowX: 'auto' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '32px minmax(100px, 1fr) repeat(10, minmax(36px, 40px))', gap: '4px', padding: '8px 14px', background: '#ede5cc', minWidth: '520px' }}>
             {statHeaders.map(h => (
               <span key={h} style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#9a8c6a', textAlign: h !== 'Player' ? 'center' : 'left' }}>
                 {h}
@@ -73,12 +74,12 @@ export default async function PublicScoreboard({
           ) : teamStats.sort((a, b) => (b.pts || 0) - (a.pts || 0)).map((s, idx) => {
             const player = s.players as any
             return (
-              <div key={s.id} style={{ display: 'grid', gridTemplateColumns: '32px 1fr repeat(7, 40px)', gap: '4px', padding: '10px 14px', borderTop: idx > 0 ? '0.5px solid #f0e8d0' : 'none', alignItems: 'center' }}>
+              <div key={s.id} style={{ display: 'grid', gridTemplateColumns: '32px minmax(100px, 1fr) repeat(10, minmax(36px, 40px))', gap: '4px', padding: '10px 14px', borderTop: idx > 0 ? '0.5px solid #f0e8d0' : 'none', alignItems: 'center', minWidth: '520px' }}>
                 <span style={{ fontSize: '11px', color: '#9a8c6a', textAlign: 'center' }}>{player?.jersey_number ? `#${player.jersey_number}` : '—'}</span>
                 <span style={{ fontSize: '13px', fontWeight: '600', color: '#1a1a0a' }}>{player?.full_name}</span>
-                {['pts', 'ast', 'reb', 'stl', 'blk', 'tov', 'pf'].map(stat => (
+                {statKeys.map(stat => (
                   <span key={stat} style={{ fontSize: '13px', fontWeight: stat === 'pts' ? '800' : '400', color: stat === 'pts' ? '#1a1a0a' : '#6b5e3a', textAlign: 'center' }}>
-                    {s[stat] || 0}
+                    {(s as any)[stat] ?? 0}
                   </span>
                 ))}
               </div>

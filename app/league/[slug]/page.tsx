@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useEffect, useMemo, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams, usePathname } from 'next/navigation'
 import {
@@ -31,6 +31,13 @@ import { getPublicThemeInputsForOrg } from '@/lib/public-league-branding'
 import type { LeagueSitePayload, LeagueSiteSection } from '@/lib/league-site'
 import { DEFAULT_LEAGUE_HERO_TAGLINE, EMPTY_LEAGUE_SITE, displayHeroInitials } from '@/lib/league-site'
 import { googleFontStylesheetHref, resolvePublicLeagueFontStack } from '@/lib/public-league-fonts'
+import { StreamWithOverlay } from '@/components/public-stream/StreamWithOverlay'
+import { createClient } from '@supabase/supabase-js'
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
 
 interface HubOrg {
   id: string
@@ -166,10 +173,11 @@ function formatSeasonDates(cs: CompetitiveSeason): string | null {
   }
 }
 
-type LeaguePublicTabId = 'home' | 'news' | 'schedule' | 'standings' | 'teams' | 'about'
+type LeaguePublicTabId = 'home' | 'stream' | 'news' | 'schedule' | 'standings' | 'teams' | 'about'
 
 const LEAGUE_TAB_META: { id: LeaguePublicTabId; label: string }[] = [
   { id: 'home', label: 'Home' },
+  { id: 'stream', label: 'Stream' },
   { id: 'news', label: 'News' },
   { id: 'schedule', label: 'Schedule' },
   { id: 'standings', label: 'Standings' },
@@ -178,7 +186,7 @@ const LEAGUE_TAB_META: { id: LeaguePublicTabId; label: string }[] = [
 ]
 
 function parseLeaguePublicTab(v: string | null): LeaguePublicTabId {
-  if (v === 'news' || v === 'schedule' || v === 'standings' || v === 'teams' || v === 'about') return v
+  if (v === 'stream' || v === 'news' || v === 'schedule' || v === 'standings' || v === 'teams' || v === 'about') return v
   return 'home'
 }
 
@@ -299,6 +307,12 @@ function LeagueHomeContent() {
   const [scheduleItems, setScheduleItems] = useState<LeagueScheduleItem[]>([])
   const [standingsRows, setStandingsRows] = useState<LeagueStandingRow[]>([])
   const [leadersRows, setLeadersRows] = useState<LeagueLeaderRow[]>([])
+  const [streamLive, setStreamLive] = useState<{
+    gameId: string
+    streamPageUrl: string | null
+    homeName: string | null
+    awayName: string | null
+  } | null>(null)
   const [stickyVisible, setStickyVisible] = useState(false)
   const [canManageSite, setCanManageSite] = useState(false)
   const [siteAccessRole, setSiteAccessRole] = useState<'owner' | 'editor' | null>(null)
@@ -326,11 +340,12 @@ function LeagueHomeContent() {
     async function load() {
       setLoading(true)
       setNotFound(false)
-      const [hubRes, teamsRes, sesRes, standingsRes] = await Promise.all([
+      const [hubRes, teamsRes, sesRes, standingsRes, streamRes] = await Promise.all([
         fetch(`/api/join/${slug}/hub`),
         fetch(`/api/join/${slug}/teams`),
         fetch(`/api/join/${slug}/sessions`),
         fetch(`/api/join/${slug}/standings`),
+        fetch(`/api/join/${slug}/stream`),
       ])
       if (cancelled) return
       if (hubRes.status === 404) {
@@ -340,6 +355,7 @@ function LeagueHomeContent() {
         setScheduleItems([])
         setStandingsRows([])
         setLeadersRows([])
+        setStreamLive(null)
         setLoading(false)
         return
       }
@@ -347,6 +363,7 @@ function LeagueHomeContent() {
       const teamsJson = await teamsRes.json().catch(() => ({}))
       const sesJson = await sesRes.json().catch(() => ({}))
       const standingsJson = await standingsRes.json().catch(() => ({}))
+      const streamJson = await streamRes.json().catch(() => ({}))
       if (!hubJson?.organization) {
         setNotFound(true)
         setHub(null)
@@ -354,6 +371,7 @@ function LeagueHomeContent() {
         setScheduleItems([])
         setStandingsRows([])
         setLeadersRows([])
+        setStreamLive(null)
       } else {
         setHub({
           organization: hubJson.organization,
@@ -381,6 +399,17 @@ function LeagueHomeContent() {
         )
         setStandingsRows(Array.isArray(standingsJson.standings) ? standingsJson.standings : [])
         setLeadersRows(Array.isArray(standingsJson.leaders) ? standingsJson.leaders : [])
+        const live = streamJson?.live
+        if (live && typeof live.gameId === 'string') {
+          setStreamLive({
+            gameId: live.gameId,
+            streamPageUrl: typeof live.streamPageUrl === 'string' ? live.streamPageUrl : null,
+            homeName: typeof live.homeName === 'string' ? live.homeName : null,
+            awayName: typeof live.awayName === 'string' ? live.awayName : null,
+          })
+        } else {
+          setStreamLive(null)
+        }
       }
       setLoading(false)
     }
@@ -389,6 +418,76 @@ function LeagueHomeContent() {
       cancelled = true
     }
   }, [slug])
+
+  const refreshStreamLive = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/join/${slug}/stream`)
+      if (!res.ok) return
+      const json = await res.json().catch(() => null)
+      const live = json?.live
+      if (live && typeof live.gameId === 'string') {
+        setStreamLive({
+          gameId: live.gameId,
+          streamPageUrl: typeof live.streamPageUrl === 'string' ? live.streamPageUrl : null,
+          homeName: typeof live.homeName === 'string' ? live.homeName : null,
+          awayName: typeof live.awayName === 'string' ? live.awayName : null,
+        })
+      } else {
+        setStreamLive(null)
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [slug])
+
+  /** Live tab: refetch stream context when scoring updates games/stats (no polling). */
+  useEffect(() => {
+    const orgId = hub?.organization?.id
+    if (!orgId) return
+    let cancelled = false
+    const channel = supabase
+      .channel(`league-stream-org-${orgId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'games', filter: `organization_id=eq.${orgId}` },
+        () => {
+          if (!cancelled) void refreshStreamLive()
+        }
+      )
+      .subscribe()
+    return () => {
+      cancelled = true
+      void supabase.removeChannel(channel)
+    }
+  }, [hub?.organization?.id, refreshStreamLive])
+
+  /** Also listen on the active live game so stat taps (player_game_stats) refresh immediately. */
+  useEffect(() => {
+    const gid = streamLive?.gameId
+    if (!gid) return
+    let cancelled = false
+    const channel = supabase
+      .channel(`league-stream-game-${gid}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'games', filter: `id=eq.${gid}` },
+        () => {
+          if (!cancelled) void refreshStreamLive()
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'player_game_stats', filter: `game_id=eq.${gid}` },
+        () => {
+          if (!cancelled) void refreshStreamLive()
+        }
+      )
+      .subscribe()
+    return () => {
+      cancelled = true
+      void supabase.removeChannel(channel)
+    }
+  }, [streamLive?.gameId, refreshStreamLive])
 
   useEffect(() => {
     let cancelled = false
@@ -1033,6 +1132,78 @@ function LeagueHomeContent() {
               </p>
             )}
           </>
+        ) : null}
+
+        {activeTab === 'stream' ? (
+          <div style={{ paddingTop: '24px' }}>
+            <h2
+              style={{
+                fontSize: 'clamp(20px, 2.5vw, 24px)',
+                fontWeight: 900,
+                color: preset.heading,
+                margin: '0 0 8px',
+                letterSpacing: '-0.02em',
+              }}
+            >
+              Live stream
+            </h2>
+            <p style={{ margin: '0 0 22px', fontSize: '14px', color: preset.muted, lineHeight: 1.55, maxWidth: '560px' }}>
+              When a season game is marked <strong style={{ color: preset.heading }}>live</strong> and a team has published a YouTube or Twitch link, you can watch here with the scoreboard on top. Use{' '}
+              <strong style={{ color: preset.heading }}>Full screen</strong> to expand video and overlay together.
+            </p>
+            {!streamLive ? (
+              <div
+                style={{
+                  padding: '28px 20px',
+                  textAlign: 'center',
+                  background: preset.surfaceBg,
+                  border: `1px solid ${preset.surfaceBorder}`,
+                  borderRadius: '16px',
+                  color: preset.body,
+                  fontSize: '14px',
+                  lineHeight: 1.55,
+                }}
+              >
+                No game is live right now. Check the <strong style={{ color: preset.heading }}>Schedule</strong> tab, or open a team&apos;s{' '}
+                <strong style={{ color: preset.heading }}>Stream</strong> tab if they&apos;ve posted a broadcast link.
+              </div>
+            ) : !streamLive.streamPageUrl?.trim() ? (
+              <div
+                style={{
+                  padding: '28px 20px',
+                  textAlign: 'center',
+                  background: preset.surfaceBg,
+                  border: `1px solid ${preset.surfaceBorder}`,
+                  borderRadius: '16px',
+                  color: preset.body,
+                  fontSize: '14px',
+                  lineHeight: 1.55,
+                }}
+              >
+                <strong style={{ color: preset.heading }}>
+                  {streamLive.homeName || 'Home'} vs {streamLive.awayName || 'Away'}
+                </strong>{' '}
+                is live, but neither team has added a stream URL yet. Ask the home or away manager to add one under{' '}
+                <strong style={{ color: preset.heading }}>Manage team → Page & links</strong>.
+              </div>
+            ) : (
+              (() => {
+                const raw = streamLive.streamPageUrl!.trim()
+                let watchUrl: string | null = null
+                try {
+                  const u = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`)
+                  if (u.protocol === 'http:' || u.protocol === 'https:') watchUrl = u.href
+                } catch {
+                  watchUrl = null
+                }
+                return watchUrl ? (
+                  <StreamWithOverlay watchUrl={watchUrl} liveGameId={streamLive.gameId} accentColor={preset.accent} />
+                ) : (
+                  <p style={{ color: preset.muted }}>Could not read stream URL.</p>
+                )
+              })()
+            )}
+          </div>
         ) : null}
 
         {activeTab === 'schedule' ? (

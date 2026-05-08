@@ -80,6 +80,8 @@ export interface TeamPayload {
   team_news?: TeamNewsItem[]
   league_news?: TeamNewsItem[]
   team_calendar_upcoming?: TeamCalendarItem[]
+  /** Present when this team has a season game with status `live` — drives on-site stream overlay */
+  live_game_id?: string | null
 }
 
-export type PublicTeamTab = 'overview' | 'news' | 'schedule' | 'roster' | 'stats'
+export type PublicTeamTab = 'overview' | 'stream' | 'news' | 'schedule' | 'roster' | 'stats'

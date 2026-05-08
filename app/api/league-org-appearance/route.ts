@@ -77,6 +77,16 @@ export async function PATCH(req: Request) {
     'id, plan, primary_color, league_theme_preset, league_appearance_mode, brand_color_change_count, brand_color_change_period_start'
   const legacySelect = 'id, plan, primary_color'
 
+  type OrgAppearanceFields = {
+    id: string
+    plan: string | null
+    primary_color: string | null
+    league_theme_preset: string
+    league_appearance_mode: string
+    brand_color_change_count: number
+    brand_color_change_period_start: string | null
+  }
+
   let { data: org, error: orgErr } = await supabaseAdmin
     .from('organizations')
     .select(fullSelect)
@@ -97,7 +107,7 @@ export async function PATCH(req: Request) {
         league_appearance_mode: 'light',
         brand_color_change_count: 0,
         brand_color_change_period_start: null,
-      } as typeof org
+      } as OrgAppearanceFields
       orgErr = null
     }
   }
@@ -125,7 +135,7 @@ export async function PATCH(req: Request) {
           league_appearance_mode: 'light',
           brand_color_change_count: 0,
           brand_color_change_period_start: null,
-        } as typeof org
+        } as OrgAppearanceFields
         orgErr = null
       }
     }
@@ -155,7 +165,7 @@ export async function PATCH(req: Request) {
           league_appearance_mode: 'light',
           brand_color_change_count: 0,
           brand_color_change_period_start: null,
-        } as typeof org
+        } as OrgAppearanceFields
         orgErr = null
       }
     }

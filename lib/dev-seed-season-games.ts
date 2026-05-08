@@ -97,11 +97,15 @@ export async function seedSeasonGamesWithStats(
       const homePts = splitPoints(homeScore, homePlayers)
       const awayPts = splitPoints(awayScore, awayPlayers)
       for (const { id: player_id, pts } of homePts) {
+        const p = Math.max(0, pts)
         statRows.push({
           game_id: gameRow.id,
           player_id,
           organization_id: organizationId,
-          pts,
+          pts: p,
+          fg2m: Math.floor(p / 2),
+          fg3m: 0,
+          ftm: p % 2,
           ast: pts <= 0 ? rnd(0, 2) : rnd(0, Math.min(8, 2 + Math.floor(pts / 2))),
           reb: rnd(0, Math.min(12, Math.max(2, pts + 3))),
           stl: rnd(0, 4),
@@ -111,11 +115,15 @@ export async function seedSeasonGamesWithStats(
         })
       }
       for (const { id: player_id, pts } of awayPts) {
+        const p = Math.max(0, pts)
         statRows.push({
           game_id: gameRow.id,
           player_id,
           organization_id: organizationId,
-          pts,
+          pts: p,
+          fg2m: Math.floor(p / 2),
+          fg3m: 0,
+          ftm: p % 2,
           ast: pts <= 0 ? rnd(0, 2) : rnd(0, Math.min(8, 2 + Math.floor(pts / 2))),
           reb: rnd(0, Math.min(12, Math.max(2, pts + 3))),
           stl: rnd(0, 4),

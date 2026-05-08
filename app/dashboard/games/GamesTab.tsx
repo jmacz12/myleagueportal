@@ -1,8 +1,17 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { BarChart3, CalendarDays, Trophy } from 'lucide-react'
+import { useState, useEffect, useMemo } from 'react'
+import { BarChart3, CalendarDays, ExternalLink, Trophy } from 'lucide-react'
 import AddGamesForm from './AddGamesForm'
+import { contrastTextOnColor } from '@/lib/contrast-text-on-color'
+
+const DEMO_LIVE_LOCATION = 'MLP_DEMO_LIVE_STREAM'
+
+function formatGameLocation(location: string | null): string | null {
+  if (!location) return null
+  if (location === DEMO_LIVE_LOCATION) return 'Practice / stream demo'
+  return location
+}
 
 interface Game {
   id: string
@@ -15,6 +24,8 @@ interface Game {
   status: string
   stream_url: string | null
   season_id: string
+  period?: number | null
+  game_clock?: string | null
 }
 
 interface Team { id: string; name: string; color: string | null }
@@ -30,7 +41,24 @@ export default function GamesTab() {
   const [selectedSeason, setSelectedSeason] = useState('all')
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
-  useEffect(() => { fetchData() }, [])
+  useEffect(() => {
+    void fetchData()
+  }, [])
+
+  /** Keep the list in sync with the scoring page (and public overlay) while you practice. */
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void fetchData()
+    }, 3000)
+    const onVis = () => {
+      if (document.visibilityState === 'visible') void fetchData()
+    }
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      window.clearInterval(id)
+      document.removeEventListener('visibilitychange', onVis)
+    }
+  }, [])
 
   async function fetchData() {
     const [gamesRes, teamsRes, seasonsRes] = await Promise.all([
@@ -74,11 +102,25 @@ export default function GamesTab() {
 
   const getTeam = (id: string | null) => teams.find(t => t.id === id)
 
-  const filtered = games.filter(g => {
-    const statusMatch = filter === 'all' || g.status === filter
-    const seasonMatch = selectedSeason === 'all' || g.season_id === selectedSeason
-    return statusMatch && seasonMatch
-  })
+  const filtered = useMemo(() => {
+    const rows = games.filter((g) => {
+      const statusMatch = filter === 'all' || g.status === filter
+      const seasonMatch = selectedSeason === 'all' || g.season_id === selectedSeason
+      return statusMatch && seasonMatch
+    })
+    return [...rows].sort((a, b) => {
+      if (a.status === 'live' && b.status !== 'live') return -1
+      if (a.status !== 'live' && b.status === 'live') return 1
+      const ta = a.scheduled_at ? new Date(a.scheduled_at).getTime() : 0
+      const tb = b.scheduled_at ? new Date(b.scheduled_at).getTime() : 0
+      return ta - tb
+    })
+  }, [games, filter, selectedSeason])
+
+  const demoLiveGame = useMemo(
+    () => games.find((g) => g.status === 'live' && g.location === DEMO_LIVE_LOCATION),
+    [games]
+  )
 
   const grouped = filtered.reduce((acc, game) => {
     const date = game.scheduled_at
@@ -124,6 +166,36 @@ export default function GamesTab() {
           onSuccess={() => { setShowForm(false); fetchData() }}
         />
       )}
+
+      {demoLiveGame ? (
+        <div
+          style={{
+            marginBottom: '16px',
+            padding: '12px 14px',
+            borderRadius: '12px',
+            border: '1px solid #fecaca',
+            background: '#fff7f7',
+            fontSize: '13px',
+            lineHeight: 1.5,
+            color: 'var(--text-primary)',
+          }}
+        >
+          <strong>Practice stream demo is live.</strong> Use <strong>Score</strong> below to change points — the list refreshes every few seconds, and the public{' '}
+          <a
+            href={`/games/${demoLiveGame.id}/stream-preview`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ fontWeight: 700, color: 'var(--accent)' }}
+          >
+            stream preview
+          </a>{' '}
+          /{' '}
+          <a href={`/games/${demoLiveGame.id}/overlay`} target="_blank" rel="noopener noreferrer" style={{ fontWeight: 700, color: 'var(--accent)' }}>
+            overlay
+          </a>{' '}
+          update with the same scores.
+        </div>
+      ) : null}
 
       <div style={{ display: 'flex', gap: '6px', marginBottom: '16px', flexWrap: 'wrap' }}>
         {(['all', 'scheduled', 'live', 'final'] as const).map((f) => (
@@ -183,6 +255,26 @@ export default function GamesTab() {
               {dateGames.map((game) => {
                 const homeTeam = getTeam(game.home_team_id)
                 const awayTeam = getTeam(game.away_team_id)
+                const homeChip = homeTeam?.color?.trim()
+                  ? {
+                      background: homeTeam.color,
+                      color: contrastTextOnColor(homeTeam.color),
+                      border: '2px solid rgba(0,0,0,0.14)',
+                    }
+                  : {
+                      background: 'var(--btn-primary-bg)',
+                      color: 'var(--btn-primary-text)',
+                    }
+                const awayChip = awayTeam?.color?.trim()
+                  ? {
+                      background: awayTeam.color,
+                      color: contrastTextOnColor(awayTeam.color),
+                      border: '2px solid rgba(0,0,0,0.14)',
+                    }
+                  : {
+                      background: 'var(--btn-primary-bg)',
+                      color: 'var(--btn-primary-text)',
+                    }
                 const time = game.scheduled_at
                   ? new Date(game.scheduled_at).toLocaleTimeString('en-CA', { hour: '2-digit', minute: '2-digit' })
                   : ''
@@ -211,9 +303,14 @@ export default function GamesTab() {
                             {time}
                           </span>
                         )}
-                        {game.location && (
+                        {formatGameLocation(game.location) && (
                           <span style={{ fontSize: '10px', color: 'var(--text-muted)', textAlign: 'center' }}>
-                            {game.location}
+                            {formatGameLocation(game.location)}
+                          </span>
+                        )}
+                        {game.status === 'live' && (game.period != null || game.game_clock) && (
+                          <span style={{ fontSize: '10px', color: '#dc2626', fontWeight: 700, textAlign: 'center' }}>
+                            Q{game.period ?? 1} · {game.game_clock || '0:00'}
                           </span>
                         )}
                       </div>
@@ -233,11 +330,33 @@ export default function GamesTab() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
                           {game.status !== 'scheduled' ? (
                             <>
-                              <div style={{ background: 'var(--btn-primary-bg)', color: 'var(--btn-primary-text)', borderRadius: '6px', padding: '4px 10px', fontSize: '16px', fontWeight: '800', fontFamily: 'monospace', minWidth: '36px', textAlign: 'center' }}>
+                              <div
+                                style={{
+                                  borderRadius: '6px',
+                                  padding: '4px 10px',
+                                  fontSize: '16px',
+                                  fontWeight: '800',
+                                  fontFamily: 'monospace',
+                                  minWidth: '36px',
+                                  textAlign: 'center',
+                                  ...homeChip,
+                                }}
+                              >
                                 {game.home_score}
                               </div>
                               <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '600' }}>—</span>
-                              <div style={{ background: 'var(--btn-primary-bg)', color: 'var(--btn-primary-text)', borderRadius: '6px', padding: '4px 10px', fontSize: '16px', fontWeight: '800', fontFamily: 'monospace', minWidth: '36px', textAlign: 'center' }}>
+                              <div
+                                style={{
+                                  borderRadius: '6px',
+                                  padding: '4px 10px',
+                                  fontSize: '16px',
+                                  fontWeight: '800',
+                                  fontFamily: 'monospace',
+                                  minWidth: '36px',
+                                  textAlign: 'center',
+                                  ...awayChip,
+                                }}
+                              >
                                 {game.away_score}
                               </div>
                             </>
@@ -274,7 +393,7 @@ export default function GamesTab() {
                         )}
 
                         {game.status === 'live' && (
-                          <div style={{ display: 'flex', gap: '6px' }}>
+                          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
                             <button
                               onClick={() => goToScoring(game.id)}
                               style={{ background: '#dc2626', color: 'white', border: 'none', borderRadius: '6px', padding: '5px 10px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '4px' }}
@@ -282,6 +401,28 @@ export default function GamesTab() {
                               <BarChart3 size={14} strokeWidth={2} aria-hidden />
                               Score
                             </button>
+                            <a
+                              href={`/games/${game.id}/stream-preview`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                background: 'var(--bg-elevated)',
+                                border: '0.5px solid var(--border)',
+                                borderRadius: '6px',
+                                padding: '5px 10px',
+                                fontSize: '11px',
+                                fontWeight: 700,
+                                color: 'var(--text-primary)',
+                                textDecoration: 'none',
+                                fontFamily: 'inherit',
+                              }}
+                            >
+                              <ExternalLink size={14} aria-hidden />
+                              Preview
+                            </a>
                             <button
                               onClick={() => updateStatus(game.id, 'final')}
                               style={{ background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', padding: '5px 10px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit' }}

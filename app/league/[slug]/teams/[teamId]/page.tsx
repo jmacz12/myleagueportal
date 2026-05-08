@@ -146,7 +146,7 @@ export default function LeaguePublicTeamPage() {
     if (typeof window === 'undefined') return
     const q = new URLSearchParams(window.location.search)
     const t = q.get('tab')
-    const allowed: PublicTeamTab[] = ['overview', 'news', 'schedule', 'roster', 'stats']
+    const allowed: PublicTeamTab[] = ['overview', 'stream', 'news', 'schedule', 'roster', 'stats']
     if (t && allowed.includes(t as PublicTeamTab)) setPublicTab(t as PublicTeamTab)
     else setPublicTab('overview')
   }, [slug, teamId])
@@ -540,6 +540,7 @@ export default function LeaguePublicTeamPage() {
           publicTab={publicTab}
           setPublicTabQuery={setPublicTabQuery}
           watchHref={watchHref}
+          liveGameId={data.live_game_id ?? null}
           nextGameMapsHref={nextGameMapsHref}
         />
       </div>

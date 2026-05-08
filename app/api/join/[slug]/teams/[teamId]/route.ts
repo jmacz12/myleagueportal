@@ -111,25 +111,26 @@ export async function GET(
     .eq('id', team.season_id)
     .maybeSingle()
 
-  let playersRes = await supabaseAdmin
+  const playersFull = await supabaseAdmin
     .from('players')
     .select('id, full_name, jersey_number, positions, avatar_url')
     .eq('team_id', teamId)
     .order('full_name', { ascending: true })
 
-  if (playersRes.error) {
-    const msg = String(playersRes.error.message || '')
+  let players = playersFull.data
+  let playersError = playersFull.error
+  if (playersError) {
+    const msg = String(playersError.message || '')
     if (msg.includes('avatar_url') || msg.includes('column')) {
-      playersRes = await supabaseAdmin
+      const fb = await supabaseAdmin
         .from('players')
         .select('id, full_name, jersey_number, positions')
         .eq('team_id', teamId)
         .order('full_name', { ascending: true })
+      players = (fb.data || []).map((p) => ({ ...p, avatar_url: null as string | null }))
+      playersError = fb.error
     }
   }
-
-  const players = playersRes.data
-  const playersError = playersRes.error
 
   if (playersError) {
     return NextResponse.json({ error: 'Failed to load roster' }, { status: 500 })
@@ -204,6 +205,31 @@ export async function GET(
       .limit(15),
   ])
 
+  const DEMO_LIVE_LOCATION = 'MLP_DEMO_LIVE_STREAM'
+  let liveGameRow: { id: string } | null = null
+  const { data: demoLive } = await supabaseAdmin
+    .from('games')
+    .select('id')
+    .eq('organization_id', org.id)
+    .eq('season_id', team.season_id)
+    .eq('status', 'live')
+    .eq('location', DEMO_LIVE_LOCATION)
+    .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
+    .maybeSingle()
+  liveGameRow = demoLive
+  if (!liveGameRow?.id) {
+    const { data: anyLive } = await supabaseAdmin
+      .from('games')
+      .select('id')
+      .eq('organization_id', org.id)
+      .eq('season_id', team.season_id)
+      .eq('status', 'live')
+      .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
+      .limit(1)
+      .maybeSingle()
+    liveGameRow = anyLive
+  }
+
   const team_news =
     !newsRes.error && Array.isArray(newsRes.data)
       ? newsRes.data.map((row) => ({
@@ -260,5 +286,6 @@ export async function GET(
     team_news,
     league_news: leagueNews,
     team_calendar_upcoming,
+    live_game_id: liveGameRow?.id ?? null,
   })
 }

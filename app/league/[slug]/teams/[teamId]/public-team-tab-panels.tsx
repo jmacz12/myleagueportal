@@ -12,7 +12,9 @@ import {
   Newspaper,
   Radio,
   Users,
+  Video,
 } from 'lucide-react'
+import { StreamWithOverlay } from '@/components/public-stream/StreamWithOverlay'
 import type { ThemePreset } from '@/lib/leagueTheme'
 import { TEAM_PAGE_PRO_HEADLINE_STATS } from '@/lib/public-team-season-view'
 import type { PlayerTotalsRow, PublicTeamTab, TeamPayload } from './team-page-types'
@@ -24,6 +26,7 @@ type Props = {
   publicTab: PublicTeamTab
   setPublicTabQuery: (t: PublicTeamTab) => void
   watchHref: string | null
+  liveGameId: string | null
   nextGameMapsHref: string | null
 }
 
@@ -34,6 +37,7 @@ export function PublicTeamTabPanels({
   publicTab,
   setPublicTabQuery,
   watchHref,
+  liveGameId,
   nextGameMapsHref,
 }: Props) {
   const {
@@ -521,6 +525,7 @@ export function PublicTeamTabPanels({
 
   const tabItems = [
     { id: 'overview' as const, label: 'Overview', icon: LayoutList },
+    { id: 'stream' as const, label: 'Stream', icon: Video },
     { id: 'news' as const, label: 'News', icon: Newspaper },
     { id: 'schedule' as const, label: 'Schedule', icon: CalendarDays },
     { id: 'roster' as const, label: 'Roster', icon: Users },
@@ -717,6 +722,46 @@ export function PublicTeamTabPanels({
             </p>
           ) : null}
         </>
+      ) : null}
+
+      {publicTab === 'stream' ? (
+        <div>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              marginBottom: '14px',
+              fontSize: '11px',
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+              fontWeight: 800,
+              color: preset.muted,
+            }}
+          >
+            <Video size={14} aria-hidden style={{ color: preset.accent }} />
+            Watch on this page
+          </div>
+          {watchHref ? (
+            <StreamWithOverlay watchUrl={watchHref} liveGameId={liveGameId} accentColor={preset.accent} />
+          ) : (
+            <div
+              style={{
+                borderRadius: '14px',
+                padding: '22px 18px',
+                textAlign: 'center',
+                background: preset.surfaceBg,
+                border: `1px solid ${preset.surfaceBorder}`,
+                color: preset.body,
+                fontSize: '14px',
+                lineHeight: 1.55,
+              }}
+            >
+              This team hasn&apos;t published a stream link yet. When a manager adds a YouTube or Twitch URL under{' '}
+              <strong style={{ color: preset.heading }}>Manage team → Page & links</strong>, it will appear here and on Overview.
+            </div>
+          )}
+        </div>
       ) : null}
 
       {publicTab === 'news' ? renderNewsBlock(mergedNews, true) : null}

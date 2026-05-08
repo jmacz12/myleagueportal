@@ -104,6 +104,9 @@ Most of this is **not built yet**; this section records **Basic / Pro / Enterpri
 ### Season games & scoring
 
 - **Live scoring:** Game clock, period (quarter) selector, per-player stats (**PTS, AST, REB, STL, BLK, TOV, PF**).
+- **Shipped scoring operator UX:** fixed **5 starters per side** on the scoring page, jersey-first tap flow, and one-tap event buttons (**+3, +2, +1 FT**, plus AST/REB/STL/BLK/TOV/PF).
+- **Shooting breakdown:** `player_game_stats` now tracks **2PM / 3PM / FTM** (`fg2m`, `fg3m`, `ftm`) with team scores kept in sync from player totals.
+- **Shipped stream + overlay (fan-facing):** League and team public pages embed **`StreamWithOverlay`** (watch URL + `/games/[id]/overlay?embed=1` score band). Public overlay route polls **~1s** while live so clock/score stay aligned with the scorer. Dashboard scoring exposes a single **public watch link** (canonical **`https://www.myleagueportal.com`** via **`lib/public-site-origin.ts`**, override **`NEXT_PUBLIC_PUBLIC_SITE_URL`**) — visible URL, opens in new tab, **Copy link** uses the same string.
 - **Lifecycle:** Scheduled → live → final.
 - **Post-game:** Highlights UI and **Player of the Game** scoring formula.
 
@@ -197,6 +200,8 @@ Use this when validating `**league_site_content`**, organization_editors, and `*
 
 ### Changelog
 
+- **2026-05-08:** **Live overlay + public watch URL:** Game overlay page polls **1s** when status is live (backup to realtime). Scoring dashboard shows **public watch link** as visible **`https://www.myleagueportal.com/...`** ( **`getPublicSiteOrigin()`** / **`NEXT_PUBLIC_PUBLIC_SITE_URL`** ) plus copy — league homepage when org slug exists, else public scoreboard. Removed duplicate OBS/preview copy rows from scorer (fans use site embed).
+- **2026-05-08:** **Scoring operator pass (starters + shot buttons) + DB migration applied:** Dashboard scoring now supports fixed **5-on-5 starter slots**, jersey-first tap workflow, and one-tap **+3 / +2 / +1 FT** plus core box-score actions. Added `**games.home_starter_slot_ids`** / `**away_starter_slot_ids`** and `**player_game_stats.fg2m/fg3m/ftm`** via migration `**20260507200000_game_starters_shooting.sql`**, with API score recompute and public scoreboard columns updated.
 - **2026-05-07:** **League News tab + syndicated team news + standings endpoint:** league home now has a dedicated **News** tab (separate from About). Team News tab merges team posts with league-level `news` CMS sections so organizers can post once and fan-facing team pages inherit those updates. Added `**GET /api/join/[slug]/standings`** and wired league `Standings` tab to render W/L/PCT and leader callouts from recorded finals.
 - **2026-05-07:** **Edit-page reliability + UI polish:** on-page theme save (`**PATCH /api/league-org-appearance`**) now has migration-safe org lookup fallbacks (id/slug/owner) to avoid false organizer “Organization not found” failures. League team cards removed mixed shorthand `border` + `borderLeft` style updates, and hero edit control hides uploaded URL text for cleaner editing.
 - **2026-05-07:** **Public league schedule personalization + public roster headshots:** `GET /api/join/[slug]/sessions` now emits a combined `scheduleItems` feed (season games + drop-ins) with per-user `is_user_playing` flags resolved from signed-in player/drop-in records. `**/league/[slug]` Schedule tab now renders **Your upcoming games** and **You’re playing** highlights while preserving one full list with safe drop-in-only CTAs. Public team payload/roster now supports optional `players.avatar_url` and renders headshots on `**/league/[slug]/teams/[teamId]` roster/stats rows with initials fallback.
