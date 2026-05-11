@@ -1603,7 +1603,7 @@ function LeagueHomeContent() {
               Live stream
             </h2>
             <p style={{ margin: '0 0 22px', fontSize: '14px', color: preset.muted, lineHeight: 1.55, width: '100%' }}>
-              When a season game is marked live and a team has published a YouTube or Twitch link, you can watch here with the scoreboard on top. Use Full screen to expand video and overlay together.
+              When a season game is marked live and a team has published a YouTube or Twitch link, you can watch here with the scoreboard strip below the video. Use the player&apos;s own fullscreen control for the biggest picture (the strip stays on this page only — see the note under the player).
             </p>
             {!streamLive ? (
               <div
