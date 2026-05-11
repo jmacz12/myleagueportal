@@ -92,6 +92,8 @@ interface LeagueScheduleItem {
   location_label?: string | null
   fee_amount?: number | null
   is_user_playing?: boolean
+  /** Same flag as dashboard; used to group recurring series on the public schedule. */
+  is_recurring?: boolean
 }
 
 interface LeagueStandingRow {
@@ -209,6 +211,66 @@ function formatDropInSessionLocal(
   }
 }
 
+/** Base title for recurring drop-ins (matches dashboard naming: "Series — instance"). */
+function dropinSeriesBaseName(name: string): string {
+  const raw = String(name || '').trim()
+  if (!raw) return ''
+  return raw.split(' —')[0].trim() || raw
+}
+
+function sortLeagueScheduleItems(items: LeagueScheduleItem[]): LeagueScheduleItem[] {
+  return [...items].sort((a, b) => {
+    const aTs = new Date(a.scheduled_at).getTime()
+    const bTs = new Date(b.scheduled_at).getTime()
+    const aPlaying = a.is_user_playing ? 1 : 0
+    const bPlaying = b.is_user_playing ? 1 : 0
+    if (aPlaying !== bPlaying) return bPlaying - aPlaying
+    if (aPlaying === 1 && bPlaying === 1 && a.type !== b.type) {
+      return a.type === 'season_game' ? -1 : 1
+    }
+    return aTs - bTs
+  })
+}
+
+type LeagueScheduleDisplayRow =
+  | { kind: 'single'; item: LeagueScheduleItem }
+  | { kind: 'recurring_dropin'; base: string; items: LeagueScheduleItem[] }
+
+/** One row per season game; recurring drop-ins with the same series title share one expandable card. */
+function buildLeagueScheduleDisplayRows(sorted: LeagueScheduleItem[]): LeagueScheduleDisplayRow[] {
+  const emittedRecurringBase = new Set<string>()
+  const out: LeagueScheduleDisplayRow[] = []
+  for (const item of sorted) {
+    if (item.type === 'season_game') {
+      out.push({ kind: 'single', item })
+      continue
+    }
+    if (item.type === 'drop_in' && item.is_recurring) {
+      const base = dropinSeriesBaseName(item.name)
+      if (!base) {
+        out.push({ kind: 'single', item })
+        continue
+      }
+      if (emittedRecurringBase.has(base)) {
+        continue
+      }
+      const clusterItems = sorted.filter(
+        (x) => x.type === 'drop_in' && x.is_recurring && dropinSeriesBaseName(x.name) === base
+      )
+      clusterItems.sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())
+      emittedRecurringBase.add(base)
+      if (clusterItems.length <= 1) {
+        out.push({ kind: 'single', item: clusterItems[0] ?? item })
+      } else {
+        out.push({ kind: 'recurring_dropin', base, items: clusterItems })
+      }
+      continue
+    }
+    out.push({ kind: 'single', item })
+  }
+  return out
+}
+
 function LeaguePublicTabBar({
   active,
   onChange,
@@ -303,9 +365,18 @@ function LeagueHomeContent() {
   const [hub, setHub] = useState<HubResponse | null>(null)
   const [teams, setTeams] = useState<PublicTeamRow[]>([])
   const [sessions, setSessions] = useState<
-    { id: string; name?: string; scheduled_at: string; fee_amount?: number; max_players?: number; signups?: unknown[] }[]
+    {
+      id: string
+      name?: string
+      scheduled_at: string
+      fee_amount?: number
+      max_players?: number
+      signups?: unknown[]
+      is_recurring?: boolean
+    }[]
   >([])
   const [scheduleItems, setScheduleItems] = useState<LeagueScheduleItem[]>([])
+  const [expandedScheduleCluster, setExpandedScheduleCluster] = useState<Record<string, boolean>>({})
   const [standingsRows, setStandingsRows] = useState<LeagueStandingRow[]>([])
   const [leadersRows, setLeadersRows] = useState<LeagueLeaderRow[]>([])
   const [streamLive, setStreamLive] = useState<{
@@ -386,7 +457,15 @@ function LeagueHomeContent() {
           Array.isArray(sesJson.scheduleItems)
             ? sesJson.scheduleItems
             : Array.isArray(sesJson.sessions)
-              ? sesJson.sessions.map((s: { id: string; name?: string; scheduled_at: string; fee_amount?: number; location?: string | null }) => ({
+              ? sesJson.sessions.map(
+                  (s: {
+                    id: string
+                    name?: string
+                    scheduled_at: string
+                    fee_amount?: number
+                    location?: string | null
+                    is_recurring?: boolean
+                  }) => ({
                   id: `dropin:${s.id}`,
                   source_id: s.id,
                   type: 'drop_in' as const,
@@ -395,6 +474,7 @@ function LeagueHomeContent() {
                   fee_amount: typeof s.fee_amount === 'number' ? s.fee_amount : null,
                   location_label: s.location ?? null,
                   is_user_playing: false,
+                  is_recurring: !!s.is_recurring,
                 }))
               : []
         )
@@ -675,6 +755,48 @@ function LeagueHomeContent() {
 
   const heroTheme = useMemo(() => publicHeroThemeFromPreset(preset), [preset])
 
+  const rankedScheduleItems = useMemo(() => sortLeagueScheduleItems(scheduleItems), [scheduleItems])
+  const leagueScheduleDisplayRows = useMemo(
+    () => buildLeagueScheduleDisplayRows(rankedScheduleItems),
+    [rankedScheduleItems]
+  )
+  const personalizedSchedule = useMemo(() => {
+    const playing = rankedScheduleItems.filter((item) => !!item.is_user_playing)
+    const out: LeagueScheduleItem[] = []
+    const seenRecurringBase = new Set<string>()
+    for (const item of playing) {
+      if (item.type === 'drop_in' && item.is_recurring) {
+        const b = dropinSeriesBaseName(item.name)
+        if (seenRecurringBase.has(b)) continue
+        seenRecurringBase.add(b)
+      }
+      out.push(item)
+      if (out.length >= 3) break
+    }
+    return out
+  }, [rankedScheduleItems])
+
+  /** Home card: count recurring series once (matches schedule tab grouping). */
+  const publicDropinSeriesCount = useMemo(() => {
+    const seenRecurringBase = new Set<string>()
+    let count = 0
+    for (const s of sessions) {
+      if (s.is_recurring) {
+        const b = dropinSeriesBaseName(s.name || '')
+        if (!b) {
+          count++
+          continue
+        }
+        if (seenRecurringBase.has(b)) continue
+        seenRecurringBase.add(b)
+        count++
+      } else {
+        count++
+      }
+    }
+    return count
+  }, [sessions])
+
   const accent = preset.accent
 
   if (loading) {
@@ -713,21 +835,6 @@ function LeagueHomeContent() {
   const totalPlayers = teams.reduce((sum, t) => sum + t.player_count, 0)
   const planSlug = String(org.plan || 'basic').toLowerCase()
   const isProLike = planSlug === 'pro' || planSlug === 'enterprise'
-  const rankedScheduleItems = [...scheduleItems].sort((a, b) => {
-    const aTs = new Date(a.scheduled_at).getTime()
-    const bTs = new Date(b.scheduled_at).getTime()
-    const aPlaying = a.is_user_playing ? 1 : 0
-    const bPlaying = b.is_user_playing ? 1 : 0
-    if (aPlaying !== bPlaying) return bPlaying - aPlaying
-    // For personalized items, season fixtures rank above drop-ins.
-    if (aPlaying === 1 && bPlaying === 1 && a.type !== b.type) {
-      return a.type === 'season_game' ? -1 : 1
-    }
-    return aTs - bTs
-  })
-  const personalizedSchedule = rankedScheduleItems
-    .filter((item) => !!item.is_user_playing)
-    .slice(0, 3)
   const publicBrandInputs = getPublicThemeInputsForOrg(org)
   const websiteLockedForPlan = planSlug === 'basic'
 
@@ -1129,7 +1236,7 @@ function LeagueHomeContent() {
                       <div>
                         <div style={{ fontSize: '17px', fontWeight: 800, color: preset.heading }}>Drop-in Sessions</div>
                         <div style={{ fontSize: '12px', color: preset.muted, fontWeight: 700 }}>
-                          {sessions.length} upcoming session{sessions.length === 1 ? '' : 's'}
+                          {publicDropinSeriesCount} upcoming session{publicDropinSeriesCount === 1 ? '' : 's'}
                         </div>
                       </div>
                     </div>
@@ -1262,8 +1369,10 @@ function LeagueHomeContent() {
             <h2 style={{ fontSize: 'clamp(20px, 2.5vw, 24px)', fontWeight: 900, color: preset.heading, margin: '0 0 8px', letterSpacing: '-0.02em' }}>
               Schedule & venues
             </h2>
-            <p style={{ margin: '0 0 22px', fontSize: '14px', color: preset.muted, lineHeight: 1.55, maxWidth: '560px' }}>
-              Season games and drop-ins share one schedule feed. Type badges below make each item clear so booking actions only appear on drop-ins.
+            <p style={{ margin: '0 0 22px', fontSize: '14px', color: preset.muted, lineHeight: 1.55, maxWidth: '62ch' }}>
+              Season games and drop-ins share one chronological list. Recurring drop-in runs use a single card with the next
+              sign-up-open date; use <strong style={{ color: preset.heading }}>Show more dates</strong> to see other upcoming
+              instances in that series. Only sessions that are open for registration appear here (same rule as the drop-in list).
             </p>
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '14px' }}>
               <span
@@ -1324,9 +1433,11 @@ function LeagueHomeContent() {
                 <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '7px' }}>
                   {personalizedSchedule.map((item) => {
                     const local = formatDropInSessionLocal(item.scheduled_at, org.league_timezone)
+                    const label =
+                      item.type === 'drop_in' && item.is_recurring ? dropinSeriesBaseName(item.name) : item.name
                     return (
                       <div key={`personal-${item.id}`} style={{ fontSize: '13px', color: preset.body }}>
-                        <strong style={{ color: preset.heading }}>{item.name}</strong> · {local.day} · {local.time}
+                        <strong style={{ color: preset.heading }}>{label}</strong> · {local.day} · {local.time}
                       </div>
                     )
                   })}
@@ -1350,16 +1461,131 @@ function LeagueHomeContent() {
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                {rankedScheduleItems.map((item) => {
-                  const local = formatDropInSessionLocal(item.scheduled_at, org.league_timezone)
-                  const isDropin = item.type === 'drop_in'
-                  const loc = item.location_label
+                {leagueScheduleDisplayRows.map((row) => {
+                  if (row.kind === 'single') {
+                    const item = row.item
+                    const local = formatDropInSessionLocal(item.scheduled_at, org.league_timezone)
+                    const isDropin = item.type === 'drop_in'
+                    const loc = item.location_label
+                    return (
+                      <div
+                        key={item.id}
+                        style={{
+                          background: preset.surfaceBg,
+                          border: `1px solid ${item.is_user_playing ? preset.accent : preset.surfaceBorder}`,
+                          borderRadius: '14px',
+                          padding: '18px 20px',
+                          display: 'flex',
+                          flexWrap: 'wrap',
+                          justifyContent: 'space-between',
+                          alignItems: 'flex-start',
+                          gap: '14px',
+                        }}
+                      >
+                        <div style={{ minWidth: 0 }}>
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              fontSize: '10px',
+                              fontWeight: 800,
+                              letterSpacing: '0.04em',
+                              textTransform: 'uppercase',
+                              color: isDropin ? preset.accent : '#6d28d9',
+                              background: isDropin ? preset.accentSoftBg : '#f3e8ff',
+                              border: `1px solid ${preset.surfaceBorder}`,
+                              borderRadius: '999px',
+                              padding: '3px 8px',
+                              marginBottom: '8px',
+                            }}
+                          >
+                            {isDropin ? 'Drop-in' : 'Season game'}
+                          </span>
+                          {item.is_user_playing ? (
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                fontSize: '10px',
+                                fontWeight: 900,
+                                letterSpacing: '0.04em',
+                                textTransform: 'uppercase',
+                                color: preset.heading,
+                                background: preset.accentSoftBg,
+                                border: `1px solid ${preset.surfaceBorder}`,
+                                borderRadius: '999px',
+                                padding: '3px 8px',
+                                marginLeft: '8px',
+                                marginBottom: '8px',
+                              }}
+                            >
+                              You&apos;re playing
+                            </span>
+                          ) : null}
+                          <p style={{ margin: 0, fontSize: '16px', fontWeight: 900, color: preset.heading }}>{item.name || 'Schedule item'}</p>
+                          <p style={{ margin: '6px 0 0', fontSize: '13px', color: preset.muted }}>
+                            {local.day} · {local.time}
+                            {local.zone ? ` ${local.zone}` : ''}
+                          </p>
+                          {loc ? (
+                            <p style={{ margin: '8px 0 0', fontSize: '13px', color: preset.body, display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+                              <MapPin size={15} style={{ flexShrink: 0, marginTop: '2px', color: preset.accent }} aria-hidden />
+                              <span>{loc}</span>
+                            </p>
+                          ) : null}
+                          {isDropin && typeof item.fee_amount === 'number' ? (
+                            <p style={{ margin: '10px 0 0', fontSize: '14px', fontWeight: 800, color: preset.accent }}>${item.fee_amount}</p>
+                          ) : null}
+                        </div>
+                        {isDropin ? (
+                          <Link
+                            href={`/join/${slug}/dropins`}
+                            style={{
+                              fontSize: '13px',
+                              fontWeight: 800,
+                              textDecoration: 'none',
+                              padding: '10px 18px',
+                              borderRadius: '10px',
+                              background: preset.accent,
+                              color: contrastTextForAccent(preset.accent),
+                              flexShrink: 0,
+                            }}
+                          >
+                            {item.is_user_playing ? 'Manage spot' : 'Reserve spot'}
+                          </Link>
+                        ) : (
+                          <span
+                            style={{
+                              fontSize: '12px',
+                              fontWeight: 700,
+                              color: preset.muted,
+                              padding: '10px 0',
+                              flexShrink: 0,
+                            }}
+                          >
+                            Season fixture
+                          </span>
+                        )}
+                      </div>
+                    )
+                  }
+
+                  const { base, items } = row
+                  const clusterKey = `recur:${base}`
+                  const next = items[0]!
+                  const localNext = formatDropInSessionLocal(next.scheduled_at, org.league_timezone)
+                  const anyPlaying = items.some((i) => i.is_user_playing)
+                  const expanded = !!expandedScheduleCluster[clusterKey]
+                  const moreCount = items.length - 1
+                  const loc0 = next.location_label
                   return (
                     <div
-                      key={item.id}
+                      key={clusterKey}
                       style={{
                         background: preset.surfaceBg,
-                        border: `1px solid ${item.is_user_playing ? preset.accent : preset.surfaceBorder}`,
+                        border: `1px solid ${anyPlaying ? preset.accent : preset.surfaceBorder}`,
                         borderRadius: '14px',
                         padding: '18px 20px',
                         display: 'flex',
@@ -1369,7 +1595,7 @@ function LeagueHomeContent() {
                         gap: '14px',
                       }}
                     >
-                      <div style={{ minWidth: 0 }}>
+                      <div style={{ minWidth: 0, flex: '1 1 220px' }}>
                         <span
                           style={{
                             display: 'inline-flex',
@@ -1379,17 +1605,17 @@ function LeagueHomeContent() {
                             fontWeight: 800,
                             letterSpacing: '0.04em',
                             textTransform: 'uppercase',
-                            color: isDropin ? preset.accent : '#6d28d9',
-                            background: isDropin ? preset.accentSoftBg : '#f3e8ff',
+                            color: preset.accent,
+                            background: preset.accentSoftBg,
                             border: `1px solid ${preset.surfaceBorder}`,
                             borderRadius: '999px',
                             padding: '3px 8px',
                             marginBottom: '8px',
                           }}
                         >
-                          {isDropin ? 'Drop-in' : 'Season game'}
+                          Drop-in · recurring
                         </span>
-                        {item.is_user_playing ? (
+                        {anyPlaying ? (
                           <span
                             style={{
                               display: 'inline-flex',
@@ -1411,50 +1637,82 @@ function LeagueHomeContent() {
                             You&apos;re playing
                           </span>
                         ) : null}
-                        <p style={{ margin: 0, fontSize: '16px', fontWeight: 900, color: preset.heading }}>{item.name || 'Schedule item'}</p>
-                        <p style={{ margin: '6px 0 0', fontSize: '13px', color: preset.muted }}>
-                          {local.day} · {local.time}
-                          {local.zone ? ` ${local.zone}` : ''}
+                        <p style={{ margin: 0, fontSize: '16px', fontWeight: 900, color: preset.heading }}>{base}</p>
+                        <p style={{ margin: '6px 0 0', fontSize: '12px', fontWeight: 800, color: preset.muted, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                          Next session
                         </p>
-                        {loc ? (
+                        <p style={{ margin: '4px 0 0', fontSize: '13px', color: preset.body }}>
+                          {localNext.day} · {localNext.time}
+                          {localNext.zone ? ` ${localNext.zone}` : ''}
+                        </p>
+                        {loc0 ? (
                           <p style={{ margin: '8px 0 0', fontSize: '13px', color: preset.body, display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
                             <MapPin size={15} style={{ flexShrink: 0, marginTop: '2px', color: preset.accent }} aria-hidden />
-                            <span>{loc}</span>
+                            <span>{loc0}</span>
                           </p>
                         ) : null}
-                        {isDropin && typeof item.fee_amount === 'number' ? (
-                          <p style={{ margin: '10px 0 0', fontSize: '14px', fontWeight: 800, color: preset.accent }}>${item.fee_amount}</p>
+                        {typeof next.fee_amount === 'number' ? (
+                          <p style={{ margin: '10px 0 0', fontSize: '14px', fontWeight: 800, color: preset.accent }}>${next.fee_amount}</p>
+                        ) : null}
+                        {moreCount > 0 ? (
+                          <div style={{ marginTop: '12px' }}>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedScheduleCluster((prev) => ({
+                                  ...prev,
+                                  [clusterKey]: !prev[clusterKey],
+                                }))
+                              }
+                              style={{
+                                background: 'transparent',
+                                border: `1px solid ${preset.surfaceBorder}`,
+                                borderRadius: '10px',
+                                padding: '8px 12px',
+                                fontSize: '12px',
+                                fontWeight: 800,
+                                color: preset.heading,
+                                cursor: 'pointer',
+                                fontFamily: 'inherit',
+                              }}
+                            >
+                              {expanded ? 'Hide extra dates' : `Show ${moreCount} more date${moreCount === 1 ? '' : 's'}`}
+                            </button>
+                            {expanded ? (
+                              <ul style={{ margin: '10px 0 0', paddingLeft: '18px', color: preset.body, fontSize: '13px', lineHeight: 1.6 }}>
+                                {items.slice(1).map((ex) => {
+                                  const locEx = formatDropInSessionLocal(ex.scheduled_at, org.league_timezone)
+                                  return (
+                                    <li key={ex.id}>
+                                      {locEx.day} · {locEx.time}
+                                      {locEx.zone ? ` ${locEx.zone}` : ''}
+                                      {ex.is_user_playing ? (
+                                        <span style={{ marginLeft: '6px', fontWeight: 800, color: preset.accent }}>(You&apos;re in)</span>
+                                      ) : null}
+                                    </li>
+                                  )
+                                })}
+                              </ul>
+                            ) : null}
+                          </div>
                         ) : null}
                       </div>
-                      {isDropin ? (
-                        <Link
-                          href={`/join/${slug}/dropins`}
-                          style={{
-                            fontSize: '13px',
-                            fontWeight: 800,
-                            textDecoration: 'none',
-                            padding: '10px 18px',
-                            borderRadius: '10px',
-                            background: preset.accent,
-                            color: contrastTextForAccent(preset.accent),
-                            flexShrink: 0,
-                          }}
-                        >
-                          {item.is_user_playing ? 'Manage spot' : 'Reserve spot'}
-                        </Link>
-                      ) : (
-                        <span
-                          style={{
-                            fontSize: '12px',
-                            fontWeight: 700,
-                            color: preset.muted,
-                            padding: '10px 0',
-                            flexShrink: 0,
-                          }}
-                        >
-                          Season fixture
-                        </span>
-                      )}
+                      <Link
+                        href={`/join/${slug}/dropins`}
+                        style={{
+                          fontSize: '13px',
+                          fontWeight: 800,
+                          textDecoration: 'none',
+                          padding: '10px 18px',
+                          borderRadius: '10px',
+                          background: preset.accent,
+                          color: contrastTextForAccent(preset.accent),
+                          flexShrink: 0,
+                          alignSelf: 'flex-start',
+                        }}
+                      >
+                        {anyPlaying ? 'Manage spot' : 'Reserve spot'}
+                      </Link>
                     </div>
                   )
                 })}

@@ -18,6 +18,7 @@ type DropinSessionRow = {
   name: string | null
   location: string | null
   fee_amount: number | null
+  is_recurring?: boolean | null
 }
 
 type GameScheduleRow = {
@@ -256,6 +257,7 @@ export async function GET(
     location_label: (s.location as string | null) ?? null,
     fee_amount: typeof s.fee_amount === 'number' ? s.fee_amount : null,
     is_user_playing: signedUpSessionIds.has(s.id),
+    is_recurring: !!(s as DropinSessionRow).is_recurring,
   }))
 
   const scheduleItems = [...seasonScheduleItems, ...dropinScheduleItems].sort(
