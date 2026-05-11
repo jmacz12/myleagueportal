@@ -140,17 +140,19 @@ export function StreamWithOverlay({ watchUrl, liveGameId, accentColor = '#5a7a2a
   const btnGradient = fullscreenButtonBackground(accentColor)
   const displayFs = fs || immersive
 
+  /** Immersive: largest 16:9 rect inside measured region (container queries → reliable on iOS; vw/min math was undersizing) */
   const shellStyle: CSSProperties = immersive
     ? {
         position: 'relative',
         isolation: 'isolate',
         background: '#000',
         overflow: 'hidden',
-        borderRadius: '12px',
-        width:
-          'min(calc(100vw - 24px), calc((100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 116px) * 16 / 9))',
+        borderRadius: '10px',
+        flexShrink: 0,
+        margin: '0 auto',
+        width: 'min(100cqw, calc(100cqh * 16 / 9))',
+        maxHeight: '100cqh',
         aspectRatio: '16 / 9',
-        maxHeight: 'calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 116px)',
       }
     : {
         position: 'relative',
@@ -161,6 +163,26 @@ export function StreamWithOverlay({ watchUrl, liveGameId, accentColor = '#5a7a2a
         aspectRatio: '16 / 9',
         isolation: 'isolate',
       }
+
+  const immersiveExitBtn: CSSProperties = {
+    position: 'absolute',
+    top: 'calc(env(safe-area-inset-top) + 10px)',
+    right: 'calc(env(safe-area-inset-right) + 12px)',
+    zIndex: 2147483001,
+    width: '48px',
+    height: '48px',
+    borderRadius: '14px',
+    border: '1px solid rgba(255,255,255,0.28)',
+    boxShadow: '0 8px 28px rgba(0,0,0,0.45)',
+    background: btnGradient,
+    color: '#f8fafc',
+    cursor: 'pointer',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    touchAction: 'manipulation',
+    WebkitTapHighlightColor: 'transparent',
+  }
 
   return (
     <div
@@ -173,24 +195,43 @@ export function StreamWithOverlay({ watchUrl, liveGameId, accentColor = '#5a7a2a
               background: '#000',
               display: 'flex',
               flexDirection: 'column',
-              paddingTop: 'env(safe-area-inset-top)',
-              paddingRight: 'env(safe-area-inset-right)',
+              height: '100%',
+              minHeight: '-webkit-fill-available',
               paddingBottom: 'env(safe-area-inset-bottom)',
               paddingLeft: 'env(safe-area-inset-left)',
+              paddingRight: 'env(safe-area-inset-right)',
+              boxSizing: 'border-box',
             }
           : undefined
       }
     >
+      {immersive ? (
+        <button
+          type="button"
+          aria-label="Exit full screen"
+          onClick={() => void toggleFullscreen()}
+          style={immersiveExitBtn}
+        >
+          <Minimize2 size={24} strokeWidth={2.25} aria-hidden />
+        </button>
+      ) : null}
+
       <div
         style={
           immersive
             ? {
-                flex: 1,
+                containerType: 'size',
+                flex: '1 1 0',
                 minHeight: 0,
+                height: '100%',
                 width: '100%',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
+                padding: 'calc(env(safe-area-inset-top) + 56px) 10px 10px',
+                boxSizing: 'border-box',
+                minWidth: 0,
+                overflow: 'hidden',
               }
             : undefined
         }
@@ -236,9 +277,9 @@ export function StreamWithOverlay({ watchUrl, liveGameId, accentColor = '#5a7a2a
         onClick={() => void toggleFullscreen()}
         aria-label={displayFs ? 'Exit full screen' : 'Full screen with overlay'}
         style={{
-          marginTop: immersive ? '12px' : '14px',
+          display: immersive ? 'none' : 'inline-flex',
+          marginTop: '14px',
           width: '100%',
-          flexShrink: immersive ? 0 : undefined,
           touchAction: 'manipulation',
           WebkitTapHighlightColor: 'transparent',
           display: 'inline-flex',
