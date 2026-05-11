@@ -18,16 +18,29 @@ type Props = {
 /** Large tap target; sits top-right so YouTube/Twitch native controls stay usable at the bottom. */
 const FULLSCREEN_BTN_SIZE = 52
 
+const MOBILE_CONTROLS_MQ = '(max-width: 640px)'
+
 export function StreamWithOverlay({ watchUrl, liveGameId, accentColor = '#5a7a2a' }: Props) {
   const shellRef = useRef<HTMLDivElement>(null)
   const [embedSrc, setEmbedSrc] = useState<string | null>(null)
   const [fs, setFs] = useState(false)
+  const [useMobileChrome, setUseMobileChrome] = useState(false)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
     const src = streamWatchUrlToEmbedSrc(watchUrl, window.location.hostname)
     setEmbedSrc(src)
   }, [watchUrl])
+
+  /** Duplicate fullscreen control below the player on narrow screens — avoids iframe / sticky-header eating top-right taps (esp. iOS). */
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const mq = window.matchMedia(MOBILE_CONTROLS_MQ)
+    const apply = () => setUseMobileChrome(mq.matches)
+    apply()
+    mq.addEventListener('change', apply)
+    return () => mq.removeEventListener('change', apply)
+  }, [])
 
   useEffect(() => {
     const el = shellRef.current
@@ -85,6 +98,7 @@ export function StreamWithOverlay({ watchUrl, liveGameId, accentColor = '#5a7a2a
           overflow: 'hidden',
           background: '#000',
           aspectRatio: '16 / 9',
+          isolation: 'isolate',
         }}
       >
         <iframe
@@ -99,6 +113,7 @@ export function StreamWithOverlay({ watchUrl, liveGameId, accentColor = '#5a7a2a
             height: '100%',
             border: 'none',
             zIndex: 0,
+            pointerEvents: 'auto',
           }}
         />
         {overlaySrc ? (
@@ -120,56 +135,103 @@ export function StreamWithOverlay({ watchUrl, liveGameId, accentColor = '#5a7a2a
           />
         ) : null}
 
-        {/* Top chrome only: does not cover the bottom of the player where embed play/pause lives. */}
-        <div
+        {/* Top-right control (desktop / large tablets). No pointer-events:none parent — iOS can drop touches to children. */}
+        {!useMobileChrome ? (
+          <>
+            <div
+              aria-hidden
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                height: '52%',
+                minHeight: 120,
+                zIndex: 5,
+                pointerEvents: 'none',
+                background: 'linear-gradient(180deg, rgba(0,0,0,0.5) 0%, transparent 100%)',
+              }}
+            />
+            <div
+              style={{
+                position: 'absolute',
+                top: `max(10px, env(safe-area-inset-top, 0px))`,
+                right: `max(10px, env(safe-area-inset-right, 0px))`,
+                zIndex: 50,
+                pointerEvents: 'auto',
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => void toggleFullscreen()}
+                title={fs ? 'Exit full screen' : 'Full screen — video and score overlay'}
+                aria-label={fs ? 'Exit full screen' : 'Full screen with overlay'}
+                style={{
+                  touchAction: 'manipulation',
+                  WebkitTapHighlightColor: 'rgba(255,255,255,0.2)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  minWidth: FULLSCREEN_BTN_SIZE,
+                  minHeight: FULLSCREEN_BTN_SIZE,
+                  padding: '0 14px',
+                  borderRadius: '12px',
+                  border: '2px solid rgba(255,255,255,0.45)',
+                  background: 'rgba(15,23,42,0.92)',
+                  color: '#f8fafc',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  fontSize: '13px',
+                  fontWeight: 800,
+                  boxShadow: '0 6px 20px rgba(0,0,0,0.5)',
+                }}
+              >
+                {fs ? <Minimize2 size={22} strokeWidth={2.25} aria-hidden /> : <Maximize2 size={22} strokeWidth={2.25} aria-hidden />}
+                <span style={{ maxWidth: '120px', lineHeight: 1.15, textAlign: 'left' }}>{fs ? 'Exit' : 'Full screen'}</span>
+              </button>
+            </div>
+          </>
+        ) : null}
+      </div>
+
+      {useMobileChrome ? (
+        <button
+          type="button"
+          onClick={() => void toggleFullscreen()}
+          aria-label={fs ? 'Exit full screen' : 'Full screen with overlay'}
           style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            zIndex: 8,
-            display: 'flex',
-            alignItems: 'flex-start',
-            justifyContent: 'flex-end',
+            marginTop: '12px',
+            width: '100%',
+            touchAction: 'manipulation',
+            WebkitTapHighlightColor: 'rgba(0,0,0,0.08)',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
             gap: '10px',
-            padding: '10px 10px 48px',
-            pointerEvents: 'none',
-            background: 'linear-gradient(180deg, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.2) 55%, transparent 100%)',
+            minHeight: '52px',
+            padding: '14px 18px',
+            borderRadius: '12px',
+            border: `2px solid ${accentColor}`,
+            background: 'rgba(15,23,42,0.92)',
+            color: '#f8fafc',
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            fontSize: '15px',
+            fontWeight: 800,
+            boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
           }}
         >
-          <button
-            type="button"
-            onClick={() => void toggleFullscreen()}
-            title={fs ? 'Exit full screen' : 'Full screen — video and score overlay'}
-            aria-label={fs ? 'Exit full screen' : 'Full screen with overlay'}
-            style={{
-              pointerEvents: 'auto',
-              touchAction: 'manipulation',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
-              minWidth: FULLSCREEN_BTN_SIZE,
-              minHeight: FULLSCREEN_BTN_SIZE,
-              padding: '0 14px',
-              borderRadius: '12px',
-              border: '2px solid rgba(255,255,255,0.45)',
-              background: 'rgba(15,23,42,0.92)',
-              color: '#f8fafc',
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-              fontSize: '13px',
-              fontWeight: 800,
-              boxShadow: '0 6px 20px rgba(0,0,0,0.5)',
-            }}
-          >
-            {fs ? <Minimize2 size={22} strokeWidth={2.25} aria-hidden /> : <Maximize2 size={22} strokeWidth={2.25} aria-hidden />}
-            <span style={{ maxWidth: '120px', lineHeight: 1.15, textAlign: 'left' }}>{fs ? 'Exit' : 'Full screen'}</span>
-          </button>
-        </div>
-      </div>
+          {fs ? <Minimize2 size={22} strokeWidth={2.25} aria-hidden /> : <Maximize2 size={22} strokeWidth={2.25} aria-hidden />}
+          {fs ? 'Exit full screen' : 'Full screen — video and scores'}
+        </button>
+      ) : null}
+
       <p style={{ margin: '10px 0 0', fontSize: '13px', color: 'rgba(15,23,42,0.72)', lineHeight: 1.5 }}>
-        Use the video&apos;s own controls to play or pause. Tap <strong>Full screen</strong> (top-right) to enlarge the video and score strip together.
+        Use the video&apos;s own controls to play or pause.
+        {useMobileChrome
+          ? ' Tap the button below to go full screen with the score strip.'
+          : ' Tap Full screen (top-right) to enlarge the video and score strip together.'}
       </p>
     </div>
   )
