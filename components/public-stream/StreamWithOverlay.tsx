@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { Maximize2, Minimize2 } from 'lucide-react'
 import { streamWatchUrlToEmbedSrc } from '@/lib/stream-embed'
 
@@ -57,7 +57,8 @@ export function StreamWithOverlay({ watchUrl, liveGameId, accentColor = '#5a7a2a
   const shellRef = useRef<HTMLDivElement>(null)
   const [embedSrc, setEmbedSrc] = useState<string | null>(null)
   const [fs, setFs] = useState(false)
-  const [fsBlockedHint, setFsBlockedHint] = useState<string | null>(null)
+  /** iOS / Safari often blocks element fullscreen — fixed viewport overlay instead */
+  const [immersive, setImmersive] = useState(false)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -73,7 +74,6 @@ export function StreamWithOverlay({ watchUrl, liveGameId, accentColor = '#5a7a2a
       const active =
         (document.fullscreenElement === el || doc.webkitFullscreenElement === el) ?? false
       setFs(active)
-      if (active) setFsBlockedHint(null)
     }
     sync()
     document.addEventListener('fullscreenchange', sync)
@@ -84,24 +84,36 @@ export function StreamWithOverlay({ watchUrl, liveGameId, accentColor = '#5a7a2a
     }
   }, [])
 
+  useEffect(() => {
+    if (!immersive || typeof document === 'undefined') return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prev
+    }
+  }, [immersive])
+
   const toggleFullscreen = useCallback(async () => {
     const el = shellRef.current
     if (!el) return
     const doc = document as Document & { webkitFullscreenElement?: Element | null }
-    try {
-      const inFs = document.fullscreenElement === el || doc.webkitFullscreenElement === el
-      if (inFs) {
-        await exitFullscreenBestEffort()
-      } else {
-        setFsBlockedHint(null)
-        await requestFullscreenBestEffort(el)
-      }
-    } catch {
-      setFsBlockedHint(
-        'Fullscreen with the score overlay isn’t supported in this browser yet (common on iPhone Safari). Use the video’s own fullscreen, or open the stream in a new tab — not caused by ad blockers.',
-      )
+    const inNativeFs = document.fullscreenElement === el || doc.webkitFullscreenElement === el
+
+    if (inNativeFs) {
+      await exitFullscreenBestEffort()
+      return
     }
-  }, [])
+    if (immersive) {
+      setImmersive(false)
+      return
+    }
+
+    try {
+      await requestFullscreenBestEffort(el)
+    } catch {
+      setImmersive(true)
+    }
+  }, [immersive])
 
   if (!embedSrc) {
     return (
@@ -126,62 +138,107 @@ export function StreamWithOverlay({ watchUrl, liveGameId, accentColor = '#5a7a2a
 
   const overlaySrc = liveGameId ? `/games/${liveGameId}/overlay?embed=1` : null
   const btnGradient = fullscreenButtonBackground(accentColor)
+  const displayFs = fs || immersive
+
+  const shellStyle: CSSProperties = immersive
+    ? {
+        position: 'relative',
+        isolation: 'isolate',
+        background: '#000',
+        overflow: 'hidden',
+        borderRadius: '12px',
+        width:
+          'min(calc(100vw - 24px), calc((100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 116px) * 16 / 9))',
+        aspectRatio: '16 / 9',
+        maxHeight: 'calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 116px)',
+      }
+    : {
+        position: 'relative',
+        width: '100%',
+        borderRadius: '14px',
+        overflow: 'hidden',
+        background: '#000',
+        aspectRatio: '16 / 9',
+        isolation: 'isolate',
+      }
 
   return (
-    <div>
+    <div
+      style={
+        immersive
+          ? {
+              position: 'fixed',
+              inset: 0,
+              zIndex: 2147483000,
+              background: '#000',
+              display: 'flex',
+              flexDirection: 'column',
+              paddingTop: 'env(safe-area-inset-top)',
+              paddingRight: 'env(safe-area-inset-right)',
+              paddingBottom: 'env(safe-area-inset-bottom)',
+              paddingLeft: 'env(safe-area-inset-left)',
+            }
+          : undefined
+      }
+    >
       <div
-        ref={shellRef}
-        style={{
-          position: 'relative',
-          width: '100%',
-          borderRadius: '14px',
-          overflow: 'hidden',
-          background: '#000',
-          aspectRatio: '16 / 9',
-          isolation: 'isolate',
-        }}
+        style={
+          immersive
+            ? {
+                flex: 1,
+                minHeight: 0,
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }
+            : undefined
+        }
       >
-        <iframe
-          title="Live stream"
-          src={embedSrc}
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-          allowFullScreen
-          style={{
-            position: 'absolute',
-            inset: 0,
-            width: '100%',
-            height: '100%',
-            border: 'none',
-            zIndex: 0,
-          }}
-        />
-        {overlaySrc ? (
+        <div ref={shellRef} style={shellStyle}>
           <iframe
-            title="Live score overlay"
-            src={overlaySrc}
+            title="Live stream"
+            src={embedSrc}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowFullScreen
             style={{
               position: 'absolute',
-              left: 0,
-              right: 0,
-              bottom: 0,
+              inset: 0,
               width: '100%',
-              height: STREAM_OVERLAY_BAND_HEIGHT,
+              height: '100%',
               border: 'none',
-              pointerEvents: 'none',
-              zIndex: 2,
-              backgroundColor: 'transparent',
+              zIndex: 0,
             }}
           />
-        ) : null}
+          {overlaySrc ? (
+            <iframe
+              title="Live score overlay"
+              src={overlaySrc}
+              style={{
+                position: 'absolute',
+                left: 0,
+                right: 0,
+                bottom: 0,
+                width: '100%',
+                height: STREAM_OVERLAY_BAND_HEIGHT,
+                border: 'none',
+                pointerEvents: 'none',
+                zIndex: 2,
+                backgroundColor: 'transparent',
+              }}
+            />
+          ) : null}
+        </div>
       </div>
 
       <button
         type="button"
         onClick={() => void toggleFullscreen()}
-        aria-label={fs ? 'Exit full screen' : 'Full screen with overlay'}
+        aria-label={displayFs ? 'Exit full screen' : 'Full screen with overlay'}
         style={{
-          marginTop: '14px',
+          marginTop: immersive ? '12px' : '14px',
           width: '100%',
+          flexShrink: immersive ? 0 : undefined,
           touchAction: 'manipulation',
           WebkitTapHighlightColor: 'transparent',
           display: 'inline-flex',
@@ -203,32 +260,16 @@ export function StreamWithOverlay({ watchUrl, liveGameId, accentColor = '#5a7a2a
           textShadow: '0 1px 2px rgba(0,0,0,0.35)',
         }}
       >
-        {fs ? <Minimize2 size={22} strokeWidth={2.25} aria-hidden /> : <Maximize2 size={22} strokeWidth={2.25} aria-hidden />}
-        <span>{fs ? 'Exit full screen' : 'Full screen with overlay'}</span>
+        {displayFs ? <Minimize2 size={22} strokeWidth={2.25} aria-hidden /> : <Maximize2 size={22} strokeWidth={2.25} aria-hidden />}
+        <span>{displayFs ? 'Exit full screen' : 'Full screen with overlay'}</span>
       </button>
 
-      {fsBlockedHint ? (
-        <p
-          role="status"
-          style={{
-            margin: '12px 0 0',
-            fontSize: '13px',
-            lineHeight: 1.55,
-            color: 'rgba(127,29,29,0.92)',
-            background: 'rgba(254,226,226,0.65)',
-            border: '1px solid rgba(248,113,113,0.45)',
-            borderRadius: '12px',
-            padding: '12px 14px',
-          }}
-        >
-          {fsBlockedHint}
+      {!immersive ? (
+        <p style={{ margin: '12px 0 0', fontSize: '13px', color: 'rgba(15,23,42,0.72)', lineHeight: 1.55 }}>
+          Use the video&apos;s own controls to play or pause.{' '}
+          <strong style={{ color: 'rgba(15,23,42,0.88)' }}>Full screen with overlay</strong> enlarges the stream and live scores together.
         </p>
       ) : null}
-
-      <p style={{ margin: '12px 0 0', fontSize: '13px', color: 'rgba(15,23,42,0.72)', lineHeight: 1.55 }}>
-        Use the video&apos;s own controls to play or pause.{' '}
-        <strong style={{ color: 'rgba(15,23,42,0.88)' }}>Full screen with overlay</strong> enlarges the stream and live scores together.
-      </p>
     </div>
   )
 }
