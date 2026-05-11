@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 
 type PreviewPayload = {
@@ -24,7 +24,7 @@ export default function StreamPreviewPage() {
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState('')
 
-  async function load() {
+  const load = useCallback(async () => {
     const res = await fetch(`/api/public/games/${encodeURIComponent(gameId)}/overlay`)
     const json = await res.json().catch(() => null)
     if (!res.ok || !json?.game) {
@@ -34,12 +34,12 @@ export default function StreamPreviewPage() {
     }
     setPayload(json as PreviewPayload)
     setLoading(false)
-  }
+  }, [gameId])
 
   useEffect(() => {
     if (!gameId) return
     void load()
-  }, [gameId])
+  }, [gameId, load])
 
   async function patchGame(updates: Record<string, unknown>) {
     await fetch(`/api/games/${encodeURIComponent(gameId)}`, {

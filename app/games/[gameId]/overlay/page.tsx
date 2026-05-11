@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { useParams } from 'next/navigation'
 import { rgba } from '@/lib/overlay-theme'
@@ -63,7 +63,7 @@ export default function LiveGameOverlayPage() {
     setIsEmbed(new URLSearchParams(window.location.search).get('embed') === '1')
   }, [])
 
-  async function load() {
+  const load = useCallback(async () => {
     const res = await fetch(`/api/public/games/${encodeURIComponent(gameId)}/overlay`, {
       cache: 'no-store',
     })
@@ -75,7 +75,7 @@ export default function LiveGameOverlayPage() {
     }
     setPayload(json as OverlayPayload)
     setLoading(false)
-  }
+  }, [gameId])
 
   useEffect(() => {
     if (!gameId) return
@@ -96,7 +96,7 @@ export default function LiveGameOverlayPage() {
     return () => {
       void supabase.removeChannel(channel)
     }
-  }, [gameId])
+  }, [gameId, load])
 
   /** While live: poll ~every second so clock/score stay aligned with the scorer (realtime can miss rows). */
   useEffect(() => {
@@ -105,7 +105,7 @@ export default function LiveGameOverlayPage() {
     const POLL_MS = 1000
     const id = window.setInterval(() => void load(), POLL_MS)
     return () => clearInterval(id)
-  }, [gameId, payload?.game?.id, payload?.game?.status])
+  }, [gameId, payload?.game?.id, payload?.game?.status, load]) // eslint-disable-line react-hooks/exhaustive-deps -- omit full payload.game so polling is not restarted every score tick
 
   useEffect(() => {
     if (!payload) return
@@ -364,7 +364,7 @@ export default function LiveGameOverlayPage() {
               }}
             >
               {payload.homeTeam?.logo_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
+                 
                 <img
                   src={payload.homeTeam.logo_url}
                   alt=""
@@ -500,7 +500,7 @@ export default function LiveGameOverlayPage() {
                 {payload.awayTeam?.name || 'Away'}
               </span>
               {payload.awayTeam?.logo_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
+                 
                 <img
                   src={payload.awayTeam.logo_url}
                   alt=""

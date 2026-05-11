@@ -68,7 +68,7 @@ export async function GET() {
         .select('id, name, slug, primary_color, logo_url, plan, stripe_customer_id, stripe_subscription_id, news_banner, news_banner_color')
         .eq('id', access.organization.id)
         .single()
-    : { data: null as any }
+    : { data: null }
 
   const org =
     orgWithTz ||
@@ -179,7 +179,7 @@ export async function PATCH(req: Request) {
   })
 
   // Allow update of name, slug, and news_banner
-  const updateData: any = {
+  const updateData: Record<string, unknown> = {
     name,
     slug,
     news_banner,

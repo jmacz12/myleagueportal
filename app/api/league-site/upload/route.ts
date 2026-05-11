@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { createClient } from '@supabase/supabase-js'
-import { getOrgAccessForClerkUser } from '@/lib/org-access'
+import { getOrgAccessForClerkUser, getOrgAccessForOrganization } from '@/lib/org-access'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -15,8 +15,21 @@ export async function POST(req: Request) {
   const { userId } = await auth()
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const access = await getOrgAccessForClerkUser(userId)
-  if (!access) return NextResponse.json({ error: 'No organization' }, { status: 404 })
+  const formInit = await req.formData().catch(() => null)
+  if (!formInit) return NextResponse.json({ error: 'Invalid form data' }, { status: 400 })
+
+  const orgIdField = formInit.get('organization_id')
+  const orgIdStr = typeof orgIdField === 'string' ? orgIdField.trim() : ''
+
+  const access = orgIdStr
+    ? await getOrgAccessForOrganization(userId, orgIdStr)
+    : await getOrgAccessForClerkUser(userId)
+  if (!access) {
+    return NextResponse.json(
+      { error: orgIdStr ? 'No access to this organization.' : 'No organization' },
+      { status: 404 }
+    )
+  }
 
   const { data: orgPlan } = await supabaseAdmin
     .from('organizations')
@@ -30,8 +43,7 @@ export async function POST(req: Request) {
     )
   }
 
-  const form = await req.formData().catch(() => null)
-  if (!form) return NextResponse.json({ error: 'Invalid form data' }, { status: 400 })
+  const form = formInit
 
   const file = form.get('file')
   if (!file || !(file instanceof File)) {

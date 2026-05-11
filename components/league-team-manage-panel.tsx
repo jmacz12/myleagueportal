@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ImagePlus, X } from 'lucide-react'
 
 interface TeamRow {
@@ -90,11 +90,7 @@ export function LeagueTeamManagePanel({
   })
   const [csvImport, setCsvImport] = useState('')
 
-  useEffect(() => {
-    void load()
-  }, [teamId])
-
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true)
     setError('')
     const [teamsRes, seasonsRes, pollsRes, newsRes, calendarRes] = await Promise.all([
@@ -137,7 +133,11 @@ export function LeagueTeamManagePanel({
     setUpcomingEvents((calJson.upcoming || []) as TeamCalendarEvent[])
     setRecentEvents((calJson.recent || []) as TeamCalendarEvent[])
     setLoading(false)
-  }
+  }, [teamId])
+
+  useEffect(() => {
+    void load()
+  }, [load])
 
   async function afterMutation() {
     await load()
@@ -641,7 +641,7 @@ export function LeagueTeamManagePanel({
                 }}
               >
                 {team.logo_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
+                   
                   <img src={team.logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                 ) : (
                   <span style={{ fontSize: '10px', color: shell.muted, fontWeight: 700 }}>No logo</span>

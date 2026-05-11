@@ -7,7 +7,7 @@ function splitPoints(total: number, playerIds: string[]): { id: string; pts: num
   const weights = playerIds.map(() => 0.15 + Math.random())
   const wsum = weights.reduce((a, b) => a + b, 0)
   const raw = weights.map((w) => Math.floor((w / wsum) * total))
-  let used = raw.reduce((a, b) => a + b, 0)
+  const used = raw.reduce((a, b) => a + b, 0)
   let rem = total - used
   const out = playerIds.map((id, i) => ({ id, pts: raw[i] }))
   for (let k = 0; rem > 0; k++, rem--) {

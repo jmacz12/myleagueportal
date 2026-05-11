@@ -2,7 +2,12 @@ import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { createClient } from '@supabase/supabase-js'
 import * as pdfParseModule from 'pdf-parse'
-const pdfParse = (pdfParseModule as any).default ?? pdfParseModule
+
+type PdfParseFn = (data: Buffer) => Promise<{ text: string }>
+const pdfParse: PdfParseFn =
+  'default' in pdfParseModule && typeof pdfParseModule.default === 'function'
+    ? (pdfParseModule.default as PdfParseFn)
+    : (pdfParseModule as unknown as PdfParseFn)
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,

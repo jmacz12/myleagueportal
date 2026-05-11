@@ -44,7 +44,7 @@ export default async function DashboardPage() {
           </span>
         </div>
         <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-          Welcome back — here's your league at a glance
+          Welcome back — here&apos;s your league at a glance
         </p>
       </div>
 

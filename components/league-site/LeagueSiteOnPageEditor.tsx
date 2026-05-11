@@ -16,6 +16,8 @@ import type { LeagueSitePayload, LeagueSiteSection } from '@/lib/league-site'
 import { PUBLIC_LEAGUE_FONT_OPTIONS } from '@/lib/public-league-fonts'
 import { createLeagueSiteSection } from '@/lib/league-site'
 import { countGalleryImages } from '@/lib/league-site-limits'
+import { broadcastLeagueAppearanceUpdated } from '@/lib/league-appearance-sync'
+import { PRO_BRAND_COLOR_CHANGES_PER_MONTH, PRO_BRAND_COLOR_COUNTER_HELPER } from '@/lib/pro-brand-color-limits'
 import { InlineCircularProgress } from '@/components/league-site/InlineCircularProgress'
 
 export function LeagueSiteStickyEditBar({
@@ -150,6 +152,7 @@ export function LeagueSiteStickyEditBar({
 }
 
 export function LeagueSiteLookControls({
+  organizationId,
   draftSite,
   onDraftChange,
   preset,
@@ -164,6 +167,8 @@ export function LeagueSiteLookControls({
   websiteLockedForPlan,
   appearanceMeta,
 }: {
+  /** Must match the league row being edited — scopes auth + PATCH to this organization. */
+  organizationId: string
   draftSite: LeagueSitePayload
   onDraftChange: (fn: (prev: LeagueSitePayload) => LeagueSitePayload) => void
   preset: ThemePreset
@@ -231,7 +236,9 @@ export function LeagueSiteLookControls({
       const res = await fetch('/api/league-org-appearance', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
+          organization_id: organizationId,
           primary_color: localColor,
           league_theme_preset: localThemeChoice,
           league_appearance_mode: appearanceModeForChoice(localThemeChoice),
@@ -254,18 +261,42 @@ export function LeagueSiteLookControls({
           league_appearance_mode: sanitizeLeagueAppearanceMode(data.organization.league_appearance_mode),
         })
       }
+      let remaining: number | null =
+        typeof data.proBrandColorChangesRemaining === 'number' ? data.proBrandColorChangesRemaining : null
+      let monthly =
+        typeof data.proBrandColorChangesMonthlyLimit === 'number'
+          ? data.proBrandColorChangesMonthlyLimit
+          : PRO_BRAND_COLOR_CHANGES_PER_MONTH
+      try {
+        const siteRes = await fetch(
+          `/api/league-site?organization_id=${encodeURIComponent(organizationId)}`,
+          { cache: 'no-store', credentials: 'include' }
+        )
+        if (siteRes.ok) {
+          const siteJson = await siteRes.json()
+          const ap = siteJson.appearance as {
+            proBrandColorChangesRemaining?: unknown
+            proBrandColorChangesMonthlyLimit?: unknown
+          }
+          if (ap && typeof ap.proBrandColorChangesRemaining === 'number') {
+            remaining = ap.proBrandColorChangesRemaining
+          }
+          if (ap && typeof ap.proBrandColorChangesMonthlyLimit === 'number') {
+            monthly = ap.proBrandColorChangesMonthlyLimit
+          }
+        }
+      } catch {
+        /* keep PATCH values */
+      }
       if (onAppearanceMetaApplied) {
         onAppearanceMetaApplied({
-          proBrandColorChangesRemaining:
-            typeof data.proBrandColorChangesRemaining === 'number'
-              ? data.proBrandColorChangesRemaining
-              : null,
-          proBrandColorChangesMonthlyLimit:
-            typeof data.proBrandColorChangesMonthlyLimit === 'number'
-              ? data.proBrandColorChangesMonthlyLimit
-              : 5,
+          proBrandColorChangesRemaining: remaining,
+          proBrandColorChangesMonthlyLimit: monthly,
         })
       }
+      broadcastLeagueAppearanceUpdated()
+    } catch (e) {
+      setAppearanceError(e instanceof Error ? e.message : 'Could not save appearance.')
     } finally {
       setAppearanceSaving(false)
     }
@@ -347,12 +378,6 @@ export function LeagueSiteLookControls({
                 : 'Applies to this league home and join hub pages. Save draft or Publish to ship font changes.'}
             </p>
           </div>
-
-          {accessRole === 'editor' ? (
-            <p style={{ margin: 0, fontSize: '13px', color: preset.body, lineHeight: 1.5 }}>
-              Brand color and palette presets can only be changed by the league owner (Dashboard → Settings or owner edit session).
-            </p>
-          ) : null}
 
           {basicOwner ? (
             <>
@@ -496,15 +521,20 @@ export function LeagueSiteLookControls({
                 {appearanceSaving ? <Loader2 size={16} className="animate-spin" aria-hidden /> : null}
                 {appearanceSaving ? 'Saving…' : 'Save brand & theme'}
               </button>
-              {isPro &&
-              appearanceMeta?.proBrandColorChangesRemaining != null &&
-              appearanceMeta.proBrandColorChangesMonthlyLimit ? (
+              {planLower === 'enterprise' ? (
+                <p style={{ margin: 0, fontSize: '12px', color: preset.muted, lineHeight: 1.45 }}>
+                  <strong style={{ color: preset.heading }}>Enterprise:</strong> unlimited brand color changes. Theme presets
+                  and fonts don&apos;t count toward any cap.
+                </p>
+              ) : isPro &&
+                appearanceMeta?.proBrandColorChangesRemaining != null &&
+                appearanceMeta.proBrandColorChangesMonthlyLimit ? (
                 <p style={{ margin: 0, fontSize: '12px', color: preset.muted, lineHeight: 1.45 }}>
                   <strong style={{ color: preset.heading }}>Pro:</strong> brand <em>color</em> changes left this month:{' '}
                   <strong style={{ color: preset.heading }}>
                     {appearanceMeta.proBrandColorChangesRemaining}
                   </strong>{' '}
-                  / {appearanceMeta.proBrandColorChangesMonthlyLimit}. Theme presets and fonts don&apos;t count toward this cap.
+                  / {appearanceMeta.proBrandColorChangesMonthlyLimit}. {PRO_BRAND_COLOR_COUNTER_HELPER}
                 </p>
               ) : null}
             </>
@@ -524,12 +554,13 @@ export function LeagueSiteLookControls({
 
 export function LeagueSiteHeroEditOverlay({
   preset,
-  heroBackgroundUrl,
+  heroBackgroundUrl: _heroBackgroundUrl,
   heroTagline,
   heroInitials,
   onChangeUrl,
   onChangeTagline,
   onChangeInitials,
+  organizationId,
 }: {
   preset: ThemePreset
   heroBackgroundUrl: string | null
@@ -540,7 +571,10 @@ export function LeagueSiteHeroEditOverlay({
   onChangeUrl: (url: string | null) => void
   onChangeTagline: (value: string | null) => void
   onChangeInitials: (value: string | null) => void
+  /** Scope uploads to this org when the editor has multiple leagues (matches Save draft). */
+  organizationId?: string
 }) {
+  void _heroBackgroundUrl
   const [heroUploading, setHeroUploading] = useState(false)
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -549,9 +583,10 @@ export function LeagueSiteHeroEditOverlay({
     if (!file) return
     const fd = new FormData()
     fd.append('file', file)
+    if (organizationId) fd.append('organization_id', organizationId)
     setHeroUploading(true)
     try {
-      const res = await fetch('/api/league-site/upload', { method: 'POST', body: fd })
+      const res = await fetch('/api/league-site/upload', { method: 'POST', body: fd, credentials: 'include' })
       const data = await res.json().catch(() => ({}))
       if (res.ok && typeof data.url === 'string') onChangeUrl(data.url)
     } finally {
@@ -709,12 +744,14 @@ export function LeagueSiteSectionsEditor({
   onChange,
   preset,
   maxGalleryImages = 100,
+  organizationId,
 }: {
   value: LeagueSitePayload
   onChange: (next: LeagueSitePayload) => void
   preset: ThemePreset
   /** Total gallery images allowed (plan limit); enforced again on save. */
   maxGalleryImages?: number
+  organizationId?: string
 }) {
   function updateSections(fn: (sections: LeagueSiteSection[]) => LeagueSiteSection[]) {
     onChange({ ...value, sections: fn(value.sections) })
@@ -915,6 +952,7 @@ export function LeagueSiteSectionsEditor({
               preset={preset}
               payload={value}
               maxGalleryImages={maxGalleryImages}
+              organizationId={organizationId}
               onChange={(next) => updateSection(sec.id, () => next)}
             />
           ) : (
@@ -954,12 +992,14 @@ function MediaUrlsEditor({
   preset,
   payload,
   maxGalleryImages,
+  organizationId,
   onChange,
 }: {
   section: Extract<LeagueSiteSection, { type: 'media' }>
   preset: ThemePreset
   payload: LeagueSitePayload
   maxGalleryImages: number
+  organizationId?: string
   onChange: (s: Extract<LeagueSiteSection, { type: 'media' }>) => void
 }) {
   const [uploadBatch, setUploadBatch] = useState<{ current: number; total: number } | null>(null)
@@ -983,7 +1023,8 @@ function MediaUrlsEditor({
         const file = take[i]
         const fd = new FormData()
         fd.append('file', file)
-        const res = await fetch('/api/league-site/upload', { method: 'POST', body: fd })
+        if (organizationId) fd.append('organization_id', organizationId)
+        const res = await fetch('/api/league-site/upload', { method: 'POST', body: fd, credentials: 'include' })
         const data = await res.json().catch(() => ({}))
         if (res.ok && typeof data.url === 'string') {
           items = [...items, { url: data.url, kind: 'image' as const }]

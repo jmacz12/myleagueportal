@@ -6,7 +6,7 @@ import { useUser } from '@clerk/nextjs'
 import { Lock } from 'lucide-react'
 
 export default function OnboardingPage() {
-  const { user, isLoaded } = useUser()
+  const { isLoaded } = useUser()
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')

@@ -1,6 +1,48 @@
 import { createClient } from '@supabase/supabase-js'
 import { Trophy } from 'lucide-react'
 
+const statKeys = ['pts', 'fg2m', 'fg3m', 'ftm', 'ast', 'reb', 'stl', 'blk', 'tov', 'pf'] as const
+type StatKey = (typeof statKeys)[number]
+
+type PlayerJoin = {
+  full_name?: string | null
+  jersey_number?: number | null
+}
+
+type GameStatRow = {
+  id: string
+  team_id: string | null
+  player_id: string | null
+  pts: number | null
+  ast: number | null
+  reb: number | null
+  stl: number | null
+  blk: number | null
+  tov: number | null
+  pf: number | null
+  fg2m?: number | null
+  fg3m?: number | null
+  ftm?: number | null
+  players: PlayerJoin | null
+}
+
+type TeamRow = { id: string; name: string | null; color: string | null }
+
+type HighlightRow = {
+  player_id: string | null
+  full_name: string
+  jersey_number: number | null
+  team_name: string | null
+  team_color: string | null
+  pts: number
+  ast: number
+  reb: number
+  stl: number
+  blk: number
+  tov: number
+  pf: number
+}
+
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -33,21 +75,20 @@ export default async function PublicScoreboard({
   const homeTeam = teams?.find(t => t.id === game.home_team_id)
   const awayTeam = teams?.find(t => t.id === game.away_team_id)
 
-  const homeStats = stats?.filter(s => {
-    const player = s.players as any
-    return player && homeTeam && s.team_id === homeTeam.id
+  const homeStats: GameStatRow[] = (stats as GameStatRow[] | null | undefined)?.filter((s) => {
+    const player = s.players
+    return !!player && !!homeTeam && s.team_id === homeTeam.id
   }) || []
 
-  const awayStats = stats?.filter(s => {
-    const player = s.players as any
-    return player && awayTeam && s.team_id === awayTeam.id
+  const awayStats: GameStatRow[] = (stats as GameStatRow[] | null | undefined)?.filter((s) => {
+    const player = s.players
+    return !!player && !!awayTeam && s.team_id === awayTeam.id
   }) || []
 
   const statHeaders = ['#', 'Player', 'PTS', '2PM', '3PM', 'FTM', 'AST', 'REB', 'STL', 'BLK', 'TOV', 'PF']
-  const statKeys = ['pts', 'fg2m', 'fg3m', 'ftm', 'ast', 'reb', 'stl', 'blk', 'tov', 'pf'] as const
 
   function StatTable({ teamStats, teamName, teamColor }: {
-    teamStats: any[]
+    teamStats: GameStatRow[]
     teamName: string
     teamColor: string | null
   }) {
@@ -72,14 +113,14 @@ export default async function PublicScoreboard({
               No stats yet
             </div>
           ) : teamStats.sort((a, b) => (b.pts || 0) - (a.pts || 0)).map((s, idx) => {
-            const player = s.players as any
+            const player = s.players
             return (
               <div key={s.id} style={{ display: 'grid', gridTemplateColumns: '32px minmax(100px, 1fr) repeat(10, minmax(36px, 40px))', gap: '4px', padding: '10px 14px', borderTop: idx > 0 ? '0.5px solid #f0e8d0' : 'none', alignItems: 'center', minWidth: '520px' }}>
                 <span style={{ fontSize: '11px', color: '#9a8c6a', textAlign: 'center' }}>{player?.jersey_number ? `#${player.jersey_number}` : '—'}</span>
                 <span style={{ fontSize: '13px', fontWeight: '600', color: '#1a1a0a' }}>{player?.full_name}</span>
-                {statKeys.map(stat => (
+                {statKeys.map((stat) => (
                   <span key={stat} style={{ fontSize: '13px', fontWeight: stat === 'pts' ? '800' : '400', color: stat === 'pts' ? '#1a1a0a' : '#6b5e3a', textAlign: 'center' }}>
-                    {(s as any)[stat] ?? 0}
+                    {(Number(s[stat as StatKey] ?? 0))}
                   </span>
                 ))}
               </div>
@@ -146,15 +187,17 @@ export default async function PublicScoreboard({
 
         {/* Post-game highlights on public page */}
         {game.status === 'final' && stats && stats.length > 0 && (() => {
-          const allStats = stats.map(s => {
-            const player = s.players as any
-            const team = teams?.find(t => t.id === s.team_id)
+          const teamList = teams as TeamRow[] | null | undefined
+          const statRows = stats as GameStatRow[]
+          const allStats: HighlightRow[] = statRows.map((s) => {
+            const player = s.players
+            const team = teamList?.find((t) => t.id === s.team_id)
             return {
               player_id: s.player_id,
               full_name: player?.full_name || 'Unknown',
-              jersey_number: player?.jersey_number || null,
-              team_name: team?.name || null,
-              team_color: team?.color || null,
+              jersey_number: player?.jersey_number ?? null,
+              team_name: team?.name ?? null,
+              team_color: team?.color ?? null,
               pts: s.pts || 0,
               ast: s.ast || 0,
               reb: s.reb || 0,
@@ -165,7 +208,7 @@ export default async function PublicScoreboard({
             }
           })
 
-          function calcScore(s: any) {
+          function calcScore(s: HighlightRow) {
             return s.pts + (s.ast * 1.5) + (s.reb * 1.2) + (s.stl * 2) + (s.blk * 2) - (s.tov * 1.5) - (s.pf * 0.5)
           }
 

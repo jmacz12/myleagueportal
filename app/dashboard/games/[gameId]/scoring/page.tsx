@@ -1159,7 +1159,11 @@ export default function ScoringPage() {
               stats={Object.entries(stats).map(([pid, s]) => {
                 const player = players.find((p) => p.id === pid)
                 const team = teams.find((t) => t.id === player?.team_id)
-                const { player_id: _pid, fg2m: _f2, fg3m: _f3, ftm: _ft, ...rest } = s
+                const { player_id: _rowPid, fg2m, fg3m, ftm, ...rest } = s
+                void _rowPid
+                void fg2m
+                void fg3m
+                void ftm
                 return {
                   player_id: pid,
                   full_name: player?.full_name || 'Unknown',

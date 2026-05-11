@@ -130,11 +130,12 @@ export async function GET(
   })
 
   const sessionIds = upcoming.map((s) => s.id)
-  const signupsBySession = new Map<string, { full_name: string }[]>()
+  const rosterBySession = new Map<string, { full_name: string }[]>()
+  const waitlistBySession = new Map<string, { full_name: string }[]>()
   if (sessionIds.length > 0) {
     const { data: regs } = await supabaseAdmin
       .from('dropin_registrations')
-      .select('session_id, full_name, created_at')
+      .select('session_id, full_name, created_at, is_waitlist')
       .in('session_id', sessionIds)
       .eq('is_guest', false)
       .order('session_id', { ascending: true })
@@ -142,15 +143,21 @@ export async function GET(
 
     for (const row of regs || []) {
       const sid = row.session_id as string
-      const list = signupsBySession.get(sid) || []
-      list.push({ full_name: String(row.full_name || '').trim() || 'Player' })
-      signupsBySession.set(sid, list)
+      const name = { full_name: String(row.full_name || '').trim() || 'Player' }
+      const wl = Boolean((row as { is_waitlist?: boolean }).is_waitlist)
+      const map = wl ? waitlistBySession : rosterBySession
+      const list = map.get(sid) || []
+      list.push(name)
+      map.set(sid, list)
     }
   }
 
   const sessionsWithSignups = upcoming.map((s) => ({
     ...s,
-    signups: signupsBySession.get(s.id) || [],
+    /** Confirmed roster (counts toward max_players). */
+    signups: rosterBySession.get(s.id) || [],
+    /** Waitlist after roster is full (counts toward max_waitlist). */
+    waitlist: waitlistBySession.get(s.id) || [],
   }))
 
   const { data: seasonRows } = await supabaseAdmin

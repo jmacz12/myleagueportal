@@ -21,6 +21,8 @@ export interface ThemePreset {
   muted: string
   accent: string
   accentSoftBg: string
+  /** Secondary wash for layered page backgrounds (complements accentSoftBg). */
+  accentMutedBg: string
 }
 
 function clamp(v: number, min: number, max: number): number {
@@ -178,6 +180,7 @@ export function getThemePresets(brandColor: string | null | undefined): ThemePre
       muted: mix('#8f8570', accent, 0.2),
       accent,
       accentSoftBg: mix(accent, '#ffffff', 0.88),
+      accentMutedBg: mix(shiftHue(accent, 92, 0.07, 0.05), mix(accent, '#ffffff', 0.9), 0.36),
     },
     {
       id: 'preset-2',
@@ -191,6 +194,7 @@ export function getThemePresets(brandColor: string | null | undefined): ThemePre
       muted: mix('#64748b', accentCool, 0.32),
       accent: mix(accentCool, '#0f172a', 0.06),
       accentSoftBg: mix(accentCool, '#ffffff', 0.76),
+      accentMutedBg: mix(shiftHue(accentCool, -42, 0.08, 0.04), mix(accentCool, '#eaf4ff', 0.82), 0.34),
     },
     {
       id: 'preset-3',
@@ -217,6 +221,7 @@ export function getThemePresets(brandColor: string | null | undefined): ThemePre
       muted: mix('#6b7280', accentVivid, 0.38),
       accent: mix(accentVivid, '#111827', 0.04),
       accentSoftBg: mix(accentVivid, '#ffffff', 0.68),
+      accentMutedBg: mix(shiftHue(accentVivid, -55, 0.1, 0.04), mix(accentVivid, '#f7f7ff', 0.78), 0.36),
     },
     {
       id: 'preset-5',
@@ -230,6 +235,7 @@ export function getThemePresets(brandColor: string | null | undefined): ThemePre
       muted: mix('#6b7280', accentSoft, 0.26),
       accent: mix(accentSoft, '#111827', 0.06),
       accentSoftBg: mix(accentSoft, '#ffffff', 0.84),
+      accentMutedBg: mix(shiftHue(accentSoft, 75, 0.05, 0.06), mix(accentSoft, '#f8f8f6', 0.9), 0.35),
     },
   ]
 }
@@ -254,6 +260,7 @@ export function applyLeagueAppearanceMode(
     muted: '#a1a1aa',
     accent: preset.accent,
     accentSoftBg: mix(preset.accent, '#151a22', 0.38),
+    accentMutedBg: mix(shiftHue(preset.accent, 95, 0.05, -0.03), pageBg, 0.42),
   })
 }
 
@@ -292,6 +299,22 @@ export interface PublicHeroTheme {
   bandAltBg: string
   footerBarBg: string
   footerBarText: string
+}
+
+/**
+ * Layered CSS background for the public drop-in sessions list — readable in light and dark shells.
+ */
+export function dropinPublicPageBackdrop(preset: ThemePreset): string {
+  const { pageBg, accent, accentSoftBg, accentMutedBg } = preset
+  const topSheen = withAlpha(accent, 0.12)
+  const floorGlow = withAlpha(accent, 0.08)
+  return [
+    `linear-gradient(175deg, ${withAlpha(accentSoftBg, 0.88)} 0%, ${pageBg} 40%, ${pageBg} 100%)`,
+    `radial-gradient(ellipse 130% 65% at 50% -38%, ${topSheen} 0%, transparent 58%)`,
+    `radial-gradient(1050px 620px at 8% 6%, ${accentSoftBg} 0%, transparent 61%)`,
+    `radial-gradient(920px 540px at 96% 14%, ${accentMutedBg} 0%, transparent 62%)`,
+    `radial-gradient(900px 720px at 48% 118%, ${floorGlow} 0%, transparent 54%)`,
+  ].join(', ')
 }
 
 export function publicHeroThemeFromPreset(preset: ThemePreset): PublicHeroTheme {

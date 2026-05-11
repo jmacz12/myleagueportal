@@ -1,17 +1,14 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { createClient } from '@supabase/supabase-js'
-import { getOrgAccessForClerkUser } from '@/lib/org-access'
+import { getOrgAccessForClerkUser, getOrgAccessForOrganization } from '@/lib/org-access'
 import { appearanceModeForChoice, normalizeLeagueThemePresetId, type LeagueThemeChoiceId } from '@/lib/league-theme-choice'
-import { sanitizeLeagueAppearanceMode } from '@/lib/public-league-branding'
-import { proBrandColorChangesRemaining } from '@/lib/pro-brand-color-limits'
+import { PRO_BRAND_COLOR_CHANGES_PER_MONTH, proBrandColorChangesRemaining } from '@/lib/pro-brand-color-limits'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
-
-const PRO_BRAND_COLOR_CHANGES_PER_MONTH = 5
 
 function startOfCurrentPeriodIso(): string {
   const d = new Date()
@@ -29,6 +26,62 @@ function normalizeHex(input: unknown): string | null {
   return m ? `#${m[1].toLowerCase()}` : null
 }
 
+type OrgAppearanceRow = {
+  plan: string | null
+  primary_color: string | null
+  league_theme_preset: string | null
+  league_appearance_mode: string | null
+  brand_color_change_count: number | null
+  brand_color_change_period_start: string | null
+}
+
+/** Read org appearance + usage counters after an update — matches Dashboard → Settings DB truth. */
+async function loadOrgAppearanceForResponse(orgId: string): Promise<OrgAppearanceRow | null> {
+  const full =
+    'plan, primary_color, league_theme_preset, league_appearance_mode, brand_color_change_count, brand_color_change_period_start'
+  const { data, error } = await supabaseAdmin.from('organizations').select(full).eq('id', orgId).maybeSingle()
+  if (data && !error) {
+    return {
+      plan: data.plan,
+      primary_color: data.primary_color,
+      league_theme_preset: data.league_theme_preset,
+      league_appearance_mode: data.league_appearance_mode,
+      brand_color_change_count: data.brand_color_change_count,
+      brand_color_change_period_start: data.brand_color_change_period_start,
+    }
+  }
+  const { data: leg } = await supabaseAdmin.from('organizations').select('plan, primary_color').eq('id', orgId).maybeSingle()
+  if (!leg) return null
+  return {
+    plan: leg.plan,
+    primary_color: leg.primary_color,
+    league_theme_preset: 'classic',
+    league_appearance_mode: 'light',
+    brand_color_change_count: 0,
+    brand_color_change_period_start: null,
+  }
+}
+
+function appearancePayloadFromRow(row: OrgAppearanceRow) {
+  const themeChoice = normalizeLeagueThemePresetId(
+    row.league_theme_preset,
+    row.league_appearance_mode
+  ) as LeagueThemeChoiceId
+  return {
+    organization: {
+      primary_color: row.primary_color ?? null,
+      league_theme_preset: themeChoice,
+      league_appearance_mode: appearanceModeForChoice(themeChoice),
+    },
+    proBrandColorChangesRemaining: proBrandColorChangesRemaining({
+      plan: row.plan,
+      brand_color_change_count: row.brand_color_change_count,
+      brand_color_change_period_start: row.brand_color_change_period_start,
+    }),
+    proBrandColorChangesMonthlyLimit: PRO_BRAND_COLOR_CHANGES_PER_MONTH,
+  }
+}
+
 /**
  * PATCH brand color + theme preset for the signed-in user's organization.
  * Owner-only (website editors manage content, not org billing/theme limits).
@@ -38,20 +91,43 @@ export async function PATCH(req: Request) {
   const { userId } = await auth()
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const access = await getOrgAccessForClerkUser(userId)
-  if (!access) return NextResponse.json({ error: 'No organization' }, { status: 404 })
+  let body: {
+    organization_id?: unknown
+    primary_color?: unknown
+    league_theme_preset?: unknown
+    league_appearance_mode?: unknown
+  }
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+  }
+
+  const orgIdFromClient =
+    typeof body.organization_id === 'string' ? body.organization_id.trim() : ''
+
+  const access = orgIdFromClient
+    ? await getOrgAccessForOrganization(userId, orgIdFromClient)
+    : await getOrgAccessForClerkUser(userId)
+
+  if (!access) {
+    return NextResponse.json(
+      {
+        error: orgIdFromClient
+          ? 'You do not have access to this league, or the league was not found.'
+          : 'No organization',
+      },
+      { status: 404 }
+    )
+  }
   if (access.role !== 'owner') {
     return NextResponse.json(
       { error: 'Only the league owner can change brand colors and theme presets.' },
       { status: 403 }
     )
   }
-
-  let body: { primary_color?: unknown; league_theme_preset?: unknown; league_appearance_mode?: unknown }
-  try {
-    body = await req.json()
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+  if (orgIdFromClient && access.organization.id !== orgIdFromClient) {
+    return NextResponse.json({ error: 'Organization mismatch.' }, { status: 400 })
   }
 
   const wantsPreset = body.league_theme_preset !== undefined
@@ -275,57 +351,22 @@ export async function PATCH(req: Request) {
       delete fallback.league_appearance_mode
       const { error: fb } = await supabaseAdmin.from('organizations').update(fallback).eq('id', org.id)
       if (fb) return NextResponse.json({ error: 'Failed to save appearance' }, { status: 500 })
+      const snap = await loadOrgAppearanceForResponse(org.id)
+      if (!snap) return NextResponse.json({ error: 'Failed to save appearance' }, { status: 500 })
       return NextResponse.json({
         ok: true,
         warning:
-          'Saved color; theme preset counters require the latest database migration. Finish migrating or use Dashboard → Settings.',
-        organization: {
-          primary_color: (fallback.primary_color as string) ?? org.primary_color,
-          league_theme_preset: org.league_theme_preset,
-          league_appearance_mode: sanitizeLeagueAppearanceMode(
-            (org as { league_appearance_mode?: string }).league_appearance_mode
-          ),
-        },
-        proBrandColorChangesRemaining: proBrandColorChangesRemaining({
-          plan,
-          brand_color_change_count: Number(updateData.brand_color_change_count ?? org.brand_color_change_count ?? 0),
-          brand_color_change_period_start:
-            typeof updateData.brand_color_change_period_start === 'string'
-              ? updateData.brand_color_change_period_start
-              : (org.brand_color_change_period_start as string | null),
-        }),
-        proBrandColorChangesMonthlyLimit: PRO_BRAND_COLOR_CHANGES_PER_MONTH,
+          'Your database is missing appearance columns (theme preset cannot be saved yet). Run migrations: npm run db:apply-pending — or paste scripts/sql/ensure-organization-appearance-columns.sql in Supabase → SQL Editor. Only brand color was saved.',
+        ...appearancePayloadFromRow(snap),
       })
     }
     return NextResponse.json({ error: 'Failed to save appearance' }, { status: 500 })
   }
 
-  const { data: fresh } = await supabaseAdmin
-    .from('organizations')
-    .select(
-      'plan, primary_color, league_theme_preset, league_appearance_mode, brand_color_change_count, brand_color_change_period_start'
-    )
-    .eq('id', org.id)
-    .single()
-
-  const themeChoice = normalizeLeagueThemePresetId(
-    fresh?.league_theme_preset,
-    fresh?.league_appearance_mode
-  ) as LeagueThemeChoiceId
+  const snap = await loadOrgAppearanceForResponse(org.id)
+  if (!snap) return NextResponse.json({ error: 'Failed to save appearance' }, { status: 500 })
   return NextResponse.json({
     ok: true,
-    organization: {
-      primary_color: fresh?.primary_color ?? org.primary_color,
-      league_theme_preset: themeChoice,
-      league_appearance_mode: appearanceModeForChoice(themeChoice),
-    },
-    proBrandColorChangesRemaining: proBrandColorChangesRemaining({
-      plan: fresh?.plan ?? plan,
-      brand_color_change_count: fresh?.brand_color_change_count ?? org.brand_color_change_count,
-      brand_color_change_period_start:
-        (fresh?.brand_color_change_period_start as string | null | undefined) ??
-        (org.brand_color_change_period_start as string | null),
-    }),
-    proBrandColorChangesMonthlyLimit: PRO_BRAND_COLOR_CHANGES_PER_MONTH,
+    ...appearancePayloadFromRow(snap),
   })
 }

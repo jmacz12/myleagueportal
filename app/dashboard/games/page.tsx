@@ -33,7 +33,7 @@ export default function GamesPage() {
         ].map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id as any)}
+            onClick={() => setActiveTab(tab.id as 'games' | 'dropin')}
             style={{
               padding: '8px 16px',
               borderRadius: '7px',

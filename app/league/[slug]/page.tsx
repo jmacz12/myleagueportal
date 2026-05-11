@@ -30,6 +30,7 @@ import { contrastTextForAccent, publicHeroThemeFromPreset, resolveThemePreset } 
 import { getPublicThemeInputsForOrg } from '@/lib/public-league-branding'
 import type { LeagueSitePayload, LeagueSiteSection } from '@/lib/league-site'
 import { DEFAULT_LEAGUE_HERO_TAGLINE, EMPTY_LEAGUE_SITE, displayHeroInitials } from '@/lib/league-site'
+import { subscribeLeagueAppearanceUpdated } from '@/lib/league-appearance-sync'
 import { googleFontStylesheetHref, resolvePublicLeagueFontStack } from '@/lib/public-league-fonts'
 import { StreamWithOverlay } from '@/components/public-stream/StreamWithOverlay'
 import { createClient } from '@supabase/supabase-js'
@@ -492,7 +493,7 @@ function LeagueHomeContent() {
   useEffect(() => {
     let cancelled = false
     setAccessResolved(false)
-    fetch('/api/me/org-access')
+    fetch(`/api/me/org-access?slug=${encodeURIComponent(slug)}`)
       .then(async (r) => {
         if (cancelled) return
         if (!r.ok) {
@@ -576,9 +577,15 @@ function LeagueHomeContent() {
       setAppearanceApi(null)
       return
     }
+    if (!hub?.organization?.id) return
+
     let cancelled = false
     setDraftLoadState('loading')
-    fetch('/api/league-site')
+    const oid = hub.organization.id
+    fetch(`/api/league-site?organization_id=${encodeURIComponent(oid)}`, {
+      cache: 'no-store',
+      credentials: 'include',
+    })
       .then(async (r) => {
         if (!r.ok) throw new Error(r.status === 401 ? 'auth' : 'load')
         return r.json()
@@ -604,7 +611,38 @@ function LeagueHomeContent() {
     return () => {
       cancelled = true
     }
-  }, [editMode])
+  }, [editMode, hub?.organization?.id])
+
+  useEffect(() => {
+    if (!editMode || !hub?.organization?.id) return
+    const oid = hub.organization.id
+    let cancelled = false
+    const unsub = subscribeLeagueAppearanceUpdated(() => {
+      void (async () => {
+        const r = await fetch(`/api/league-site?organization_id=${encodeURIComponent(oid)}`, {
+          cache: 'no-store',
+          credentials: 'include',
+        })
+        if (!r.ok || cancelled) return
+        const data = await r.json()
+        const ap = data.appearance as {
+          proBrandColorChangesRemaining?: unknown
+          proBrandColorChangesMonthlyLimit?: unknown
+        }
+        if (!ap || typeof ap !== 'object' || cancelled) return
+        setAppearanceApi({
+          proBrandColorChangesRemaining:
+            typeof ap.proBrandColorChangesRemaining === 'number' ? ap.proBrandColorChangesRemaining : null,
+          proBrandColorChangesMonthlyLimit:
+            typeof ap.proBrandColorChangesMonthlyLimit === 'number' ? ap.proBrandColorChangesMonthlyLimit : 5,
+        })
+      })()
+    })
+    return () => {
+      cancelled = true
+      unsub()
+    }
+  }, [editMode, hub?.organization?.id])
 
   useEffect(() => {
     const onScroll = () => setStickyVisible(window.scrollY > 96)
@@ -702,7 +740,8 @@ function LeagueHomeContent() {
       const res = await fetch('/api/league-site', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ draft: draftSite }),
+        credentials: 'include',
+        body: JSON.stringify({ draft: draftSite, organization_id: org.id }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -725,7 +764,8 @@ function LeagueHomeContent() {
       const res = await fetch('/api/league-site', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ draft: draftSite, publish: true }),
+        credentials: 'include',
+        body: JSON.stringify({ draft: draftSite, publish: true, organization_id: org.id }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -826,7 +866,9 @@ function LeagueHomeContent() {
             errorMessage={editorError}
             websiteLockedForPlan={websiteLockedForPlan}
           />
+          {siteAccessRole === 'owner' ? (
           <LeagueSiteLookControls
+            organizationId={org.id}
             draftSite={draftSite}
             onDraftChange={(fn) => setDraftSite((d) => (d ? fn(d) : null))}
             preset={preset}
@@ -848,6 +890,13 @@ function LeagueHomeContent() {
                     }
                   : h
               )
+              if (isProLike && siteAccessRole === 'owner') {
+                setAppearancePreview({
+                  primary_color: (o.primary_color ?? '#5a7a2a').trim(),
+                  league_theme_preset: o.league_theme_preset,
+                  league_appearance_mode: o.league_appearance_mode,
+                })
+              }
             }}
             onAppearanceMetaApplied={(m) => {
               setAppearanceApi({
@@ -860,6 +909,7 @@ function LeagueHomeContent() {
             websiteLockedForPlan={websiteLockedForPlan}
             appearanceMeta={appearanceApi ?? undefined}
           />
+          ) : null}
         </>
       ) : null}
 
@@ -989,6 +1039,7 @@ function LeagueHomeContent() {
             heroBackgroundUrl={draftSite.heroBackgroundUrl}
             heroTagline={draftSite.heroTagline}
             heroInitials={draftSite.heroInitials}
+            organizationId={org.id}
             onChangeUrl={(url) => setDraftSite((d) => (d ? { ...d, heroBackgroundUrl: url } : null))}
             onChangeTagline={(v) => setDraftSite((d) => (d ? { ...d, heroTagline: v } : null))}
             onChangeInitials={(v) => setDraftSite((d) => (d ? { ...d, heroInitials: v } : null))}
@@ -1653,7 +1704,7 @@ function LeagueHomeContent() {
                             aria-hidden
                           >
                             {t.logo_url ? (
-                              // eslint-disable-next-line @next/next/no-img-element
+                               
                               <img src={t.logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                             ) : (
                               <span style={{ fontSize: '15px', fontWeight: 900, color: contrastTextForAccent(teamAccent), background: teamAccent, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -1736,6 +1787,7 @@ function LeagueHomeContent() {
                 onChange={setDraftSite}
                 preset={preset}
                 maxGalleryImages={draftGalleryLimit}
+                organizationId={org.id}
               />
             ) : aboutSections.length > 0 ? (
               <LeagueSiteSections site={{ ...displaySite, sections: aboutSections }} preset={preset} />

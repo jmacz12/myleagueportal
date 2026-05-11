@@ -12,6 +12,12 @@ import {
   type LeagueThemeChoiceId,
 } from '@/lib/league-theme-choice'
 import { leagueIdentityUiHint } from '@/lib/league-identity-change-policy'
+import { broadcastLeagueAppearanceUpdated, subscribeLeagueAppearanceUpdated } from '@/lib/league-appearance-sync'
+import {
+  PRO_BRAND_COLOR_CHANGES_PER_MONTH,
+  PRO_BRAND_COLOR_COUNTER_HELPER,
+  proBrandColorChangesRemaining,
+} from '@/lib/pro-brand-color-limits'
 
 interface OrgSettings {
   name: string
@@ -29,8 +35,6 @@ interface OrgSettings {
   league_name_change_count?: number | null
   league_name_last_changed_at?: string | null
 }
-
-const PRO_BRAND_COLOR_CHANGES_PER_MONTH = 5
 
 const TIMEZONE_OPTIONS = [
   'America/Vancouver',
@@ -95,7 +99,16 @@ export default function SettingsPage() {
   const [waiverExportError, setWaiverExportError] = useState('')
   const [logoUploading, setLogoUploading] = useState(false)
 
-  useEffect(() => { fetchSettings(); fetchWaivers() }, [])
+  useEffect(() => {
+    fetchSettings()
+    fetchWaivers()
+  }, [])
+
+  useEffect(() => {
+    return subscribeLeagueAppearanceUpdated(() => {
+      void fetchSettings()
+    })
+  }, [])
 
   async function fetchSettings() {
     const res = await fetch('/api/settings')
@@ -228,7 +241,7 @@ export default function SettingsPage() {
     const data = await res.json()
     if (!res.ok) { setError(data.error || 'Something went wrong'); setSaving(false); return }
     setSuccess(true); setSaving(false)
-    fetchSettings()
+    fetchSettings().then(() => broadcastLeagueAppearanceUpdated())
     setTimeout(() => setSuccess(false), 3000)
   }
 
@@ -318,8 +331,14 @@ export default function SettingsPage() {
 
   const isPro = settings?.plan === 'pro' || settings?.plan === 'enterprise'
   const isEnterprise = settings?.plan === 'enterprise'
-  const proColorChangesUsed = Number(settings?.brand_color_change_count || 0)
-  const proColorChangesRemaining = Math.max(0, PRO_BRAND_COLOR_CHANGES_PER_MONTH - proColorChangesUsed)
+  const proColorChangesRemaining =
+    settings?.plan === 'pro'
+      ? proBrandColorChangesRemaining({
+          plan: settings.plan,
+          brand_color_change_count: settings.brand_color_change_count,
+          brand_color_change_period_start: settings.brand_color_change_period_start,
+        }) ?? 0
+      : 0
 
   const identityUi = useMemo(
     () =>
@@ -388,7 +407,7 @@ export default function SettingsPage() {
             <div style={{ border: '1px dashed var(--border)', borderRadius: '8px', padding: '24px', textAlign: 'center' }}>
               <div style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>PDF</div>
               <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '12px' }}>
-                Upload your existing PDF waiver — we'll extract the text for you to review
+                Upload your existing PDF waiver — we&apos;ll extract the text for you to review
               </p>
               <input type="file" accept=".pdf" onChange={onUpload}
                 style={{ display: 'none' }} id={inputId} disabled={extracting} />
@@ -557,7 +576,7 @@ export default function SettingsPage() {
                 }}
               >
                 {settings?.logo_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
+                   
                   <img src={settings.logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                 ) : (
                   <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', padding: '8px', textAlign: 'center' }}>
@@ -656,9 +675,17 @@ export default function SettingsPage() {
               <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Used to generate league page themes</span>
             </div>
             {settings?.plan === 'pro' && (
-              <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
-                Brand color changes remaining this month: <strong style={{ color: 'var(--text-primary)' }}>{proColorChangesRemaining}</strong> / {PRO_BRAND_COLOR_CHANGES_PER_MONTH}
-              </p>
+              <>
+                <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px', lineHeight: 1.45 }}>
+                  Brand color changes remaining this month:{' '}
+                  <strong style={{ color: 'var(--text-primary)' }}>{proColorChangesRemaining}</strong> /{' '}
+                  {PRO_BRAND_COLOR_CHANGES_PER_MONTH}
+                </p>
+                <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', lineHeight: 1.45 }}>
+                  {PRO_BRAND_COLOR_COUNTER_HELPER} League look saves here apply immediately; Publish on the league website
+                  only updates public page content drafts.
+                </p>
+              </>
             )}
           </div>
 

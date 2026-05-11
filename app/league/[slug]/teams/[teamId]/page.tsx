@@ -203,7 +203,6 @@ export default function LeaguePublicTeamPage() {
     document.head.appendChild(link)
   }, [data?.publicFontKey])
 
-  const accent = data?.team.color || preset.accent
   const heroTheme = useMemo(() => publicHeroThemeFromPreset(preset), [preset])
   const nextGameMapsHref = useMemo(() => {
     if (!data?.next_game?.location) return null

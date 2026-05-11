@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import type Stripe from 'stripe'
 import { stripe } from '@/lib/stripe'
 import { createClient } from '@supabase/supabase-js'
 import { headers } from 'next/headers'
@@ -21,15 +22,21 @@ export async function POST(req: Request) {
       signature,
       process.env.STRIPE_WEBHOOK_SECRET!
     )
-  } catch (err) {
+  } catch {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
   }
 
   switch (event.type) {
 
     case 'checkout.session.completed': {
-      const session = event.data.object as any
-      const { clerk_user_id, plan } = session.metadata
+      const session = event.data.object as Stripe.Checkout.Session
+      const meta = (session.metadata ?? null) as {
+        clerk_user_id?: string
+        plan?: string
+      } | null
+      const clerk_user_id = meta?.clerk_user_id
+      const plan = meta?.plan
+      if (!clerk_user_id || !plan) break
 
       await supabaseAdmin
         .from('organizations')
@@ -42,7 +49,7 @@ export async function POST(req: Request) {
     }
 
     case 'customer.subscription.updated': {
-      const subscription = event.data.object as any
+      const subscription = event.data.object as Stripe.Subscription
       const plan = subscription.metadata?.plan
 
       if (plan) {
@@ -55,7 +62,7 @@ export async function POST(req: Request) {
     }
 
     case 'customer.subscription.deleted': {
-      const subscription = event.data.object as any
+      const subscription = event.data.object as Stripe.Subscription
 
       await supabaseAdmin
         .from('organizations')

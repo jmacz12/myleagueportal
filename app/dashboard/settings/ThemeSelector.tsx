@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Check } from 'lucide-react'
-import { useTheme } from '@/lib/theme'
+import { useTheme, type Theme } from '@/lib/theme'
 
 const themes = [
   { id: 'original', name: 'Original', desc: 'Khaki & olive green', dot: '#5a7a2a', dot2: '#f2ead6', plan: 'basic' },
@@ -102,7 +102,7 @@ export default function ThemeSelector({ plan }: Props) {
                 key={t.id}
                 onClick={() => {
                   if (!unlocked) return
-                  setTheme(t.id as any)
+                  setTheme(t.id as Theme)
                   setOpen(false)
                 }}
                 style={{

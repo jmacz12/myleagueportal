@@ -144,7 +144,7 @@ export default function DropinHistory() {
               {/* Session rows — only when expanded */}
               {isOpen && (
                 <div style={{ background: 'var(--bg-surface)' }}>
-                  {monthSessions.map((session, idx) => {
+                  {monthSessions.map((session) => {
                     const date = new Date(session.scheduled_at)
                     const collected = (session._paid || 0) * session.fee_amount
                     const deleteDate = new Date(date.getTime() + 30 * 24 * 60 * 60 * 1000)

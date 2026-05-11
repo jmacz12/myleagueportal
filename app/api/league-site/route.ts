@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { revalidatePath } from 'next/cache'
 import { auth } from '@clerk/nextjs/server'
 import { createClient } from '@supabase/supabase-js'
-import { getOrgAccessForClerkUser } from '@/lib/org-access'
+import { getOrgAccessForClerkUser, getOrgAccessForOrganization } from '@/lib/org-access'
 import { EMPTY_LEAGUE_SITE, parseLeagueSitePayload } from '@/lib/league-site'
 import { countGalleryImages, maxGalleryImagesForPlan } from '@/lib/league-site-limits'
 import { proBrandColorChangesRemaining, PRO_BRAND_COLOR_CHANGES_PER_MONTH } from '@/lib/pro-brand-color-limits'
@@ -13,12 +13,20 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-export async function GET() {
+export async function GET(req: Request) {
   const { userId } = await auth()
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const access = await getOrgAccessForClerkUser(userId)
-  if (!access) return NextResponse.json({ error: 'No organization' }, { status: 404 })
+  const orgIdParam = new URL(req.url).searchParams.get('organization_id')?.trim() || ''
+  const access = orgIdParam
+    ? await getOrgAccessForOrganization(userId, orgIdParam)
+    : await getOrgAccessForClerkUser(userId)
+  if (!access) {
+    return NextResponse.json(
+      { error: orgIdParam ? 'No access to this organization.' : 'No organization' },
+      { status: 404 }
+    )
+  }
 
   const { data: row } = await supabaseAdmin
     .from('league_site_content')
@@ -50,6 +58,8 @@ export async function GET() {
     updatedAt: row?.updated_at ?? null,
     role: access.role,
     slug: access.organization.slug,
+    /** Same as `appearance.plan` — convenience for dashboard clients that read `data.plan`. */
+    plan,
     maxGalleryImages: maxG,
     appearance: {
       plan,
@@ -66,8 +76,23 @@ export async function PUT(req: Request) {
   const { userId } = await auth()
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const access = await getOrgAccessForClerkUser(userId)
-  if (!access) return NextResponse.json({ error: 'No organization' }, { status: 404 })
+  let body: { draft?: unknown; publish?: boolean; organization_id?: string }
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+  }
+
+  const orgIdBody = typeof body.organization_id === 'string' ? body.organization_id.trim() : ''
+  const access = orgIdBody
+    ? await getOrgAccessForOrganization(userId, orgIdBody)
+    : await getOrgAccessForClerkUser(userId)
+  if (!access) {
+    return NextResponse.json(
+      { error: orgIdBody ? 'No access to this organization.' : 'No organization' },
+      { status: 404 }
+    )
+  }
 
   const { data: orgGate } = await supabaseAdmin
     .from('organizations')
@@ -85,13 +110,6 @@ export async function PUT(req: Request) {
       },
       { status: 403 }
     )
-  }
-
-  let body: { draft?: unknown; publish?: boolean }
-  try {
-    body = await req.json()
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
   const { data: existing } = await supabaseAdmin

@@ -116,7 +116,7 @@ export async function buildPublicTeamSeasonExtras(
       team_points: teamPts,
       opp_points: oppPts,
       won,
-      location: (g as any).location ?? null,
+      location: g.location ?? null,
     }
   }
 
@@ -141,7 +141,7 @@ export async function buildPublicTeamSeasonExtras(
     empty.next_game = {
       scheduled_at: g.scheduled_at,
       opponent_name: oppId ? nameById.get(oppId) || 'Opponent' : 'Opponent',
-      location: (g as any).location ?? null,
+      location: g.location ?? null,
     }
   }
 
@@ -166,7 +166,19 @@ export async function buildPublicTeamSeasonExtras(
       teamSeasonFinalIds.has(String(r.game_id))
   )
 
-  empty.player_totals = aggregatePlayerStats(filtered as any, rosterSet)
+  empty.player_totals = aggregatePlayerStats(
+    filtered.map((r) => ({
+      player_id: String(r.player_id),
+      pts: r.pts ?? null,
+      ast: r.ast ?? null,
+      reb: r.reb ?? null,
+      stl: r.stl ?? null,
+      blk: r.blk ?? null,
+      tov: r.tov ?? null,
+      pf: r.pf ?? null,
+    })),
+    rosterSet
+  )
 
   // League-wide leader badges (top 5) for visible stat columns.
   const seasonFinalGameIds = games.filter((g) => g.status === 'final').map((g) => g.id)
@@ -176,7 +188,22 @@ export async function buildPublicTeamSeasonExtras(
       .select('player_id, pts, ast, reb, stl, blk, tov, pf, game_id')
       .in('game_id', seasonFinalGameIds)
 
-    const allAgg = aggregatePlayerStats((allSeasonStatRows || []) as any, new Set((allSeasonStatRows || []).map((r: any) => String(r.player_id))))
+    const seasonRows = allSeasonStatRows || []
+    const allAgg = aggregatePlayerStats(
+      seasonRows
+        .filter((r) => r.player_id)
+        .map((r) => ({
+          player_id: String(r.player_id),
+          pts: r.pts ?? null,
+          ast: r.ast ?? null,
+          reb: r.reb ?? null,
+          stl: r.stl ?? null,
+          blk: r.blk ?? null,
+          tov: r.tov ?? null,
+          pf: r.pf ?? null,
+        })),
+      new Set(seasonRows.map((r) => String(r.player_id)))
+    )
     const visibleKeys: TeamPageStatKey[] =
       params.tier === 'enterprise'
         ? ['pts', 'reb', 'ast', 'stl', 'blk', 'tov', 'pf']
@@ -185,7 +212,10 @@ export async function buildPublicTeamSeasonExtras(
     const badges: Record<string, Partial<Record<TeamPageStatKey, true>>> = {}
     for (const key of visibleKeys) {
       const ranked = Object.entries(allAgg)
-        .map(([playerId, totals]) => ({ playerId, value: Number((totals as any)[key] ?? 0) }))
+        .map(([playerId, totals]) => ({
+          playerId,
+          value: Number(totals[key as keyof PlayerStatTotals] ?? 0),
+        }))
         .filter((r) => Number.isFinite(r.value) && r.value > 0)
         .sort((a, b) => b.value - a.value)
         .slice(0, 5)

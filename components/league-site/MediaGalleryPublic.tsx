@@ -65,7 +65,7 @@ export function MediaGalleryPublic({
                   }}
                   aria-label={item.caption ? `Zoom: ${item.caption}` : 'Zoom image'}
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  { }
                   <img
                     src={item.url}
                     alt={item.caption || ''}
@@ -131,7 +131,7 @@ export function MediaGalleryPublic({
                         }}
                         aria-label={item.caption ? `Zoom: ${item.caption}` : 'Zoom image'}
                       >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        { }
                         <img
                           src={item.url}
                           alt={item.caption || ''}
@@ -323,7 +323,7 @@ export function MediaGalleryPublic({
             style={{ margin: 0, maxWidth: 'min(96vw, 1100px)', maxHeight: '90vh', position: 'relative' }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
+            { }
             <img
               src={images[lightbox].url}
               alt={images[lightbox].caption || ''}

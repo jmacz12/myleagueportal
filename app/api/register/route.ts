@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { ensureDropinPlayerLinkedToReputation } from '@/lib/dropin-reputation'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -68,7 +69,7 @@ export async function POST(req: Request) {
     if (session_id) {
       const { data: sessionRow, error: sessionLookupErr } = await supabaseAdmin
         .from('dropin_sessions')
-        .select('id, organization_id, status, max_players')
+        .select('id, organization_id, status, max_players, max_waitlist')
         .eq('id', session_id)
         .single()
 
@@ -83,16 +84,39 @@ export async function POST(req: Request) {
       }
 
       const maxPlayers = Number(sessionRow.max_players) || 0
-      if (maxPlayers > 0) {
-        const { count: hostCount } = await supabaseAdmin
-          .from('dropin_registrations')
-          .select('*', { count: 'exact', head: true })
-          .eq('session_id', session_id)
-          .eq('is_guest', false)
-        if (hostCount != null && hostCount >= maxPlayers) {
+      const maxWaitlist = Number(sessionRow.max_waitlist) || 0
+
+      const { count: rosterCount } = await supabaseAdmin
+        .from('dropin_registrations')
+        .select('*', { count: 'exact', head: true })
+        .eq('session_id', session_id)
+        .eq('is_guest', false)
+        .eq('is_waitlist', false)
+
+      const { count: waitlistCount } = await supabaseAdmin
+        .from('dropin_registrations')
+        .select('*', { count: 'exact', head: true })
+        .eq('session_id', session_id)
+        .eq('is_guest', false)
+        .eq('is_waitlist', true)
+
+      const rosterFull = maxPlayers > 0 && rosterCount != null && rosterCount >= maxPlayers
+      const waitlistFull =
+        maxWaitlist > 0 && waitlistCount != null && waitlistCount >= maxWaitlist
+
+      if (rosterFull) {
+        if (maxWaitlist <= 0) {
           return NextResponse.json({ error: 'This session is full.' }, { status: 400 })
         }
+        if (waitlistFull) {
+          return NextResponse.json(
+            { error: 'This session and waitlist are full.' },
+            { status: 400 }
+          )
+        }
       }
+
+      const addToWaitlist = rosterFull && maxWaitlist > 0
 
       if (email) {
         const { data: existing } = await supabaseAdmin
@@ -123,6 +147,7 @@ export async function POST(req: Request) {
           is_guest: false,
           checked_in: false,
           payment_status: 'unpaid',
+          is_waitlist: addToWaitlist,
         })
         .select('id')
         .single()
@@ -145,6 +170,13 @@ export async function POST(req: Request) {
           { status: 500 }
         )
       }
+
+      await ensureDropinPlayerLinkedToReputation(supabaseAdmin, {
+        organizationId: organization_id,
+        email,
+        fullName: typeof full_name === 'string' ? full_name : '',
+        positions: normalizedPositions,
+      })
 
       // Save waiver signature for host
       if (waiver_accepted) await saveWaiverSignature(full_name, email)
@@ -184,9 +216,21 @@ export async function POST(req: Request) {
         for (const g of guests) {
           if (g.waiver_accepted) await saveWaiverSignature(g.full_name, g.email || null)
         }
+
+        for (const g of guests) {
+          const ge = typeof g.email === 'string' ? g.email : ''
+          if (ge.trim()) {
+            await ensureDropinPlayerLinkedToReputation(supabaseAdmin, {
+              organizationId: organization_id,
+              email: ge,
+              fullName: typeof g.full_name === 'string' ? g.full_name : 'Guest',
+              positions: [],
+            })
+          }
+        }
       }
 
-      return NextResponse.json({ success: true })
+      return NextResponse.json({ success: true, waitlist: addToWaitlist })
     }
 
     // ─── SEASON PLAYER REGISTRATION PATH ─────────────────────────────────────

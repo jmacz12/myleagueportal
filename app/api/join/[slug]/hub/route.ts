@@ -28,7 +28,7 @@ export async function GET(
     return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
   }
 
-  let { data: seasons, error: seasonsErr } = await supabaseAdmin
+  const seasonsQuery = await supabaseAdmin
     .from('seasons')
     .select(
       'id, name, start_date, end_date, type, is_active, allow_online_registration, online_registration_opens_at, online_registration_closes_at, signup_opens_mode, signup_opens_days_before'
@@ -37,6 +37,9 @@ export async function GET(
     .eq('type', 'season')
     .order('start_date', { ascending: false })
     .limit(5)
+
+  let seasons = seasonsQuery.data
+  const seasonsErr = seasonsQuery.error
 
   if (
     seasonsErr &&

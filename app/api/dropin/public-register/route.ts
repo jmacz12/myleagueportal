@@ -15,11 +15,15 @@ export async function POST(req: Request) {
     }
 
     // 1. Check current capacity
-    const { data: session, error: sessionError } = await supabaseAdmin
+    const { data: session, error: sessionFetchError } = await supabaseAdmin
       .from('sessions')
       .select('capacity')
       .eq('id', sessionId)
       .single()
+
+    if (sessionFetchError || !session) {
+      return NextResponse.json({ error: 'Session not found' }, { status: 404 })
+    }
 
     const { count } = await supabaseAdmin
       .from('registrations')

@@ -151,7 +151,10 @@ export async function PATCH(
   ).error
 
   if (upsertErr && String(upsertErr.message || '').toLowerCase().includes('team_id')) {
-    const { team_id: _t, ...withoutTeam } = upsertRow as Record<string, unknown> & { team_id?: unknown }
+    const { team_id: _stripTeamId, ...withoutTeam } = upsertRow as Record<string, unknown> & {
+      team_id?: unknown
+    }
+    void _stripTeamId
     upsertErr = (
       await supabaseAdmin.from('player_game_stats').upsert(withoutTeam, {
         onConflict: 'game_id,player_id',

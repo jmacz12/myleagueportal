@@ -80,7 +80,9 @@ export async function PATCH(req: Request) {
         reason: `${type} waiver verified and approved by host`,
         created_by: userId,
       })
-    } catch (_) {}
+    } catch {
+      /* ignore reputation_log insert failures */
+    }
   }
 
   return NextResponse.json({ success: true })

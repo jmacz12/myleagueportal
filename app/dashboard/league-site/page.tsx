@@ -7,6 +7,7 @@ import { InlineCircularProgress } from '@/components/league-site/InlineCircularP
 import type { LeagueSitePayload, LeagueSiteSection } from '@/lib/league-site'
 import { DEFAULT_LEAGUE_HERO_TAGLINE, EMPTY_LEAGUE_SITE, createLeagueSiteSection } from '@/lib/league-site'
 import { countGalleryImages } from '@/lib/league-site-limits'
+import { subscribeLeagueAppearanceUpdated } from '@/lib/league-appearance-sync'
 
 type EditorRow = {
   id: string
@@ -64,6 +65,12 @@ export default function LeagueSitePage() {
 
   useEffect(() => {
     load()
+  }, [load])
+
+  useEffect(() => {
+    return subscribeLeagueAppearanceUpdated(() => {
+      void load()
+    })
   }, [load])
 
   useEffect(() => {
@@ -308,7 +315,7 @@ export default function LeagueSitePage() {
         </p>
         {draft.heroBackgroundUrl ? (
           <div style={{ marginBottom: '10px' }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
+            { }
             <img src={draft.heroBackgroundUrl} alt="" style={{ maxHeight: '120px', borderRadius: '8px' }} />
           </div>
         ) : null}

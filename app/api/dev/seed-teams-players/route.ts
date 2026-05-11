@@ -507,7 +507,7 @@ export async function POST(req: Request) {
     const end = new Date()
     end.setMonth(end.getMonth() + 5)
 
-    let insertRow: Record<string, unknown> = {
+    const insertRow: Record<string, unknown> = {
       name: `${SEED_PREFIX} Demo season`,
       type: 'season',
       organization_id: org.id,

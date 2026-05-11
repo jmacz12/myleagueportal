@@ -34,11 +34,16 @@ const env = { ...process.env, ...loadEnvLocal() }
 const url = env.DATABASE_URL || env.DIRECT_URL || env.POSTGRES_URL
 
 const FILES = [
+  /* Theme / appearance columns — required for Save brand & theme on the public league editor */
+  '20260505110000_league_theme_presets.sql',
+  '20260506140000_league_appearance_mode.sql',
+  '20260506200000_league_theme_choice_ids.sql',
   '20260507013000_team_manager_news_calendar.sql',
   '20260507120000_league_identity_change_limits.sql',
   '20260507200000_game_starters_shooting.sql',
   '20260508100000_teams_logo_url.sql',
   '20260508210000_player_game_stats_team_id.sql',
+  '20260509130000_dropin_waitlist.sql',
   '20260511120000_team_stream_house_rules.sql',
 ]
 

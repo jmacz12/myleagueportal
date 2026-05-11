@@ -33,9 +33,18 @@ export async function POST(req: Request) {
     .eq('clerk_user_id', userId).single()
   if (!org) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const { games, season_id } = await req.json()
+  const { games, season_id } = await req.json() as {
+    games: Array<{
+      home_team_id?: string | null
+      away_team_id?: string | null
+      date?: string
+      time?: string
+      location?: string | null
+    }>
+    season_id: string
+  }
 
-  const inserts = games.map((g: any) => ({
+  const inserts = games.map((g) => ({
     organization_id: org.id,
     season_id,
     home_team_id: g.home_team_id || null,
@@ -56,7 +65,7 @@ export async function PATCH(req: Request) {
 
   const { game_id, status, home_score, away_score } = await req.json()
 
-  const updates: any = {}
+  const updates: Record<string, string | number | undefined> = {}
   if (status !== undefined) updates.status = status
   if (home_score !== undefined) updates.home_score = home_score
   if (away_score !== undefined) updates.away_score = away_score

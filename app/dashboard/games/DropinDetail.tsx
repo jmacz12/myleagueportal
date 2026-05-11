@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { CreditCard, Lock, Users } from 'lucide-react'
 
 interface Registration {
@@ -36,15 +36,17 @@ export default function DropinDetail({ sessionId, onBack }: Props) {
   const [activeTab, setActiveTab] = useState<'checkin' | 'payments' | 'standings'>('checkin')
   const [updatingId, setUpdatingId] = useState<string | null>(null)
 
-  useEffect(() => { fetchData() }, [sessionId])
-
-  async function fetchData() {
+  const fetchData = useCallback(async () => {
     const res = await fetch(`/api/dropin/${sessionId}`)
     const data = await res.json()
     setSession(data.session)
     setRegistrations(data.registrations || [])
     setLoading(false)
-  }
+  }, [sessionId])
+
+  useEffect(() => {
+    void fetchData()
+  }, [fetchData])
 
   async function toggleCheckin(regId: string, current: boolean) {
     setUpdatingId(regId)
@@ -137,7 +139,7 @@ export default function DropinDetail({ sessionId, onBack }: Props) {
         ].map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id as any)}
+            onClick={() => setActiveTab(tab.id as 'checkin' | 'payments' | 'standings')}
             style={{
               padding: '7px 14px', borderRadius: '7px',
               fontSize: '12px', fontWeight: '600',

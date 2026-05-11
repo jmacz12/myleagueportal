@@ -239,7 +239,7 @@ export default function GamesTab() {
         <div className="empty-state">
           <div className="empty-state-icon"><CalendarDays size={32} strokeWidth={1.5} /></div>
           <div className="empty-state-title">No games yet</div>
-          <div className="empty-state-desc">Click "+ Add Games" to schedule your first game.</div>
+          <div className="empty-state-desc">Click &quot;+ Add Games&quot; to schedule your first game.</div>
         </div>
       ) : (
         Object.entries(grouped).map(([date, dateGames]) => (

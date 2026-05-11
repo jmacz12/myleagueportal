@@ -7,6 +7,12 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
+function parseMaxWaitlist(raw: unknown): number {
+  const n = parseInt(String(raw ?? '').trim(), 10)
+  if (Number.isNaN(n)) return 5
+  return Math.max(0, Math.min(100, n))
+}
+
 export async function GET() {
   const { userId } = await auth()
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -21,7 +27,31 @@ export async function GET() {
     .eq('organization_id', org.id)
     .order('scheduled_at', { ascending: true })
 
-  return NextResponse.json({ sessions: sessions || [] })
+  const rows = sessions || []
+  const sessionIds = rows.map((s) => s.id as string).filter(Boolean)
+
+  const rosterCountBySession = new Map<string, number>()
+  if (sessionIds.length > 0) {
+    const { data: regs } = await supabaseAdmin
+      .from('dropin_registrations')
+      .select('session_id, is_guest, is_waitlist')
+      .in('session_id', sessionIds)
+
+    for (const row of regs || []) {
+      const sid = String(row.session_id || '')
+      if (!sid) continue
+      if (Boolean(row.is_guest)) continue
+      if (Boolean((row as { is_waitlist?: boolean }).is_waitlist)) continue
+      rosterCountBySession.set(sid, (rosterCountBySession.get(sid) || 0) + 1)
+    }
+  }
+
+  const sessionsWithCounts = rows.map((s) => ({
+    ...s,
+    _count: rosterCountBySession.get(String(s.id)) || 0,
+  }))
+
+  return NextResponse.json({ sessions: sessionsWithCounts })
 }
 
 export async function POST(req: Request) {
@@ -35,8 +65,8 @@ export async function POST(req: Request) {
 
   const {
     name, date, start_time, end_time, location,
-    max_players, fee_amount, payment_method,
-    etransfer_info, allow_signups,
+    max_players, max_waitlist, fee_amount, payment_method,
+    etransfer_info,
     signup_opens, signup_opens_days_before, signup_opens_at,
     is_recurring, recurring_frequency, recurring_until,
   } = await req.json()
@@ -70,6 +100,7 @@ export async function POST(req: Request) {
     ends_at: end_time ? `${d}T${end_time}:00` : null,
     location: location || null,
     max_players: parseInt(max_players) || 16,
+    max_waitlist: parseMaxWaitlist(max_waitlist),
     fee_amount: parseFloat(fee_amount) || 0,
     payment_method: payment_method || 'cash_or_etransfer',
     etransfer_info: etransfer_info || null,
@@ -94,8 +125,41 @@ export async function DELETE(req: Request) {
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { session_id } = await req.json()
-  const { error } = await supabaseAdmin
-    .from('dropin_sessions').delete().eq('id', session_id)
-  if (error) return NextResponse.json({ error: 'Failed to delete' }, { status: 500 })
+  if (!session_id) return NextResponse.json({ error: 'session_id is required' }, { status: 400 })
+
+  const { data: org } = await supabaseAdmin
+    .from('organizations')
+    .select('id')
+    .eq('clerk_user_id', userId)
+    .single()
+  if (!org) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  const { data: session } = await supabaseAdmin
+    .from('dropin_sessions')
+    .select('id, organization_id')
+    .eq('id', session_id)
+    .single()
+
+  if (!session || session.organization_id !== org.id) {
+    return NextResponse.json({ error: 'Session not found' }, { status: 404 })
+  }
+
+  const { error: regErr } = await supabaseAdmin
+    .from('dropin_registrations')
+    .delete()
+    .eq('session_id', session_id)
+  if (regErr) {
+    return NextResponse.json({ error: regErr.message || 'Failed to delete session registrations' }, { status: 500 })
+  }
+
+  const { error: sessionErr } = await supabaseAdmin
+    .from('dropin_sessions')
+    .delete()
+    .eq('id', session_id)
+    .eq('organization_id', org.id)
+  if (sessionErr) {
+    return NextResponse.json({ error: sessionErr.message || 'Failed to delete session' }, { status: 500 })
+  }
+
   return NextResponse.json({ success: true })
 }
