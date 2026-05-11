@@ -21,10 +21,43 @@ function fullscreenButtonBackground(accentHex: string): string {
   return `linear-gradient(135deg, ${safe} 0%, #1e293b 55%, #020617 100%)`
 }
 
+type FsCapableElement = HTMLElement & {
+  webkitRequestFullscreen?: () => Promise<void> | void
+}
+
+async function requestFullscreenBestEffort(el: HTMLElement): Promise<void> {
+  const w = el as FsCapableElement
+  if (typeof el.requestFullscreen === 'function') {
+    await el.requestFullscreen()
+    return
+  }
+  if (typeof w.webkitRequestFullscreen === 'function') {
+    await Promise.resolve(w.webkitRequestFullscreen())
+    return
+  }
+  throw new Error('fullscreen-unavailable')
+}
+
+async function exitFullscreenBestEffort(): Promise<void> {
+  const doc = document as Document & {
+    webkitExitFullscreen?: () => Promise<void> | void
+    webkitFullscreenElement?: Element | null
+  }
+  if (doc.webkitFullscreenElement && typeof doc.webkitExitFullscreen === 'function') {
+    await Promise.resolve(doc.webkitExitFullscreen())
+    return
+  }
+  if (document.fullscreenElement && typeof document.exitFullscreen === 'function') {
+    await document.exitFullscreen()
+    return
+  }
+}
+
 export function StreamWithOverlay({ watchUrl, liveGameId, accentColor = '#5a7a2a' }: Props) {
   const shellRef = useRef<HTMLDivElement>(null)
   const [embedSrc, setEmbedSrc] = useState<string | null>(null)
   const [fs, setFs] = useState(false)
+  const [fsBlockedHint, setFsBlockedHint] = useState<string | null>(null)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -35,22 +68,38 @@ export function StreamWithOverlay({ watchUrl, liveGameId, accentColor = '#5a7a2a
   useEffect(() => {
     const el = shellRef.current
     if (!el) return
-    const onFs = () => setFs(!!document.fullscreenElement && document.fullscreenElement === el)
-    document.addEventListener('fullscreenchange', onFs)
-    return () => document.removeEventListener('fullscreenchange', onFs)
+    const doc = document as Document & { webkitFullscreenElement?: Element | null }
+    const sync = () => {
+      const active =
+        (document.fullscreenElement === el || doc.webkitFullscreenElement === el) ?? false
+      setFs(active)
+      if (active) setFsBlockedHint(null)
+    }
+    sync()
+    document.addEventListener('fullscreenchange', sync)
+    document.addEventListener('webkitfullscreenchange', sync as EventListener)
+    return () => {
+      document.removeEventListener('fullscreenchange', sync)
+      document.removeEventListener('webkitfullscreenchange', sync as EventListener)
+    }
   }, [])
 
   const toggleFullscreen = useCallback(async () => {
     const el = shellRef.current
     if (!el) return
+    const doc = document as Document & { webkitFullscreenElement?: Element | null }
     try {
-      if (document.fullscreenElement === el) {
-        await document.exitFullscreen()
+      const inFs = document.fullscreenElement === el || doc.webkitFullscreenElement === el
+      if (inFs) {
+        await exitFullscreenBestEffort()
       } else {
-        await el.requestFullscreen()
+        setFsBlockedHint(null)
+        await requestFullscreenBestEffort(el)
       }
     } catch {
-      /* ignore — some browsers block without gesture */
+      setFsBlockedHint(
+        'Fullscreen with the score overlay isn’t supported in this browser yet (common on iPhone Safari). Use the video’s own fullscreen, or open the stream in a new tab — not caused by ad blockers.',
+      )
     }
   }, [])
 
@@ -157,6 +206,24 @@ export function StreamWithOverlay({ watchUrl, liveGameId, accentColor = '#5a7a2a
         {fs ? <Minimize2 size={22} strokeWidth={2.25} aria-hidden /> : <Maximize2 size={22} strokeWidth={2.25} aria-hidden />}
         <span>{fs ? 'Exit full screen' : 'Full screen with overlay'}</span>
       </button>
+
+      {fsBlockedHint ? (
+        <p
+          role="status"
+          style={{
+            margin: '12px 0 0',
+            fontSize: '13px',
+            lineHeight: 1.55,
+            color: 'rgba(127,29,29,0.92)',
+            background: 'rgba(254,226,226,0.65)',
+            border: '1px solid rgba(248,113,113,0.45)',
+            borderRadius: '12px',
+            padding: '12px 14px',
+          }}
+        >
+          {fsBlockedHint}
+        </p>
+      ) : null}
 
       <p style={{ margin: '12px 0 0', fontSize: '13px', color: 'rgba(15,23,42,0.72)', lineHeight: 1.55 }}>
         Use the video&apos;s own controls to play or pause.{' '}
