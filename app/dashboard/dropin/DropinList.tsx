@@ -10,6 +10,7 @@ interface Session {
   ends_at: string | null
   location: string | null
   max_players: number
+  max_waitlist?: number
   fee_amount: number
   status: string
   allow_signups: boolean
@@ -34,6 +35,7 @@ interface DropinFormState {
   end_time: string
   location: string
   max_players: string
+  max_waitlist: string
   fee_amount: string
   payment_method: string
   etransfer_info: string
@@ -79,6 +81,7 @@ function sessionToEditValues(session: Session): { form: DropinFormState; signupO
       end_time: endTime,
       location: session.location || '',
       max_players: String(session.max_players ?? 16),
+      max_waitlist: String(session.max_waitlist ?? 5),
       fee_amount: String(session.fee_amount ?? 0),
       payment_method: session.payment_method || 'cash_or_etransfer',
       etransfer_info: session.etransfer_info || '',
@@ -121,7 +124,7 @@ function DropinSessionFormFields({
           className="input" />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px' }}>
         <div>
           <label className="label">Date *</label>
           <input type="date" required value={form.date}
@@ -139,7 +142,7 @@ function DropinSessionFormFields({
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px' }}>
         <div>
           <label className="label">Location</label>
           <input type="text" placeholder="e.g. Main Gym"
@@ -147,13 +150,19 @@ function DropinSessionFormFields({
             className="input" />
         </div>
         <div>
-          <label className="label">Max Players</label>
+          <label className="label">Max players</label>
           <input type="number" min="2" max="100" value={form.max_players}
             onChange={(e) => setForm({ ...form, max_players: e.target.value })} className="input" />
         </div>
+        <div>
+          <label className="label">Waitlist cap</label>
+          <input type="number" min="0" max="100" value={form.max_waitlist}
+            onChange={(e) => setForm({ ...form, max_waitlist: e.target.value })} className="input" />
+          <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px' }}>0 = no waitlist</div>
+        </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
         <div>
           <label className="label">Drop-in Fee ($)</label>
           <div style={{ display: 'flex', alignItems: 'center', border: '0.5px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
@@ -185,7 +194,7 @@ function DropinSessionFormFields({
 
       <div>
         <label className="label" style={{ marginBottom: '8px' }}>When do signups open?</label>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '6px' }}>
           {signupOptions.map((opt) => (
             <button key={opt.value} type="button" onClick={() => setSignupOption(opt.value)}
               style={{
@@ -208,7 +217,7 @@ function DropinSessionFormFields({
           </div>
         )}
         {signupOption === 'custom' && (
-          <div style={{ background: 'var(--bg-elevated)', borderRadius: '8px', padding: '10px 12px', marginTop: '8px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+          <div style={{ background: 'var(--bg-elevated)', borderRadius: '8px', padding: '10px 12px', marginTop: '8px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '8px' }}>
             <div>
               <label className="label">Open date</label>
               <input type="date" className="input" style={{ fontSize: '11px', padding: '5px 8px' }}
@@ -246,7 +255,7 @@ function DropinSessionFormFields({
           {form.is_recurring && (
             <div style={{ background: 'var(--bg-surface)', border: '0.5px solid var(--accent)', borderRadius: '8px', padding: '14px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--accent-text)' }}>Recurring schedule</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px' }}>
                 <div>
                   <label className="label">Repeat every</label>
                   <select value={form.recurring_frequency}
@@ -276,7 +285,7 @@ function DropinSessionFormFields({
 function emptyDropinForm(): DropinFormState {
   return {
     name: '', date: '', start_time: '', end_time: '',
-    location: '', max_players: '16', fee_amount: '10',
+    location: '', max_players: '16', max_waitlist: '5', fee_amount: '10',
     payment_method: 'cash_or_etransfer', etransfer_info: '',
     signup_opens: 'open_now',
     signup_opens_days_before: '3',
@@ -295,6 +304,7 @@ export default function DropinList({ onSelectSession }: Props) {
   const [error, setError] = useState('')
   const [signupOption, setSignupOption] = useState('open_now')
   const [upcomingExpanded, setUpcomingExpanded] = useState(false)
+  const [expandedUpcomingGroups, setExpandedUpcomingGroups] = useState<Record<string, boolean>>({})
   const [editingGroup, setEditingGroup] = useState<string | null>(null)
   const [selectedToDelete, setSelectedToDelete] = useState<string[]>([])
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null)
@@ -375,23 +385,32 @@ export default function DropinList({ onSelectSession }: Props) {
 
   async function deleteSession(id: string) {
     if (!confirm('Delete this session?')) return
-    await fetch('/api/dropin', {
+    const res = await fetch('/api/dropin', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ session_id: id }),
     })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      alert(typeof body.error === 'string' ? body.error : 'Failed to delete session')
+      return
+    }
     fetchSessions()
   }
 
   async function deleteSelected() {
     if (!confirm(`Delete ${selectedToDelete.length} selected sessions?`)) return
-    await Promise.all(selectedToDelete.map(id =>
+    const responses = await Promise.all(selectedToDelete.map(id =>
       fetch('/api/dropin', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ session_id: id }),
       })
     ))
+    const failed = responses.filter((r) => !r.ok).length
+    if (failed > 0) {
+      alert(`${failed} session${failed > 1 ? 's' : ''} could not be deleted. Please try again.`)
+    }
     setSelectedToDelete([])
     setEditingGroup(null)
     fetchSessions()
@@ -418,6 +437,14 @@ export default function DropinList({ onSelectSession }: Props) {
   const remainingSessions = sorted.filter(s =>
     new Date(s.scheduled_at).toDateString() !== nextDate
   )
+
+  const groupedRemaining = remainingSessions.reduce((acc, s) => {
+    const key = s.is_recurring ? `series:${s.name.split(' —')[0].trim()}` : `single:${s.id}`
+    const label = s.is_recurring ? s.name.split(' —')[0].trim() : s.name
+    if (!acc[key]) acc[key] = { label, sessions: [], isRecurring: s.is_recurring }
+    acc[key].sessions.push(s)
+    return acc
+  }, {} as Record<string, { label: string; sessions: Session[]; isRecurring: boolean }>)
 
   // Group recurring by base name for edit modal
   const recurringGroups = sessions
@@ -487,7 +514,7 @@ export default function DropinList({ onSelectSession }: Props) {
               <div style={{ background: '#fef2f2', border: '0.5px solid #fecaca', borderRadius: '8px', padding: '10px 14px', fontSize: '13px', color: '#dc2626' }}>{error}</div>
             )}
 
-            <div style={{ display: 'flex', gap: '10px' }}>
+            <div className="dropin-form-actions">
               <button type="submit" disabled={submitting} className="btn-primary">
                 {submitting ? 'Creating...' : 'Create Session'}
               </button>
@@ -521,7 +548,7 @@ export default function DropinList({ onSelectSession }: Props) {
             {editError && (
               <div style={{ background: '#fef2f2', border: '0.5px solid #fecaca', borderRadius: '8px', padding: '10px 14px', fontSize: '13px', color: '#dc2626' }}>{editError}</div>
             )}
-            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            <div className="dropin-form-actions">
               <button type="submit" disabled={editSubmitting} className="btn-primary">
                 {editSubmitting ? 'Saving...' : 'Save changes'}
               </button>
@@ -563,7 +590,7 @@ export default function DropinList({ onSelectSession }: Props) {
                       transition: 'filter 0.15s',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', flexWrap: 'wrap' }}>
+                    <div className="dropin-list-next-inner">
                       <div
                         role="button"
                         tabIndex={0}
@@ -624,7 +651,7 @@ export default function DropinList({ onSelectSession }: Props) {
                           </div>
                         </div>
                       </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flexShrink: 0 }}>
+                      <div className="dropin-list-next-actions">
                         <button type="button" onClick={() => beginEditSession(session)} className="dropin-action-btn">
                           Edit details
                         </button>
@@ -650,7 +677,9 @@ export default function DropinList({ onSelectSession }: Props) {
           {remainingSessions.length > 0 && (
             <div>
               <button
+                type="button"
                 onClick={() => setUpcomingExpanded(!upcomingExpanded)}
+                className="dropin-upcoming-toggle"
                 style={{
                   width: '100%', display: 'flex', alignItems: 'center',
                   justifyContent: 'space-between', padding: '12px 16px',
@@ -672,104 +701,126 @@ export default function DropinList({ onSelectSession }: Props) {
 
               {upcomingExpanded && (
                 <div style={{ border: '0.5px solid var(--border)', borderTop: 'none', borderRadius: '0 0 10px 10px', overflow: 'hidden' }}>
-                  {remainingSessions.map((session, idx) => {
-                    const isLast = idx === remainingSessions.length - 1
-                    const baseName = session.name.split(' —')[0].trim()
-                    const isRecurring = session.is_recurring
-                    const groupExists = isRecurring && recurringGroups[baseName]
-
+                  {Object.entries(groupedRemaining).map(([groupKey, group], gIdx, arr) => {
+                    const isOpen = !!expandedUpcomingGroups[groupKey]
+                    const firstSession = group.sessions[0]
+                    const baseName = group.isRecurring ? firstSession.name.split(' —')[0].trim() : firstSession.name
+                    const sortedGroup = [...group.sessions].sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())
+                    const preview = isOpen ? sortedGroup : sortedGroup.slice(0, 1)
+                    const isLastGroup = gIdx === arr.length - 1
                     return (
-                      <div
-                        key={session.id}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: '12px',
-                          padding: '12px 16px',
-                          borderBottom: isLast ? 'none' : '0.5px solid var(--border-light)',
-                          background: 'var(--bg-surface)',
-                        }}
-                      >
-                        <div
-                          role="button"
-                          tabIndex={0}
-                          aria-label={`Open session: ${session.name.split(' —')[0]}`}
-                          onClick={() => onSelectSession(session.id)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault()
-                              onSelectSession(session.id)
-                            }
-                          }}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '12px',
-                            flex: 1,
-                            minWidth: 0,
-                            cursor: 'pointer',
-                            borderRadius: '8px',
-                            outline: 'none',
-                            margin: '-6px',
-                            padding: '6px',
-                            transition: 'background 0.12s',
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.background = 'var(--bg-elevated)'
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.background = 'transparent'
-                          }}
-                        >
-                          {/* Date block */}
-                          <div style={{ flexShrink: 0, width: '44px', textAlign: 'center' }}>
-                            <div style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-primary)', lineHeight: '1' }}>
-                              {new Date(session.scheduled_at).getDate()}
-                            </div>
-                            <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '600' }}>
-                              {new Date(session.scheduled_at).toLocaleDateString('en-CA', { month: 'short' })}
-                            </div>
-                          </div>
-
-                          {/* Divider */}
-                          <div style={{ width: '0.5px', height: '36px', background: 'var(--border)', flexShrink: 0 }} />
-
-                          {/* Info */}
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                              <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {session.name.split(' —')[0]}
+                      <div key={groupKey} style={{ background: 'var(--bg-surface)', borderBottom: isLastGroup ? 'none' : '0.5px solid var(--border-light)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', padding: '12px 16px', background: 'var(--bg-elevated)' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                            <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {group.label}
+                            </span>
+                            {group.isRecurring ? (
+                              <span style={{ background: 'var(--bg-surface)', color: 'var(--text-muted)', border: '0.5px solid var(--border)', borderRadius: '99px', fontSize: '9px', fontWeight: '700', padding: '1px 7px', flexShrink: 0 }}>
+                                Recurring · {group.sessions.length}
                               </span>
-                              {isRecurring && (
-                                <span style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)', border: '0.5px solid var(--border)', borderRadius: '99px', fontSize: '9px', fontWeight: '600', padding: '1px 6px', flexShrink: 0 }}>
-                                  Recurring
-                                </span>
-                              )}
-                            </div>
-                            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                              {formatTime(session.scheduled_at)}
-                              {session.location && ` · ${session.location}`}
-                              {session.fee_amount > 0 && ` · $${session.fee_amount}`}
-                            </div>
+                            ) : null}
                           </div>
-                        </div>
-
-                        {/* Actions */}
-                        <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
-                          <button type="button" onClick={() => beginEditSession(session)} className="dropin-action-btn">
-                            Edit
-                          </button>
-                          {groupExists && (
+                          {group.sessions.length > 1 ? (
                             <button
                               type="button"
-                              onClick={() => { setEditingGroup(baseName); setSelectedToDelete([]) }}
+                              onClick={() => setExpandedUpcomingGroups((prev) => ({ ...prev, [groupKey]: !prev[groupKey] }))}
                               className="dropin-action-btn"
+                              style={{ padding: '5px 10px' }}
                             >
-                              Schedule
+                              {isOpen ? 'Hide' : `Show ${group.sessions.length}`}
                             </button>
-                          )}
-                          <button type="button" onClick={() => deleteSession(session.id)}
-                            className="dropin-action-btn dropin-action-btn-danger">
-                            Delete
-                          </button>
+                          ) : null}
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          {preview.map((session, idx) => {
+                            const isLast = idx === preview.length - 1
+                            const groupExists = session.is_recurring && recurringGroups[baseName]
+                            return (
+                              <div
+                                key={session.id}
+                                className="dropin-list-upcoming-row"
+                                style={{
+                                  padding: '12px 16px',
+                                  borderBottom: isLast ? 'none' : '0.5px solid var(--border-light)',
+                                  background: 'var(--bg-surface)',
+                                }}
+                              >
+                                <div
+                                  role="button"
+                                  tabIndex={0}
+                                  aria-label={`Open session: ${session.name.split(' —')[0]}`}
+                                  onClick={() => onSelectSession(session.id)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                      e.preventDefault()
+                                      onSelectSession(session.id)
+                                    }
+                                  }}
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '12px',
+                                    flex: 1,
+                                    minWidth: 0,
+                                    cursor: 'pointer',
+                                    borderRadius: '8px',
+                                    outline: 'none',
+                                    margin: '-6px',
+                                    padding: '6px',
+                                    transition: 'background 0.12s',
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.background = 'var(--bg-elevated)'
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.background = 'transparent'
+                                  }}
+                                >
+                                  <div style={{ flexShrink: 0, width: '44px', textAlign: 'center' }}>
+                                    <div style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-primary)', lineHeight: '1' }}>
+                                      {new Date(session.scheduled_at).getDate()}
+                                    </div>
+                                    <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '600' }}>
+                                      {new Date(session.scheduled_at).toLocaleDateString('en-CA', { month: 'short' })}
+                                    </div>
+                                  </div>
+                                  <div style={{ width: '0.5px', height: '36px', background: 'var(--border)', flexShrink: 0 }} />
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                      <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {session.name.split(' —')[0]}
+                                      </span>
+                                    </div>
+                                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                      {formatDate(session.scheduled_at)} · {formatTime(session.scheduled_at)}
+                                      {session.location && ` · ${session.location}`}
+                                      {session.fee_amount > 0 && ` · $${session.fee_amount}`}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="dropin-list-upcoming-actions">
+                                  <button type="button" onClick={() => beginEditSession(session)} className="dropin-action-btn">
+                                    Edit
+                                  </button>
+                                  {groupExists ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => { setEditingGroup(baseName); setSelectedToDelete([]) }}
+                                      className="dropin-action-btn"
+                                    >
+                                      Schedule
+                                    </button>
+                                  ) : null}
+                                  <button type="button" onClick={() => deleteSession(session.id)}
+                                    className="dropin-action-btn dropin-action-btn-danger">
+                                    Delete
+                                  </button>
+                                </div>
+                              </div>
+                            )
+                          })}
                         </div>
                       </div>
                     )

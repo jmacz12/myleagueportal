@@ -31,13 +31,24 @@ export default function DropinPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <h1 className="page-title" style={{ margin: 0 }}>Drop-in Sessions</h1>
             <button
+              type="button"
               onClick={() => setShowHelp(true)}
+              aria-label="Open drop-in help"
               style={{
-                width: '20px', height: '20px', borderRadius: '50%',
-                background: 'var(--accent-muted)', border: '0.5px solid var(--accent)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: '10px', fontWeight: '800', color: 'var(--accent)',
-                cursor: 'pointer', flexShrink: 0,
+                width: '36px',
+                height: '36px',
+                borderRadius: '50%',
+                background: 'var(--accent-muted)',
+                border: '0.5px solid var(--accent)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '13px',
+                fontWeight: '800',
+                color: 'var(--accent)',
+                cursor: 'pointer',
+                flexShrink: 0,
+                touchAction: 'manipulation',
               }}
             >?</button>
           </div>
@@ -157,7 +168,7 @@ export default function DropinPage() {
                 Points & Reputation
               </div>
               <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.7', marginBottom: '8px' }}>
-                Points are awarded automatically after each session. Only you can see standings — players never see each other's points.
+                Points are awarded automatically after each session. Only you can see standings — players never see each other&apos;s points.
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '8px' }}>
                 {[
@@ -253,13 +264,16 @@ export default function DropinPage() {
       )}
 
       {/* Tab switcher */}
-      <div style={{
-        display: 'flex', gap: '4px',
-        background: 'var(--bg-elevated)',
-        border: '0.5px solid var(--border)',
-        borderRadius: '10px', padding: '4px',
-        marginBottom: '24px', width: 'fit-content',
-      }}>
+      <div
+        className="dropin-main-tabs"
+        style={{
+          background: 'var(--bg-elevated)',
+          border: '0.5px solid var(--border)',
+          borderRadius: '10px',
+          padding: '6px',
+          marginBottom: '24px',
+        }}
+      >
         {[
           { id: 'sessions', label: 'Sessions' },
           { id: 'standings', label: 'Standings' },
@@ -267,11 +281,16 @@ export default function DropinPage() {
         ].map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id as any)}
+            type="button"
+            onClick={() => setActiveTab(tab.id as 'sessions' | 'standings' | 'history')}
             style={{
-              padding: '8px 16px', borderRadius: '7px',
-              fontSize: '13px', fontWeight: '600',
-              border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+              padding: '10px 16px',
+              borderRadius: '8px',
+              fontSize: '13px',
+              fontWeight: '600',
+              border: 'none',
+              cursor: 'pointer',
+              fontFamily: 'inherit',
               background: activeTab === tab.id ? 'var(--btn-primary-bg)' : 'transparent',
               color: activeTab === tab.id ? 'var(--btn-primary-text)' : 'var(--text-muted)',
               transition: 'all 0.15s',

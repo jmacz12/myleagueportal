@@ -8,7 +8,7 @@ Readable breakdown of what exists today versus what is planned. Update this file
 
 - **Past (shipped):** `Phase 1–3 — Foundation & core`, plus dated entries in **Changelog**.
 - **Current (active):** `Phase 4` and `Phase 5` (in progress / polishing).
-- **Future (planned):** `Phase 6`, `Phase 7`, `Phase 8`, and `Product direction` bullets marked planned/deferred.
+- **Future (planned):** `Phase 6`, `Phase 7`, `Phase 8`, `Phase 9` (platform ops), and `Product direction` bullets marked planned/deferred.
 - **History log:** `Changelog` is the authoritative timeline of delivered changes.
 
 ---
@@ -93,7 +93,7 @@ Most of this is **not built yet**; this section records **Basic / Pro / Enterpri
 
 ### Infrastructure
 
-- **Auth:** Clerk.
+- **Auth:** Clerk with a root **`proxy.ts`** request boundary (Next.js 16 **`clerkMiddleware`**; same matchers as before—public **`/join`**, **`/league`**, **`/api/join`**, **`/games`**, auth pages; protect **`/dashboard`** and **`/onboarding`**). The deprecated **`middleware.ts`** filename was renamed per [Proxy](https://nextjs.org/docs/app/api-reference/file-conventions/proxy).
 - **Data:** Supabase (PostgreSQL + RLS).
 - **Billing:** Stripe subscriptions (checkout, customer portal, webhooks, plan on `organizations`).
 
@@ -136,14 +136,23 @@ Most of this is **not built yet**; this section records **Basic / Pro / Enterpri
 | ------------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **News banner**                 | Done             | Organizer-controlled; stored in Supabase; rendered on public surfaces.                                                                                                                |
 | **Public drop-in registration** | Shipped / polish | List + sign up for upcoming sessions (`/join/[slug]/…`); tighten edge cases as needed.                                                                                                |
+| **Public drop-in visual polish** | Done | `**/join/[slug]/dropins`** — mobile-first session cards (stacked actions, 44px touch targets), `**dropinPublicPageBackdrop`** + preset tokens, 16px inputs on small screens (iOS zoom), waiver scroll + checkbox hit area, safe-area padding. |
+| **Mobile-first hardening (drop-ins)** | Done | Dashboard **Drop-in** — responsive list rows, check-in/payments/team builder, standings sub-tabs and tier grid; shared **`dropin-*`** classes in **`app/globals.css`**; larger **`dropin-action-btn`** and help control; form action stacks on narrow viewports. |
 | **League timezone**             | Done / verify    | Consistent local rendering for organizers vs travelers.                                                                                                                               |
 | **Automation**                  | Partial          | **Midnight cron:** session close (`/api/cron/close-sessions` + `CRON_SECRET`). Extend if you add pruning, reminders, or retention jobs.                                               |
 | **Developer tools**             | Done             | Dev-only **seed drop-in** route for fast UI testing.                                                                                                                                  |
 | **Season signup schedule**      | Done             | Optional `online_registration_opens_at` / `closes_at` on `seasons`; hub respects window. Migration: `20260207100000_season_online_registration_window.sql`.                           |
 | **Jerseys (dashboard)**         | Done             | Organizers set **jersey #** on **Dashboard → Players** (per season uniqueness); not collected on public season signup.                                                                |
-| **League website (CMS v1)**     | Done / verify    | Tabbed public league home; Basic vs Pro **gates** on save/upload; **Settings ↔ on-page** brand sync; **five named presets** + **Bright/Midnight** + fonts; **contrast harmonization** + compact **preset pills**; **tab bar** wrap (no scroll chrome) and no full-width border under tabs. Confirm Storage bucket + RLS; apply **`league_appearance_mode`** + **`league_theme_choice_ids`** migrations on deploy. |
+| **League website (CMS v1)**     | Done / verify    | Tabbed public league home; Basic vs Pro **gates** on save/upload; **Settings ↔ on-page** brand sync; **five named presets** + **Bright/Midnight** + fonts; **contrast harmonization** + compact **preset pills**; **tab bar** wrap (no scroll chrome) and no full-width border under tabs. **Shipped (May 2026):** theme save + usage counter scoped by **`organization_id`** / league slug; owner-only **Typography & theme** on public edit. Confirm Storage bucket + RLS; run **`npm run db:apply-pending`** (includes theme migrations) on deploy or paste **`scripts/sql/ensure-organization-appearance-columns.sql`** if columns missing. |
 | **League identity (Settings)** | Done             | **League name** + registration **slug** (public `/join/[slug]` + `/league/[slug]`) change limits in **`PATCH /api/settings`**: **Basic** — one lifetime **name** change; **slug** not editable (API rejects slug changes). **Pro** — **90-day** cooldown after any **name or slug** change. **Enterprise** — **30-day** cooldown. Tracking: **`organizations.league_name_change_count`**, **`league_name_last_changed_at`** (migration **`20260507120000_league_identity_change_limits.sql`**); logic in **`lib/league-identity-change-policy.ts`**; Dashboard Settings locks fields + helper copy while cooling down. |
 
+
+### Suggested next focus (near term)
+
+1. **League home content:** **Calendar / games widgets** and richer CMS blocks (called out historically as post-CMS v1); improves browse/watch story before Phase 6 imports.
+2. **League website (multi-org):** **Public `?edit=1` path shipped** — **`PUT /api/league-site`** and **`POST /api/league-site/upload`** accept optional **`organization_id`** (public league page sends **`org.id`**). Dashboard **League website** still uses default org access when omitted (fine until an org switcher exists).
+3. **Phase 5:** Continue **jersey poll** polish and validate **sport templates** when ready to replace hard-coded positions.
+4. **Clarity in-product:** **Shipped** — shared **`PRO_BRAND_COLOR_COUNTER_HELPER`** in Settings + on-page look controls; Settings copy distinguishes **Publish** (CMS drafts) from immediate **appearance** saves.
 
 ---
 
@@ -182,6 +191,34 @@ Most of this is **not built yet**; this section records **Basic / Pro / Enterpri
 
 ---
 
+## Phase 9 — Platform admin / operations (**future — MyLeaguePortal staff only**)
+
+**Not** the same as **Phase 7 multi-admin** (league staff invited by an organizer) or the **organizer dashboard**. This is an **internal** surface for **you / trusted operators** to see health and volume across **all leagues** on the platform.
+
+**Status:** **Not started** — add after billing and core league flows are stable enough that aggregates are meaningful.
+
+### Access & safety
+
+- **Gate hard:** e.g. **Clerk allowlist** (specific user ids or org) + **server-only** APIs; no “secret URL” or client-side PIN. **Audit log** for sensitive actions (exports, any future impersonation).
+- **Principle of least privilege:** read-mostly v1; destructive or PII-heavy actions behind explicit steps.
+
+### Dashboard ideas (prioritize v1 vs later)
+
+- **At a glance:** Count of **organizations (leagues)**; split by **`plan`** (**Basic / Pro / Enterprise**); **new orgs** in last 7 / 30 days; optional **Stripe** summary (MRR, active subs, failed payments) when webhooks are trustworthy.
+- **People / activity (coarse):** Total **season players** or **profiles** if the schema supports it without heavy joins; **signed-in activity** proxies only if you add lightweight analytics—avoid guessing from Clerk alone.
+- **Drop-ins & registration (aggregate):** Sessions created, signups, waitlist pressure — enough to spot “is anyone using this?”
+- **Games / scoring:** Games recorded, live vs final — validates the scoring product is getting real use.
+- **Reports / exports:** CSV or **scheduled** exports for accounting and support (orgs, plans, key dates) — **no** bulk PII export by default.
+- **Suggestions & feedback:** Queue from an in-app **“Send feedback”** form or email capture — triage states (**new / in progress / done**), link to **org slug** for context.
+- **Support tools (later):** **Org lookup** by slug or name; read-only **org detail** (plan, Stripe customer id, feature flags). **Impersonation** only if legally/contractually clear — defer until needed.
+
+### Nice-to-have after v1
+
+- **Error / health:** API error rates, cron last-run (`**/api/cron/**`), Supabase storage usage.
+- **Churn risk:** Orgs on Pro with **failed renewal** or **canceled** Stripe status in the last N days.
+
+---
+
 ## Maintenance notes (for humans & agents)
 
 - When you **ship** or **cancel** a roadmap item, edit the relevant phase and add a short **changelog line** at the bottom (date + one sentence).
@@ -200,8 +237,14 @@ Use this when validating `**league_site_content`**, organization_editors, and `*
 
 ### Changelog
 
+- **2026-05-11:** **Phase 4 drop-ins complete:** Public **`/join/[slug]/dropins`** mobile-first layout (stacked cards, touch-friendly controls, safe-area padding, form field sizing) and dashboard drop-in surfaces (list, check-in, payments, team builder, standings tabs) hardened via shared **`dropin-*`** utilities in **`app/globals.css`**.
+- **2026-05-09:** **Roadmap — Phase 9 (platform admin):** Added **`Phase 9 — Platform admin / operations`** for **MyLeaguePortal staff** only (distinct from organizer dashboard and Phase 7 league staff): plan/org aggregates, Stripe-oriented summaries, coarse activity, drop-in and scoring usage signals, exports, feedback queue, and gated support tools — **not started**; access via hard-gated auth (e.g. Clerk allowlist) + audit trail for sensitive actions.
+- **2026-05-09:** **Pro counter UX + org-scoped CMS saves/uploads:** Exported **`PRO_BRAND_COLOR_COUNTER_HELPER`** (`**lib/pro-brand-color-limits.ts`**) for **Dashboard → Settings** (Brand color) and public **`?edit=1`** look controls; clarifies presets/fonts vs brand-color cap and that **Publish** is for website **page drafts**, not org appearance. **`PUT /api/league-site`** accepts optional **`organization_id`** (same auth pattern as GET); **`POST /api/league-site/upload`** accepts **`organization_id`** in **FormData**. **`/league/[slug]?edit=1`** sends **`organization_id`** on save/publish/hero/gallery upload so **multi-org** accounts target the league on the URL.
+- **2026-05-09:** **Public league edit — org-scoped theme & Pro color counter:** Introduced **`getOrgAccessForOrganization`** / **`getOrgAccessForClerkUserAndSlug`**, **`GET /api/me/org-access?slug=`**, and scoped **`PATCH /api/league-org-appearance`** + **`GET /api/league-site?organization_id=`** so brand/theme saves and **Pro “color changes left”** always refer to the **same league** as the URL (fixes counters stuck or wrong when multiple org relationships exist). **Typography & theme** (`?edit=1`) is **owner-only**; website editors no longer see that panel. **`proBrandColorChangesRemaining`** fixed when **`brand_color_change_period_start`** is null (UI was stuck at **5/5**). **`npm run db:apply-pending`** now includes **theme** migrations (`20260505110000`, `20260506140000`, `20260506200000`); optional **`scripts/sql/ensure-organization-appearance-columns.sql`** for Supabase SQL Editor. **Product rule:** **preset** changes are unlimited; **brand color** edits consume the **Pro** monthly cap (**Publish** applies only to CMS draft → public site content, not org appearance). BroadcastChannel keeps Settings / dashboard league-site / public edit in sync for appearance meta.
+- **2026-05-08:** **Next.js 16 proxy convention:** Renamed root **`middleware.ts`** → **`proxy.ts`** (Clerk **`clerkMiddleware`** and **`config.matcher`** unchanged). Clears the build deprecation notice; behavior for public league/join/games routes and protected dashboard is the same.
 - **2026-05-08:** **Live overlay + public watch URL:** Game overlay page polls **1s** when status is live (backup to realtime). Scoring dashboard shows **public watch link** as visible **`https://www.myleagueportal.com/...`** ( **`getPublicSiteOrigin()`** / **`NEXT_PUBLIC_PUBLIC_SITE_URL`** ) plus copy — league homepage when org slug exists, else public scoreboard. Removed duplicate OBS/preview copy rows from scorer (fans use site embed).
 - **2026-05-08:** **Scoring operator pass (starters + shot buttons) + DB migration applied:** Dashboard scoring now supports fixed **5-on-5 starter slots**, jersey-first tap workflow, and one-tap **+3 / +2 / +1 FT** plus core box-score actions. Added `**games.home_starter_slot_ids`** / `**away_starter_slot_ids`** and `**player_game_stats.fg2m/fg3m/ftm`** via migration `**20260507200000_game_starters_shooting.sql`**, with API score recompute and public scoreboard columns updated.
+- **2026-05-09:** **Drop-ins UX polish + ordering controls:** Dashboard drop-in check-in now supports roster/waitlist views with numbered order and organizer move up/down + move across lists. Public drop-ins now mirror numbered roster/waitlist order. Visual refresh started for public drop-ins with subtle **preset-aware** gradient background and cleaner spacing; responsive pass started for dashboard drop-ins forms/stats/tabs.
 - **2026-05-07:** **League News tab + syndicated team news + standings endpoint:** league home now has a dedicated **News** tab (separate from About). Team News tab merges team posts with league-level `news` CMS sections so organizers can post once and fan-facing team pages inherit those updates. Added `**GET /api/join/[slug]/standings`** and wired league `Standings` tab to render W/L/PCT and leader callouts from recorded finals.
 - **2026-05-07:** **Edit-page reliability + UI polish:** on-page theme save (`**PATCH /api/league-org-appearance`**) now has migration-safe org lookup fallbacks (id/slug/owner) to avoid false organizer “Organization not found” failures. League team cards removed mixed shorthand `border` + `borderLeft` style updates, and hero edit control hides uploaded URL text for cleaner editing.
 - **2026-05-07:** **Public league schedule personalization + public roster headshots:** `GET /api/join/[slug]/sessions` now emits a combined `scheduleItems` feed (season games + drop-ins) with per-user `is_user_playing` flags resolved from signed-in player/drop-in records. `**/league/[slug]` Schedule tab now renders **Your upcoming games** and **You’re playing** highlights while preserving one full list with safe drop-in-only CTAs. Public team payload/roster now supports optional `players.avatar_url` and renders headshots on `**/league/[slug]/teams/[teamId]` roster/stats rows with initials fallback.

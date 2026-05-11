@@ -48,7 +48,7 @@ export default function DropinPayments({ sessionId, session, registrations, onRe
   return (
     <div>
       {/* Summary */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '16px' }}>
+      <div className="dropin-payments-summary" style={{ marginBottom: '16px' }}>
         <div className="stat-card">
           <div className="stat-number" style={{ fontSize: '22px', color: 'var(--accent)' }}>${totalPaid}</div>
           <div className="stat-label">Collected</div>
@@ -72,12 +72,11 @@ export default function DropinPayments({ sessionId, session, registrations, onRe
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
         {allPlayers.map((reg) => (
-          <div key={reg.id} className="card-sm" style={{
-            display: 'flex', alignItems: 'center', gap: '12px',
+          <div key={reg.id} className="card-sm dropin-payments-row" style={{
             background: reg.payment_status === 'unpaid' ? '#fff8f8' : 'var(--bg-surface)',
             borderColor: reg.payment_status === 'unpaid' ? '#fecaca' : 'var(--border)',
           }}>
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)' }}>{reg.full_name}</span>
                 {reg.is_guest && (
@@ -86,24 +85,26 @@ export default function DropinPayments({ sessionId, session, registrations, onRe
               </div>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>Owes ${fee}</div>
             </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px', justifyContent: 'flex-end' }}>
             <span style={{
               background: reg.payment_status === 'paid' ? '#f0fdf4' : reg.payment_status === 'partial' ? '#fffbeb' : '#fef2f2',
               color: reg.payment_status === 'paid' ? '#16a34a' : reg.payment_status === 'partial' ? '#92400e' : '#dc2626',
               border: `0.5px solid ${reg.payment_status === 'paid' ? '#bbf7d0' : reg.payment_status === 'partial' ? '#fde68a' : '#fecaca'}`,
-              borderRadius: '4px', fontSize: '10px', fontWeight: '700', padding: '2px 8px',
+              borderRadius: '8px', fontSize: '11px', fontWeight: '700', padding: '8px 12px', minHeight: '40px', display: 'inline-flex', alignItems: 'center',
             }}>
               {reg.payment_status === 'paid' ? 'Paid' : reg.payment_status === 'partial' ? 'Partial' : 'Unpaid'}
             </span>
             {reg.payment_status !== 'paid' ? (
-              <button onClick={() => updatePayment(reg.id, 'paid')} disabled={updatingId === reg.id}
-                style={{ background: '#5a7a2a', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: '700', padding: '5px 10px', cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
+              <button type="button" onClick={() => updatePayment(reg.id, 'paid')} disabled={updatingId === reg.id}
+                style={{ background: 'var(--accent)', color: 'var(--btn-primary-text)', border: 'none', borderRadius: '8px', fontSize: '12px', fontWeight: '700', padding: '8px 14px', minHeight: '40px', cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
                 Mark Paid
               </button>
             ) : (
-              <button onClick={() => updatePayment(reg.id, 'unpaid')} className="btn-s" style={{ fontSize: '11px', padding: '5px 10px', flexShrink: 0 }}>
+              <button type="button" onClick={() => updatePayment(reg.id, 'unpaid')} className="btn-s" style={{ fontSize: '12px', padding: '8px 14px', minHeight: '40px', flexShrink: 0 }}>
                 Undo
               </button>
             )}
+            </div>
           </div>
         ))}
       </div>

@@ -54,7 +54,7 @@ export default function DropinStandings() {
     setLoading(false)
   }
 
-  async function adjustPoints(playerId: string, playerRepId: string) {
+  async function adjustPoints(playerId: string) {
     if (!adjustForm.reason) { alert('Please select a reason'); return }
     setSaving(true)
     const amount = parseInt(adjustForm.amount)
@@ -133,14 +133,31 @@ export default function DropinStandings() {
       </div>
 
       {/* Sub tabs */}
-      <div style={{ display: 'flex', gap: '4px', background: 'var(--bg-elevated)', border: '0.5px solid var(--border)', borderRadius: '10px', padding: '4px', marginBottom: '16px', width: 'fit-content' }}>
+      <div className="dropin-subtab-row" style={{ background: 'var(--bg-elevated)', border: '0.5px solid var(--border)', borderRadius: '10px', padding: '6px', marginBottom: '16px' }}>
         {[
           { id: 'standings', label: 'Standings' },
           { id: 'inactive', label: `Inactive${inactive.length > 0 ? ` (${inactive.length})` : ''}` },
           { id: 'settings', label: 'Point Rules' },
         ].map((tab) => (
-          <button key={tab.id} onClick={() => setActiveTab(tab.id as any)}
-            style={{ padding: '6px 12px', borderRadius: '7px', fontSize: '12px', fontWeight: '600', border: 'none', cursor: 'pointer', fontFamily: 'inherit', background: activeTab === tab.id ? 'var(--btn-primary-bg)' : 'transparent', color: activeTab === tab.id ? 'var(--btn-primary-text)' : 'var(--text-muted)', transition: 'all 0.15s' }}>
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setActiveTab(tab.id as 'standings' | 'inactive' | 'settings')}
+            style={{
+              padding: '8px 12px',
+              borderRadius: '8px',
+              fontSize: '13px',
+              fontWeight: '600',
+              border: 'none',
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              background: activeTab === tab.id ? 'var(--btn-primary-bg)' : 'transparent',
+              color: activeTab === tab.id ? 'var(--btn-primary-text)' : 'var(--text-muted)',
+              transition: 'all 0.15s',
+              flex: '1 1 auto',
+              minWidth: 0,
+            }}
+          >
             {tab.label}
           </button>
         ))}
@@ -150,7 +167,7 @@ export default function DropinStandings() {
       {activeTab === 'standings' && (
         <>
           {/* Stats summary */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '14px' }}>
+          <div className="dropin-standings-tier-grid" style={{ marginBottom: '14px' }}>
             <div className="stat-card" style={{ textAlign: 'center' }}>
               <div className="stat-number" style={{ color: '#92400e' }}>{standings.filter(s => s.tier === 'gold').length}</div>
               <div className="stat-label">Gold</div>
@@ -168,8 +185,25 @@ export default function DropinStandings() {
           {/* Filter pills */}
           <div style={{ display: 'flex', gap: '5px', marginBottom: '12px', flexWrap: 'wrap' }}>
             {['all', 'gold', 'silver', 'bronze', 'warning'].map(t => (
-              <button key={t} onClick={() => setFilterTier(t)}
-                style={{ padding: '4px 12px', borderRadius: '99px', fontSize: '10px', fontWeight: '700', border: filterTier === t ? '1.5px solid var(--btn-primary-bg)' : '0.5px solid var(--border)', background: filterTier === t ? 'var(--btn-primary-bg)' : 'transparent', color: filterTier === t ? 'var(--btn-primary-text)' : 'var(--text-primary)', cursor: 'pointer', fontFamily: 'inherit', textTransform: 'capitalize' }}>
+              <button
+                key={t}
+                type="button"
+                onClick={() => setFilterTier(t)}
+                style={{
+                  padding: '8px 14px',
+                  minHeight: '40px',
+                  borderRadius: '99px',
+                  fontSize: '12px',
+                  fontWeight: '700',
+                  border: filterTier === t ? '1.5px solid var(--btn-primary-bg)' : '0.5px solid var(--border)',
+                  background: filterTier === t ? 'var(--btn-primary-bg)' : 'transparent',
+                  color: filterTier === t ? 'var(--btn-primary-text)' : 'var(--text-primary)',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  textTransform: 'capitalize',
+                  touchAction: 'manipulation',
+                }}
+              >
                 {t === 'all' ? 'All' : tierLabel(t)}
               </button>
             ))}
@@ -230,7 +264,7 @@ export default function DropinStandings() {
                       <option value="Repeated no-shows">Repeated no-shows</option>
                       <option value="Unsportsmanlike conduct">Unsportsmanlike conduct</option>
                     </select>
-                    <button onClick={() => adjustPoints(rep.player_id, rep.id)} disabled={saving || !adjustForm.reason}
+                    <button onClick={() => adjustPoints(rep.player_id)} disabled={saving || !adjustForm.reason}
                       className="btn-g" style={{ fontSize: '10px', padding: '4px 10px', flexShrink: 0 }}>
                       Apply
                     </button>
@@ -258,7 +292,7 @@ export default function DropinStandings() {
                   {inactive.length} player{inactive.length !== 1 ? 's' : ''} flagged for inactivity
                 </div>
                 <div style={{ fontSize: '11px', color: '#92400e' }}>
-                  These players haven't shown up in {settings?.inactive_threshold || 15}+ sessions. Review and decide.
+                  These players have not shown up in {settings?.inactive_threshold || 15}+ sessions. Review and decide.
                 </div>
               </div>
 
@@ -315,7 +349,7 @@ export default function DropinStandings() {
                   <span style={{ fontSize: '13px', color: 'var(--text-primary)' }}>{rule.label}</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                     <span style={{ fontSize: '12px', color: rule.sign === '+' ? '#16a34a' : '#dc2626', fontWeight: '700' }}>{rule.sign}</span>
-                    <input type="number" value={(settings as any)[rule.key]} min="0" max="100"
+                    <input type="number" value={settings[rule.key as keyof RepSettings]} min="0" max="100"
                       onChange={(e) => setSettings({ ...settings, [rule.key]: parseInt(e.target.value) || 0 })}
                       style={{ width: '52px', background: 'var(--bg-elevated)', border: '0.5px solid var(--border)', borderRadius: '6px', padding: '4px 8px', fontSize: '12px', fontWeight: '700', color: 'var(--text-primary)', textAlign: 'center', fontFamily: 'inherit' }} />
                   </div>
@@ -335,7 +369,7 @@ export default function DropinStandings() {
                   <span style={tier.style}>{tier.label}</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', color: 'var(--text-muted)' }}>
                     <span>≥</span>
-                    <input type="number" value={(settings as any)[tier.key]} min="1"
+                    <input type="number" value={settings[tier.key as keyof RepSettings]} min="1"
                       onChange={(e) => setSettings({ ...settings, [tier.key]: parseInt(e.target.value) || 0 })}
                       style={{ width: '60px', background: 'var(--bg-elevated)', border: '0.5px solid var(--border)', borderRadius: '6px', padding: '4px 8px', fontSize: '12px', fontWeight: '700', color: 'var(--text-primary)', textAlign: 'center', fontFamily: 'inherit' }} />
                     <span>pts</span>

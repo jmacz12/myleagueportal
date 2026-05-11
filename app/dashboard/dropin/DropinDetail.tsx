@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import DropinCheckin from './DropinCheckin'
 import DropinPayments from './DropinPayments'
 import DropinTeamBuilder from './DropinTeamBuilder'
@@ -11,6 +11,7 @@ interface Session {
   scheduled_at: string
   location: string | null
   max_players: number
+  max_waitlist?: number
   fee_amount: number
   payment_method: string
   etransfer_info: string | null
@@ -30,6 +31,7 @@ interface Registration {
   guest_count: number
   team_name: string | null
   court_number: number | null
+  is_waitlist?: boolean
 }
 
 interface Props {
@@ -44,19 +46,22 @@ export default function DropinDetail({ sessionId, defaultTab = 'checkin', onBack
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'checkin' | 'payments' | 'teams'>(defaultTab)
 
-  useEffect(() => { fetchData() }, [sessionId])
-
-  async function fetchData() {
+  const fetchData = useCallback(async () => {
     const res = await fetch(`/api/dropin/${sessionId}`)
     const data = await res.json()
     setSession(data.session)
     setRegistrations(data.registrations || [])
     setLoading(false)
-  }
+  }, [sessionId])
 
-  const checkedIn = registrations.filter(r => r.checked_in && !r.is_guest).length
+  useEffect(() => {
+    void fetchData()
+  }, [fetchData])
+
+  const checkedIn = registrations.filter(r => r.checked_in && !r.is_guest && !r.is_waitlist).length
   const noShows = registrations.filter(r => !r.checked_in && !r.is_guest).length
-  const totalPlayers = registrations.filter(r => !r.is_guest).length
+  const totalPlayers = registrations.filter(r => !r.is_guest && !r.is_waitlist).length
+  const totalWaitlist = registrations.filter(r => !r.is_guest && !!r.is_waitlist).length
   const totalGuests = registrations.filter(r => r.is_guest).length
 
   if (loading) return (
@@ -65,7 +70,26 @@ export default function DropinDetail({ sessionId, defaultTab = 'checkin', onBack
 
   return (
     <div style={{ maxWidth: '860px' }}>
-      <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: '13px', fontWeight: '600', cursor: 'pointer', fontFamily: 'inherit', marginBottom: '16px', padding: '0', display: 'flex', alignItems: 'center', gap: '4px' }}>
+      <button
+        type="button"
+        onClick={onBack}
+        style={{
+          background: 'none',
+          border: 'none',
+          color: 'var(--accent)',
+          fontSize: '14px',
+          fontWeight: '600',
+          cursor: 'pointer',
+          fontFamily: 'inherit',
+          marginBottom: '12px',
+          padding: '10px 4px 10px 0',
+          minHeight: '44px',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '6px',
+          touchAction: 'manipulation',
+        }}
+      >
         ← Back to Sessions
       </button>
 
@@ -81,10 +105,14 @@ export default function DropinDetail({ sessionId, defaultTab = 'checkin', onBack
       </div>
 
       {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '20px' }}>
+      <div className="dropin-detail-stat-grid" style={{ marginBottom: '20px' }}>
         <div className="stat-card">
           <div className="stat-number" style={{ color: 'var(--accent)' }}>{totalPlayers}</div>
-          <div className="stat-label">Players</div>
+          <div className="stat-label">Roster</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-number">{totalWaitlist}</div>
+          <div className="stat-label">Waitlist</div>
         </div>
         <div className="stat-card">
           <div className="stat-number">{totalGuests}</div>
@@ -101,14 +129,29 @@ export default function DropinDetail({ sessionId, defaultTab = 'checkin', onBack
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: '4px', background: 'var(--bg-elevated)', border: '0.5px solid var(--border)', borderRadius: '10px', padding: '4px', marginBottom: '16px', width: 'fit-content' }}>
+      <div className="dropin-main-tabs" style={{ background: 'var(--bg-elevated)', border: '0.5px solid var(--border)', borderRadius: '10px', padding: '6px', marginBottom: '16px' }}>
         {[
           { id: 'checkin', label: 'Check-in' },
           { id: 'payments', label: 'Payments' },
           { id: 'teams', label: 'Team Builder', dataTab: 'teams' },
         ].map((tab) => (
-          <button key={tab.id} onClick={() => setActiveTab(tab.id as any)}
-            style={{ padding: '7px 14px', borderRadius: '7px', fontSize: '12px', fontWeight: '600', border: 'none', cursor: 'pointer', fontFamily: 'inherit', background: activeTab === tab.id ? 'var(--btn-primary-bg)' : 'transparent', color: activeTab === tab.id ? 'var(--btn-primary-text)' : 'var(--text-muted)', transition: 'all 0.15s' }}>
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setActiveTab(tab.id as 'checkin' | 'payments' | 'teams')}
+            style={{
+              padding: '10px 14px',
+              borderRadius: '8px',
+              fontSize: '13px',
+              fontWeight: '600',
+              border: 'none',
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              background: activeTab === tab.id ? 'var(--btn-primary-bg)' : 'transparent',
+              color: activeTab === tab.id ? 'var(--btn-primary-text)' : 'var(--text-muted)',
+              transition: 'all 0.15s',
+            }}
+          >
             {tab.label}
           </button>
         ))}

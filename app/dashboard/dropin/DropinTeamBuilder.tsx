@@ -109,7 +109,7 @@ export default function DropinTeamBuilder({ sessionId, registrations, onRefresh 
 
       {/* Build controls */}
       <div className="card" style={{ marginBottom: '16px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
+        <div className="dropin-team-controls-grid" style={{ marginBottom: '14px' }}>
           <div>
             <label className="label">Number of courts</label>
             <select value={courts} onChange={(e) => setCourts(parseInt(e.target.value))} className="input">
@@ -121,21 +121,23 @@ export default function DropinTeamBuilder({ sessionId, registrations, onRefresh 
           </div>
           <div>
             <label className="label">Build method</label>
-            <select value={buildMethod} onChange={(e) => setBuildMethod(e.target.value as any)} className="input">
+            <select value={buildMethod} onChange={(e) => setBuildMethod(e.target.value as 'random' | 'position')} className="input">
               <option value="random">Random</option>
               <option value="position">By position</option>
             </select>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <button onClick={autoBuildTeams} className="btn-primary">
-            Auto-build teams
-          </button>
-          {built && (
-            <button onClick={autoBuildTeams} className="btn-s" style={{ fontSize: '12px' }}>
-              Rebuild
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'stretch' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+            <button type="button" onClick={autoBuildTeams} className="btn-primary">
+              Auto-build teams
             </button>
-          )}
+            {built && (
+              <button type="button" onClick={autoBuildTeams} className="btn-s" style={{ fontSize: '12px' }}>
+                Rebuild
+              </button>
+            )}
+          </div>
           <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
             {activePlayers.length} players checked in
           </span>
@@ -145,7 +147,7 @@ export default function DropinTeamBuilder({ sessionId, registrations, onRefresh 
       {/* Team display */}
       {built && (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px', marginBottom: '16px' }}>
+          <div className="dropin-team-grid" style={{ marginBottom: '16px' }}>
             {Object.entries(teams).map(([teamName, players]) => (
               <div key={teamName} className="card" style={{ padding: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px', paddingBottom: '8px', borderBottom: '0.5px solid var(--border)' }}>
@@ -196,11 +198,11 @@ export default function DropinTeamBuilder({ sessionId, registrations, onRefresh 
             ))}
           </div>
 
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <button onClick={saveTeams} disabled={saving} className="btn-primary">
+          <div className="dropin-form-actions">
+            <button type="button" onClick={saveTeams} disabled={saving} className="btn-primary">
               {saving ? 'Saving...' : 'Lock Teams →'}
             </button>
-            <button onClick={() => setBuilt(false)} className="btn-s">Reset</button>
+            <button type="button" onClick={() => setBuilt(false)} className="btn-s">Reset</button>
           </div>
         </>
       )}
