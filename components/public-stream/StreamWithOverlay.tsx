@@ -1,11 +1,58 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type CSSProperties,
+} from 'react'
 import { Maximize2, Minimize2 } from 'lucide-react'
 import { streamWatchUrlToEmbedSrc } from '@/lib/stream-embed'
 
-/** Must fit sponsor strip + score row inside the overlay iframe (iframe clips overflow). */
+/** Desktop / tablet — band tall enough for sponsor + score row inside the iframe. */
 export const STREAM_OVERLAY_BAND_HEIGHT = 'clamp(96px, 14%, 158px)'
+/** Phones — slimmer strip so more room stays on the actual stream */
+export const STREAM_OVERLAY_BAND_HEIGHT_MOBILE = 'clamp(36px, 6.5%, 82px)'
+
+const MOBILE_MQ = '(max-width: 768px)'
+const PORTRAIT_MQ = '(orientation: portrait)'
+
+function tryLockLandscape(): void {
+  try {
+    const so = screen.orientation as ScreenOrientation & {
+      lock?: (type: OrientationLockType) => Promise<void>
+    }
+    if (typeof so?.lock === 'function') void so.lock('landscape').catch(() => {})
+  } catch {
+    /* unsupported */
+  }
+}
+
+function tryUnlockOrientation(): void {
+  try {
+    screen.orientation?.unlock?.()
+  } catch {
+    /* */
+  }
+}
+
+function useMediaFlag(query: string): boolean {
+  const getServer = () => false
+  const subscribe = (cb: () => void) => {
+    if (typeof window === 'undefined') return () => {}
+    const mq = window.matchMedia(query)
+    mq.addEventListener('change', cb)
+    return () => mq.removeEventListener('change', cb)
+  }
+  const getSnapshot = () => {
+    if (typeof window === 'undefined') return false
+    return window.matchMedia(query).matches
+  }
+  return useSyncExternalStore(subscribe, getSnapshot, getServer)
+}
 
 type Props = {
   /** Public watch URL (YouTube/Twitch page), same as team stream_url */
@@ -55,10 +102,13 @@ async function exitFullscreenBestEffort(): Promise<void> {
 
 export function StreamWithOverlay({ watchUrl, liveGameId, accentColor = '#5a7a2a' }: Props) {
   const shellRef = useRef<HTMLDivElement>(null)
+  const hadNativeFsRef = useRef(false)
   const [embedSrc, setEmbedSrc] = useState<string | null>(null)
   const [fs, setFs] = useState(false)
   /** iOS / Safari often blocks element fullscreen — fixed viewport overlay instead */
   const [immersive, setImmersive] = useState(false)
+  const isNarrow = useMediaFlag(MOBILE_MQ)
+  const isPortrait = useMediaFlag(PORTRAIT_MQ)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -73,7 +123,10 @@ export function StreamWithOverlay({ watchUrl, liveGameId, accentColor = '#5a7a2a
     const sync = () => {
       const active =
         (document.fullscreenElement === el || doc.webkitFullscreenElement === el) ?? false
+      if (hadNativeFsRef.current && !active) tryUnlockOrientation()
+      hadNativeFsRef.current = active
       setFs(active)
+      if (active) tryLockLandscape()
     }
     sync()
     document.addEventListener('fullscreenchange', sync)
@@ -93,6 +146,8 @@ export function StreamWithOverlay({ watchUrl, liveGameId, accentColor = '#5a7a2a
     }
   }, [immersive])
 
+  useEffect(() => () => tryUnlockOrientation(), [])
+
   const toggleFullscreen = useCallback(async () => {
     const el = shellRef.current
     if (!el) return
@@ -101,12 +156,17 @@ export function StreamWithOverlay({ watchUrl, liveGameId, accentColor = '#5a7a2a
 
     if (inNativeFs) {
       await exitFullscreenBestEffort()
+      tryUnlockOrientation()
       return
     }
     if (immersive) {
       setImmersive(false)
+      tryUnlockOrientation()
       return
     }
+
+    /** Must run in the same synchronous tap turn as the click — before any await — or browsers ignore lock */
+    tryLockLandscape()
 
     try {
       await requestFullscreenBestEffort(el)
@@ -114,6 +174,15 @@ export function StreamWithOverlay({ watchUrl, liveGameId, accentColor = '#5a7a2a
       setImmersive(true)
     }
   }, [immersive])
+
+  const overlaySrc = useMemo(() => {
+    if (!liveGameId) return null
+    const q = new URLSearchParams({ embed: '1' })
+    if (isNarrow) q.set('compact', '1')
+    return `/games/${liveGameId}/overlay?${q}`
+  }, [liveGameId, isNarrow])
+
+  const overlayBandHeight = isNarrow ? STREAM_OVERLAY_BAND_HEIGHT_MOBILE : STREAM_OVERLAY_BAND_HEIGHT
 
   if (!embedSrc) {
     return (
@@ -136,7 +205,6 @@ export function StreamWithOverlay({ watchUrl, liveGameId, accentColor = '#5a7a2a
     )
   }
 
-  const overlaySrc = liveGameId ? `/games/${liveGameId}/overlay?embed=1` : null
   const btnGradient = fullscreenButtonBackground(accentColor)
   const displayFs = fs || immersive
 
@@ -261,7 +329,7 @@ export function StreamWithOverlay({ watchUrl, liveGameId, accentColor = '#5a7a2a
                 right: 0,
                 bottom: 0,
                 width: '100%',
-                height: STREAM_OVERLAY_BAND_HEIGHT,
+                height: overlayBandHeight,
                 border: 'none',
                 pointerEvents: 'none',
                 zIndex: 2,
@@ -308,6 +376,27 @@ export function StreamWithOverlay({ watchUrl, liveGameId, accentColor = '#5a7a2a
         <p style={{ margin: '12px 0 0', fontSize: '13px', color: 'rgba(15,23,42,0.72)', lineHeight: 1.55 }}>
           Use the video&apos;s own controls to play or pause.{' '}
           <strong style={{ color: 'rgba(15,23,42,0.88)' }}>Full screen with overlay</strong> enlarges the stream and live scores together.
+        </p>
+      ) : null}
+
+      {immersive && isPortrait && isNarrow ? (
+        <p
+          style={{
+            position: 'fixed',
+            left: 12,
+            right: 12,
+            bottom: 'calc(env(safe-area-inset-bottom) + 10px)',
+            zIndex: 2147483001,
+            margin: 0,
+            fontSize: '12px',
+            lineHeight: 1.4,
+            color: 'rgba(248,250,252,0.8)',
+            textAlign: 'center',
+            pointerEvents: 'none',
+            textShadow: '0 1px 4px rgba(0,0,0,0.9)',
+          }}
+        >
+          Turn your phone sideways for the largest picture — iOS Safari can&apos;t auto-rotate the page.
         </p>
       ) : null}
     </div>

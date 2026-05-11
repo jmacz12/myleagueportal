@@ -57,11 +57,21 @@ export default function LiveGameOverlayPage() {
   const [editMode, setEditMode] = useState(false)
   const [cfg, setCfg] = useState<OverlayConfig>(DEFAULT_CONFIG)
   const [isEmbed, setIsEmbed] = useState(false)
+  const [narrowEmbed, setNarrowEmbed] = useState(false)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
     setIsEmbed(new URLSearchParams(window.location.search).get('embed') === '1')
   }, [])
+
+  useEffect(() => {
+    if (!isEmbed || typeof window === 'undefined') return
+    const mq = window.matchMedia('(max-width: 540px)')
+    const apply = () => setNarrowEmbed(mq.matches)
+    apply()
+    mq.addEventListener('change', apply)
+    return () => mq.removeEventListener('change', apply)
+  }, [isEmbed])
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/public/games/${encodeURIComponent(gameId)}/overlay`, {
@@ -184,12 +194,34 @@ export default function LiveGameOverlayPage() {
   const wingHomeBg = `linear-gradient(105deg, ${rgba(homeTint, 0.14)} 0%, rgba(17, 24, 39, 0.88) 55%)`
   const wingAwayBg = `linear-gradient(-105deg, ${rgba(awayTint, 0.14)} 0%, rgba(17, 24, 39, 0.88) 55%)`
   const centerBg = 'linear-gradient(180deg, rgba(15, 23, 42, 0.95) 0%, rgba(2, 6, 23, 0.92) 100%)'
-  const nameSize = isEmbed ? (cfg.compact ? 11 : 12) : cfg.compact ? 13 : 15
-  const scoreSize = isEmbed ? (cfg.compact ? 20 : 24) : cfg.compact ? 26 : 30
-  const metaSize = isEmbed ? 9 : 11
-  const logoPx = isEmbed ? 22 : 28
-  const edge = isEmbed ? 6 : 16
-  const bottomPad = isEmbed ? 4 : 14
+  const microEmbed = isEmbed && narrowEmbed
+
+  const nameSize = microEmbed
+    ? cfg.compact
+      ? 9
+      : 10
+    : isEmbed
+      ? cfg.compact
+        ? 11
+        : 12
+      : cfg.compact
+        ? 13
+        : 15
+  const scoreSize = microEmbed
+    ? cfg.compact
+      ? 17
+      : 18
+    : isEmbed
+      ? cfg.compact
+        ? 20
+        : 24
+      : cfg.compact
+        ? 26
+        : 30
+  const metaSize = microEmbed ? 8 : isEmbed ? 9 : 11
+  const logoPx = microEmbed ? 17 : isEmbed ? 22 : 28
+  const edge = microEmbed ? 4 : isEmbed ? 6 : 16
+  const bottomPad = microEmbed ? 2 : isEmbed ? 4 : 14
   const brandingLabel =
     proLike && cfg.showSponsor && cfg.sponsorText.trim()
       ? cfg.sponsorText
@@ -325,9 +357,9 @@ export default function LiveGameOverlayPage() {
           {/* Sponsor / brand — always on top */}
           <div
             style={{
-              padding: isEmbed ? '5px 10px' : '5px 14px',
+              padding: microEmbed ? '3px 8px' : isEmbed ? '5px 10px' : '5px 14px',
               textAlign: 'center',
-              fontSize: isEmbed ? 9 : 10,
+              fontSize: microEmbed ? 8 : isEmbed ? 9 : 10,
               fontWeight: 700,
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
@@ -344,7 +376,7 @@ export default function LiveGameOverlayPage() {
             style={{
               display: 'flex',
               alignItems: 'stretch',
-              minHeight: isEmbed ? 46 : 56,
+              minHeight: microEmbed ? 34 : isEmbed ? 46 : 56,
               background: 'rgba(15, 23, 42, 0.82)',
             }}
           >
