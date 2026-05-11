@@ -452,95 +452,107 @@ function LeagueHomeContent() {
     async function load() {
       setLoading(true)
       setNotFound(false)
-      const [hubRes, teamsRes, sesRes, standingsRes, streamRes] = await Promise.all([
-        fetch(`/api/join/${slug}/hub`),
-        fetch(`/api/join/${slug}/teams`),
-        fetch(`/api/join/${slug}/sessions`),
-        fetch(`/api/join/${slug}/standings`),
-        fetch(`/api/join/${slug}/stream`),
-      ])
-      if (cancelled) return
-      if (hubRes.status === 404) {
-        setNotFound(true)
-        setHub(null)
-        setTeams([])
-        setScheduleItems([])
-        setStandingsRows([])
-        setLeadersRows([])
-        setStreamLive(null)
-        setLoading(false)
-        return
-      }
-      const hubJson = await hubRes.json().catch(() => null)
-      const teamsJson = await teamsRes.json().catch(() => ({}))
-      const sesJson = await sesRes.json().catch(() => ({}))
-      const standingsJson = await standingsRes.json().catch(() => ({}))
-      const streamJson = await streamRes.json().catch(() => ({}))
-      if (!hubJson?.organization) {
-        setNotFound(true)
-        setHub(null)
-        setTeams([])
-        setScheduleItems([])
-        setStandingsRows([])
-        setLeadersRows([])
-        setStreamLive(null)
-      } else {
-        setHub({
-          organization: hubJson.organization,
-          competitiveSeason: hubJson.competitiveSeason ?? null,
-          seasonRegistrationOpen: !!hubJson.seasonRegistrationOpen,
-          leagueSite: hubJson.leagueSite ?? EMPTY_LEAGUE_SITE,
-        })
-        setTeams(Array.isArray(teamsJson.teams) ? teamsJson.teams : [])
-        setSessions(Array.isArray(sesJson.sessions) ? sesJson.sessions : [])
-        setScheduleItems(
-          Array.isArray(sesJson.scheduleItems)
-            ? sesJson.scheduleItems
-            : Array.isArray(sesJson.sessions)
-              ? sesJson.sessions.map(
-                  (s: {
-                    id: string
-                    name?: string
-                    scheduled_at: string
-                    fee_amount?: number
-                    location?: string | null
-                    is_recurring?: boolean
-                    signups?: unknown[]
-                    waitlist?: unknown[]
-                    max_players?: number | null
-                    max_waitlist?: number | null
-                  }) => ({
-                  id: `dropin:${s.id}`,
-                  source_id: s.id,
-                  type: 'drop_in' as const,
-                  name: s.name || 'Drop-in session',
-                  scheduled_at: s.scheduled_at,
-                  fee_amount: typeof s.fee_amount === 'number' ? s.fee_amount : null,
-                  location_label: s.location ?? null,
-                  is_user_playing: false,
-                  is_recurring: !!s.is_recurring,
-                  roster_count: Array.isArray(s.signups) ? s.signups.length : 0,
-                  waitlist_count: Array.isArray(s.waitlist) ? s.waitlist.length : 0,
-                  max_players: typeof s.max_players === 'number' ? s.max_players : null,
-                  max_waitlist: typeof s.max_waitlist === 'number' && s.max_waitlist > 0 ? s.max_waitlist : null,
-                }))
-              : []
-        )
-        setStandingsRows(Array.isArray(standingsJson.standings) ? standingsJson.standings : [])
-        setLeadersRows(Array.isArray(standingsJson.leaders) ? standingsJson.leaders : [])
-        const live = streamJson?.live
-        if (live && typeof live.gameId === 'string') {
-          setStreamLive({
-            gameId: live.gameId,
-            streamPageUrl: typeof live.streamPageUrl === 'string' ? live.streamPageUrl : null,
-            homeName: typeof live.homeName === 'string' ? live.homeName : null,
-            awayName: typeof live.awayName === 'string' ? live.awayName : null,
-          })
+      try {
+        const [hubRes, teamsRes, sesRes, standingsRes, streamRes] = await Promise.all([
+          fetch(`/api/join/${slug}/hub`),
+          fetch(`/api/join/${slug}/teams`),
+          fetch(`/api/join/${slug}/sessions`),
+          fetch(`/api/join/${slug}/standings`),
+          fetch(`/api/join/${slug}/stream`),
+        ])
+        if (cancelled) return
+        if (hubRes.status === 404) {
+          setNotFound(true)
+          setHub(null)
+          setTeams([])
+          setScheduleItems([])
+          setStandingsRows([])
+          setLeadersRows([])
+          setStreamLive(null)
+          return
+        }
+        const hubJson = await hubRes.json().catch(() => null)
+        const teamsJson = await teamsRes.json().catch(() => ({}))
+        const sesJson = await sesRes.json().catch(() => ({}))
+        const standingsJson = await standingsRes.json().catch(() => ({}))
+        const streamJson = await streamRes.json().catch(() => ({}))
+        if (!hubJson?.organization) {
+          setNotFound(true)
+          setHub(null)
+          setTeams([])
+          setScheduleItems([])
+          setStandingsRows([])
+          setLeadersRows([])
+          setStreamLive(null)
         } else {
+          setHub({
+            organization: hubJson.organization,
+            competitiveSeason: hubJson.competitiveSeason ?? null,
+            seasonRegistrationOpen: !!hubJson.seasonRegistrationOpen,
+            leagueSite: hubJson.leagueSite ?? EMPTY_LEAGUE_SITE,
+          })
+          setTeams(Array.isArray(teamsJson.teams) ? teamsJson.teams : [])
+          setSessions(Array.isArray(sesJson.sessions) ? sesJson.sessions : [])
+          setScheduleItems(
+            Array.isArray(sesJson.scheduleItems)
+              ? sesJson.scheduleItems
+              : Array.isArray(sesJson.sessions)
+                ? sesJson.sessions.map(
+                    (s: {
+                      id: string
+                      name?: string
+                      scheduled_at: string
+                      fee_amount?: number
+                      location?: string | null
+                      is_recurring?: boolean
+                      signups?: unknown[]
+                      waitlist?: unknown[]
+                      max_players?: number | null
+                      max_waitlist?: number | null
+                    }) => ({
+                    id: `dropin:${s.id}`,
+                    source_id: s.id,
+                    type: 'drop_in' as const,
+                    name: s.name || 'Drop-in session',
+                    scheduled_at: s.scheduled_at,
+                    fee_amount: typeof s.fee_amount === 'number' ? s.fee_amount : null,
+                    location_label: s.location ?? null,
+                    is_user_playing: false,
+                    is_recurring: !!s.is_recurring,
+                    roster_count: Array.isArray(s.signups) ? s.signups.length : 0,
+                    waitlist_count: Array.isArray(s.waitlist) ? s.waitlist.length : 0,
+                    max_players: typeof s.max_players === 'number' ? s.max_players : null,
+                    max_waitlist: typeof s.max_waitlist === 'number' && s.max_waitlist > 0 ? s.max_waitlist : null,
+                  }))
+                : []
+          )
+          setStandingsRows(Array.isArray(standingsJson.standings) ? standingsJson.standings : [])
+          setLeadersRows(Array.isArray(standingsJson.leaders) ? standingsJson.leaders : [])
+          const live = streamJson?.live
+          if (live && typeof live.gameId === 'string') {
+            setStreamLive({
+              gameId: live.gameId,
+              streamPageUrl: typeof live.streamPageUrl === 'string' ? live.streamPageUrl : null,
+              homeName: typeof live.homeName === 'string' ? live.homeName : null,
+              awayName: typeof live.awayName === 'string' ? live.awayName : null,
+            })
+          } else {
+            setStreamLive(null)
+          }
+        }
+      } catch {
+        if (!cancelled) {
+          setNotFound(true)
+          setHub(null)
+          setTeams([])
+          setScheduleItems([])
+          setStandingsRows([])
+          setLeadersRows([])
           setStreamLive(null)
         }
+      } finally {
+        if (!cancelled) setLoading(false)
       }
-      setLoading(false)
     }
     load()
     return () => {
