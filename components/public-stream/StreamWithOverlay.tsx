@@ -14,8 +14,8 @@ import { streamWatchUrlToEmbedSrc } from '@/lib/stream-embed'
 
 /** Desktop / tablet — band tall enough for sponsor + score row inside the iframe. */
 export const STREAM_OVERLAY_BAND_HEIGHT = 'clamp(96px, 14%, 158px)'
-/** Phones — slimmer strip so more room stays on the actual stream */
-export const STREAM_OVERLAY_BAND_HEIGHT_MOBILE = 'clamp(36px, 6.5%, 82px)'
+/** Phones — shorter than desktop but tall enough that sponsor + score row are not clipped inside the iframe */
+export const STREAM_OVERLAY_BAND_HEIGHT_MOBILE = 'clamp(76px, 13%, 124px)'
 
 const MOBILE_MQ = '(max-width: 768px)'
 const PORTRAIT_MQ = '(orientation: portrait)'
@@ -375,7 +375,8 @@ export function StreamWithOverlay({ watchUrl, liveGameId, accentColor = '#5a7a2a
       {!immersive ? (
         <p style={{ margin: '12px 0 0', fontSize: '13px', color: 'rgba(15,23,42,0.72)', lineHeight: 1.55 }}>
           Use the video&apos;s own controls to play or pause.{' '}
-          <strong style={{ color: 'rgba(15,23,42,0.88)' }}>Full screen with overlay</strong> enlarges the stream and live scores together.
+          <strong style={{ color: 'rgba(15,23,42,0.88)' }}>Full screen with overlay</strong> keeps the live scoreboard with the stream (best-effort on phones — not the same as the player&apos;s own fullscreen).{' '}
+          For system fullscreen only, use the player&apos;s fullscreen button; the score strip won&apos;t appear there.
         </p>
       ) : null}
 
