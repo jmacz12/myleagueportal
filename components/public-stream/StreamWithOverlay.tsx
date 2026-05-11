@@ -23,7 +23,7 @@ const PORTRAIT_MQ = '(orientation: portrait)'
 function tryLockLandscape(): void {
   try {
     const so = screen.orientation as ScreenOrientation & {
-      lock?: (type: OrientationLockType) => Promise<void>
+      lock?: (type: string) => Promise<void>
     }
     if (typeof so?.lock === 'function') void so.lock('landscape').catch(() => {})
   } catch {
