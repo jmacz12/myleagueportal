@@ -407,7 +407,7 @@ export default function SettingsPage() {
             <div style={{ border: '1px dashed var(--border)', borderRadius: '8px', padding: '24px', textAlign: 'center' }}>
               <div style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>PDF</div>
               <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '12px' }}>
-                Upload your existing PDF waiver — we&apos;ll extract the text for you to review
+                Upload a PDF — text is pulled out for you to edit and approve
               </p>
               <input type="file" accept=".pdf" onChange={onUpload}
                 style={{ display: 'none' }} id={inputId} disabled={extracting} />
@@ -475,7 +475,7 @@ export default function SettingsPage() {
 
           {!isPro && (
             <div style={{ background: 'var(--bg-elevated)', border: '0.5px solid var(--border)', borderRadius: '8px', padding: '12px 14px', fontSize: '12px', color: 'var(--text-muted)' }}>
-              <strong>Pro/Enterprise:</strong> Upload an existing PDF waiver and we will extract the text automatically.
+              <strong>Pro/Enterprise:</strong> Upload a PDF waiver and edit the extracted text before saving.
             </div>
           )}
         </div>
@@ -558,7 +558,7 @@ export default function SettingsPage() {
           <div>
             <label className="label">League logo</label>
             <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '10px', lineHeight: 1.45 }}>
-              Shown on your public league home, join hub, and drop-ins. Square or wide images work; we fit them inside the hero. Upload replaces the letter initials block everywhere.
+              Appears on your public league page, sign-up link, and drop-ins. Any shape works; it scales to fit. Replaces the letter block until you remove it.
             </p>
             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '14px' }}>
               <div
@@ -657,9 +657,9 @@ export default function SettingsPage() {
               {copied ? 'Copied' : 'Copy registration link'}
             </button>
             <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', lineHeight: 1.45 }}>
-              {settings?.plan === 'basic' ? 'Upgrade to Pro to set a custom, memorable URL.' : `Registration & drop-ins: myleagueportal.com/join/${form.slug}`}
+              {settings?.plan === 'basic' ? 'Pro and up: pick your own short link for sign-up.' : `Sign-up and drop-ins: myleagueportal.com/join/${form.slug}`}
               <br />
-              League home (teams, rosters, news):{' '}
+              Public league page (teams, news):{' '}
               <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>myleagueportal.com/league/{form.slug}</span>
             </p>
           </div>
@@ -672,7 +672,7 @@ export default function SettingsPage() {
               <input type="color" value={form.primary_color} onChange={(e) => setForm({ ...form, primary_color: e.target.value })}
                 disabled={settings?.plan === 'basic'}
                 style={{ width: '44px', height: '36px', borderRadius: '6px', border: '0.5px solid var(--border)', cursor: 'pointer', background: 'none', padding: '2px' }} />
-              <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Used to generate league page themes</span>
+              <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Feeds into your public page colors</span>
             </div>
             {settings?.plan === 'pro' && (
               <>
@@ -682,8 +682,7 @@ export default function SettingsPage() {
                   {PRO_BRAND_COLOR_CHANGES_PER_MONTH}
                 </p>
                 <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', lineHeight: 1.45 }}>
-                  {PRO_BRAND_COLOR_COUNTER_HELPER} League look saves here apply immediately; Publish on the league website
-                  only updates public page content drafts.
+                  {PRO_BRAND_COLOR_COUNTER_HELPER} Saving here updates colors right away. “Publish” on the league site editor only pushes content changes.
                 </p>
               </>
             )}
@@ -694,8 +693,8 @@ export default function SettingsPage() {
               <label className="label">League theme</label>
               <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '12px' }}>
                 {isEnterprise
-                  ? 'Pick one of five public looks. Classic, Bold, and Soft use your brand color; Bright is a cool daylight style; Midnight is a dark shell with light type.'
-                  : 'Pro includes five theme presets. Fresh and Modern are retired—Bright replaces the old Fresh look; dark mode is the Midnight preset.'}
+                  ? 'Five public page styles. Most use your brand color; Bright is a light blue look; Midnight is dark mode.'
+                  : 'Five page styles on Pro. Bright is the main light option; Midnight is dark mode.'}
               </p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '14px', alignItems: 'center' }}>
                 {LEAGUE_THEME_CHOICE_ORDER.map((choiceId) => {
@@ -772,7 +771,7 @@ export default function SettingsPage() {
                 )
               })()}
               <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '12px', lineHeight: 1.45 }}>
-                Applies to your public league home and join hub. Matches on-page edit; save with the button below.
+                Same look as your public league and sign-up pages. Save with the button at the bottom of Settings.
               </p>
             </div>
           )}

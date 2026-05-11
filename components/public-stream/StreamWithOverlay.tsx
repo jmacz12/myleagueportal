@@ -15,34 +15,13 @@ type Props = {
   accentColor?: string
 }
 
-const CHROME_HIDE_MS = 4200
-const CHROME_HIDE_AFTER_LEAVE_MS = 2200
-const POINTER_MOVE_THROTTLE_MS = 85
-const INTERACTION_HIDE_AFTER_MS = 3400
+/** Large tap target; sits top-right so YouTube/Twitch native controls stay usable at the bottom. */
+const FULLSCREEN_BTN_SIZE = 52
 
 export function StreamWithOverlay({ watchUrl, liveGameId, accentColor = '#5a7a2a' }: Props) {
   const shellRef = useRef<HTMLDivElement>(null)
   const [embedSrc, setEmbedSrc] = useState<string | null>(null)
   const [fs, setFs] = useState(false)
-  const [chromeVisible, setChromeVisible] = useState(true)
-  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const pointerInInteractionZoneRef = useRef(false)
-  const moveThrottleRef = useRef(0)
-
-  const clearHideTimer = useCallback(() => {
-    if (hideTimerRef.current) {
-      clearTimeout(hideTimerRef.current)
-      hideTimerRef.current = null
-    }
-  }, [])
-
-  const scheduleHide = useCallback(
-    (ms: number) => {
-      clearHideTimer()
-      hideTimerRef.current = setTimeout(() => setChromeVisible(false), ms)
-    },
-    [clearHideTimer]
-  )
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -58,14 +37,6 @@ export function StreamWithOverlay({ watchUrl, liveGameId, accentColor = '#5a7a2a
     return () => document.removeEventListener('fullscreenchange', onFs)
   }, [])
 
-  /** Auto-hide fullscreen chrome shortly after load (unless pointer already in interaction zone). */
-  useEffect(() => {
-    const t = setTimeout(() => {
-      if (!pointerInInteractionZoneRef.current) setChromeVisible(false)
-    }, CHROME_HIDE_MS)
-    return () => clearTimeout(t)
-  }, [])
-
   const toggleFullscreen = useCallback(async () => {
     const el = shellRef.current
     if (!el) return
@@ -79,44 +50,6 @@ export function StreamWithOverlay({ watchUrl, liveGameId, accentColor = '#5a7a2a
       /* ignore — some browsers block without gesture */
     }
   }, [])
-
-  const revealChrome = useCallback(() => {
-    setChromeVisible(true)
-    clearHideTimer()
-  }, [clearHideTimer])
-
-  const bumpChromeFromPointer = useCallback(() => {
-    revealChrome()
-    scheduleHide(INTERACTION_HIDE_AFTER_MS)
-  }, [revealChrome, scheduleHide])
-
-  const onInteractionEnter = useCallback(() => {
-    pointerInInteractionZoneRef.current = true
-    revealChrome()
-  }, [revealChrome])
-
-  const onInteractionLeave = useCallback(() => {
-    pointerInInteractionZoneRef.current = false
-    scheduleHide(CHROME_HIDE_AFTER_LEAVE_MS)
-  }, [scheduleHide])
-
-  /** When pointer moves anywhere over the player shell, show chrome (helps when iframe doesn't bubble). */
-  useEffect(() => {
-    function onPointerMove(e: PointerEvent) {
-      const shell = shellRef.current
-      if (!shell) return
-      const r = shell.getBoundingClientRect()
-      const inside =
-        e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom
-      if (!inside) return
-      const now = typeof performance !== 'undefined' ? performance.now() : Date.now()
-      if (now - moveThrottleRef.current < POINTER_MOVE_THROTTLE_MS) return
-      moveThrottleRef.current = now
-      bumpChromeFromPointer()
-    }
-    window.addEventListener('pointermove', onPointerMove, { passive: true })
-    return () => window.removeEventListener('pointermove', onPointerMove)
-  }, [bumpChromeFromPointer])
 
   if (!embedSrc) {
     return (
@@ -187,91 +120,56 @@ export function StreamWithOverlay({ watchUrl, liveGameId, accentColor = '#5a7a2a
           />
         ) : null}
 
-        {/*
-          YouTube/Twitch iframes don't bubble pointer events to this page. This transparent layer
-          covers the lower portion of the player so hover / touch reliably reveals fullscreen chrome.
-        */}
+        {/* Top chrome only: does not cover the bottom of the player where embed play/pause lives. */}
         <div
-          onPointerEnter={onInteractionEnter}
-          onPointerLeave={onInteractionLeave}
-          onPointerMove={() => bumpChromeFromPointer()}
-          onTouchStart={() => bumpChromeFromPointer()}
           style={{
             position: 'absolute',
+            top: 0,
             left: 0,
             right: 0,
-            bottom: 0,
-            height: '52%',
-            minHeight: 148,
-            zIndex: 4,
-            pointerEvents: 'auto',
-            touchAction: 'manipulation',
-            background: 'transparent',
+            zIndex: 8,
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'flex-end',
+            gap: '10px',
+            padding: '10px 10px 48px',
+            pointerEvents: 'none',
+            background: 'linear-gradient(180deg, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.2) 55%, transparent 100%)',
           }}
         >
-          <div
+          <button
+            type="button"
+            onClick={() => void toggleFullscreen()}
+            title={fs ? 'Exit full screen' : 'Full screen — video and score overlay'}
+            aria-label={fs ? 'Exit full screen' : 'Full screen with overlay'}
             style={{
-              position: 'absolute',
-              left: 8,
-              bottom: 8,
-              display: 'flex',
-              flexDirection: 'row',
-              alignItems: 'flex-end',
-              gap: 8,
-              opacity: chromeVisible ? 1 : 0,
-              transition: 'opacity 0.35s ease',
-              pointerEvents: chromeVisible ? 'auto' : 'none',
-              zIndex: 2,
+              pointerEvents: 'auto',
+              touchAction: 'manipulation',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              minWidth: FULLSCREEN_BTN_SIZE,
+              minHeight: FULLSCREEN_BTN_SIZE,
+              padding: '0 14px',
+              borderRadius: '12px',
+              border: '2px solid rgba(255,255,255,0.45)',
+              background: 'rgba(15,23,42,0.92)',
+              color: '#f8fafc',
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              fontSize: '13px',
+              fontWeight: 800,
+              boxShadow: '0 6px 20px rgba(0,0,0,0.5)',
             }}
           >
-            <span
-              style={{
-                writingMode: 'vertical-rl',
-                transform: 'rotate(180deg)',
-                fontSize: 10,
-                fontWeight: 700,
-                letterSpacing: '0.12em',
-                textTransform: 'uppercase',
-                color: 'rgba(248,250,252,0.88)',
-                textShadow: '0 1px 4px rgba(0,0,0,0.9)',
-                userSelect: 'none',
-                lineHeight: 1.2,
-                maxHeight: 120,
-              }}
-            >
-              Fullscreen with overlay
-            </span>
-            <button
-              type="button"
-              onClick={() => void toggleFullscreen()}
-              title={fs ? 'Exit full screen' : 'Full screen — video and score overlay'}
-              aria-label={fs ? 'Exit full screen' : 'Full screen with overlay'}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: 40,
-                height: 40,
-                flexShrink: 0,
-                padding: 0,
-                borderRadius: 10,
-                border: '1px solid rgba(255,255,255,0.28)',
-                background: 'rgba(15,23,42,0.88)',
-                color: '#f8fafc',
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-                boxShadow: '0 4px 14px rgba(0,0,0,0.45)',
-              }}
-            >
-              {fs ? <Minimize2 size={18} aria-hidden /> : <Maximize2 size={18} aria-hidden />}
-            </button>
-          </div>
+            {fs ? <Minimize2 size={22} strokeWidth={2.25} aria-hidden /> : <Maximize2 size={22} strokeWidth={2.25} aria-hidden />}
+            <span style={{ maxWidth: '120px', lineHeight: 1.15, textAlign: 'left' }}>{fs ? 'Exit' : 'Full screen'}</span>
+          </button>
         </div>
       </div>
-      <p style={{ margin: '10px 0 0', fontSize: '12px', opacity: 0.75, lineHeight: 1.45 }}>
-        {liveGameId
-          ? 'Touch or move the pointer over the lower part of the player to show fullscreen controls. The score overlay stays on the stream.'
-          : 'Score overlay appears here when this team has a game marked live in the league scorer.'}
+      <p style={{ margin: '10px 0 0', fontSize: '13px', color: 'rgba(15,23,42,0.72)', lineHeight: 1.5 }}>
+        Use the video&apos;s own controls to play or pause. Tap <strong>Full screen</strong> (top-right) to enlarge the video and score strip together.
       </p>
     </div>
   )

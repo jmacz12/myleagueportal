@@ -18,7 +18,14 @@ type DropinSessionRow = {
   name: string | null
   location: string | null
   fee_amount: number | null
+  max_players?: number | null
+  max_waitlist?: number | null
   is_recurring?: boolean | null
+}
+
+type SessionWithSignups = DropinSessionRow & {
+  signups: { full_name: string }[]
+  waitlist: { full_name: string }[]
 }
 
 type GameScheduleRow = {
@@ -248,17 +255,27 @@ export async function GET(
     })
     .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())
 
-  const dropinScheduleItems = sessionsWithSignups.map((s) => ({
-    id: `dropin:${s.id}`,
-    source_id: s.id,
-    type: 'drop_in' as const,
-    name: s.name || 'Drop-in session',
-    scheduled_at: s.scheduled_at as string,
-    location_label: (s.location as string | null) ?? null,
-    fee_amount: typeof s.fee_amount === 'number' ? s.fee_amount : null,
-    is_user_playing: signedUpSessionIds.has(s.id),
-    is_recurring: !!(s as DropinSessionRow).is_recurring,
-  }))
+  const dropinScheduleItems = (sessionsWithSignups as SessionWithSignups[]).map((s) => {
+    const rosterLen = s.signups.length
+    const waitLen = s.waitlist.length
+    const maxP = s.max_players
+    const maxWl = s.max_waitlist
+    return {
+      id: `dropin:${s.id}`,
+      source_id: s.id,
+      type: 'drop_in' as const,
+      name: s.name || 'Drop-in session',
+      scheduled_at: s.scheduled_at as string,
+      location_label: (s.location as string | null) ?? null,
+      fee_amount: typeof s.fee_amount === 'number' ? s.fee_amount : null,
+      is_user_playing: signedUpSessionIds.has(s.id),
+      is_recurring: !!s.is_recurring,
+      roster_count: rosterLen,
+      waitlist_count: waitLen,
+      max_players: typeof maxP === 'number' ? maxP : null,
+      max_waitlist: typeof maxWl === 'number' && maxWl > 0 ? maxWl : null,
+    }
+  })
 
   const scheduleItems = [...seasonScheduleItems, ...dropinScheduleItems].sort(
     (a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime()

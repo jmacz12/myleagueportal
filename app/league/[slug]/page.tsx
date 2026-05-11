@@ -94,6 +94,11 @@ interface LeagueScheduleItem {
   is_user_playing?: boolean
   /** Same flag as dashboard; used to group recurring series on the public schedule. */
   is_recurring?: boolean
+  /** Drop-in roster size (non-guest); from join sessions API. */
+  roster_count?: number
+  waitlist_count?: number
+  max_players?: number | null
+  max_waitlist?: number | null
 }
 
 interface LeagueStandingRow {
@@ -216,6 +221,41 @@ function dropinSeriesBaseName(name: string): string {
   const raw = String(name || '').trim()
   if (!raw) return ''
   return raw.split(' —')[0].trim() || raw
+}
+
+function truncatePlainText(s: string, maxLen: number): string {
+  const t = String(s || '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\n+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (t.length <= maxLen) return t
+  return `${t.slice(0, Math.max(0, maxLen - 1)).trimEnd()}…`
+}
+
+/** Public schedule line for drop-in attendance (roster + optional cap + waitlist). */
+function dropinSignupSummary(item: LeagueScheduleItem): string {
+  const n = typeof item.roster_count === 'number' ? item.roster_count : 0
+  const cap = typeof item.max_players === 'number' && item.max_players > 0 ? item.max_players : null
+  const wl = typeof item.waitlist_count === 'number' ? item.waitlist_count : 0
+  const maxWl = typeof item.max_waitlist === 'number' && item.max_waitlist > 0 ? item.max_waitlist : null
+  const core = cap != null ? `${n} / ${cap} signed up` : `${n} signed up`
+  const rosterFull = cap != null && n >= cap
+  const waitlistFull = maxWl != null && wl >= maxWl
+
+  if (rosterFull && waitlistFull) {
+    return `${core} · Full — waitlist closed`
+  }
+  if (rosterFull && maxWl != null && wl > 0) {
+    return `${core} · Roster full · ${wl} on waitlist`
+  }
+  if (rosterFull && maxWl != null) {
+    return `${core} · Roster full · waitlist open`
+  }
+  if (rosterFull) {
+    return `${core} · Roster full`
+  }
+  return wl > 0 ? `${core} · ${wl} on waitlist` : core
 }
 
 function sortLeagueScheduleItems(items: LeagueScheduleItem[]): LeagueScheduleItem[] {
@@ -465,6 +505,10 @@ function LeagueHomeContent() {
                     fee_amount?: number
                     location?: string | null
                     is_recurring?: boolean
+                    signups?: unknown[]
+                    waitlist?: unknown[]
+                    max_players?: number | null
+                    max_waitlist?: number | null
                   }) => ({
                   id: `dropin:${s.id}`,
                   source_id: s.id,
@@ -475,6 +519,10 @@ function LeagueHomeContent() {
                   location_label: s.location ?? null,
                   is_user_playing: false,
                   is_recurring: !!s.is_recurring,
+                  roster_count: Array.isArray(s.signups) ? s.signups.length : 0,
+                  waitlist_count: Array.isArray(s.waitlist) ? s.waitlist.length : 0,
+                  max_players: typeof s.max_players === 'number' ? s.max_players : null,
+                  max_waitlist: typeof s.max_waitlist === 'number' && s.max_waitlist > 0 ? s.max_waitlist : null,
                 }))
               : []
         )
@@ -760,6 +808,12 @@ function LeagueHomeContent() {
     () => buildLeagueScheduleDisplayRows(rankedScheduleItems),
     [rankedScheduleItems]
   )
+  /** Home tab: next few schedule rows (same grouping as Schedule tab for recurring drop-ins). */
+  const homeSchedulePreviewRows = useMemo(
+    () => leagueScheduleDisplayRows.slice(0, 6),
+    [leagueScheduleDisplayRows]
+  )
+  const latestNewsSection = newsSections[0] ?? null
   const personalizedSchedule = useMemo(() => {
     const playing = rankedScheduleItems.filter((item) => !!item.is_user_playing)
     const out: LeagueScheduleItem[] = []
@@ -1252,6 +1306,230 @@ function LeagueHomeContent() {
               </div>
             </div>
 
+            <div style={{ marginBottom: '26px' }}>
+              {streamLive ? (
+                <Link
+                  href={`/league/${slug}?tab=stream`}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '12px',
+                    flexWrap: 'wrap',
+                    marginBottom: '16px',
+                    padding: '12px 16px',
+                    borderRadius: '12px',
+                    textDecoration: 'none',
+                    background: 'linear-gradient(90deg, rgba(220,38,38,0.12) 0%, rgba(220,38,38,0.04) 100%)',
+                    border: `1px solid rgba(220,38,38,0.35)`,
+                    color: preset.heading,
+                  }}
+                >
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                    <span
+                      style={{
+                        fontSize: '10px',
+                        fontWeight: 900,
+                        letterSpacing: '0.12em',
+                        color: '#fff',
+                        background: '#dc2626',
+                        padding: '4px 8px',
+                        borderRadius: '6px',
+                      }}
+                    >
+                      LIVE
+                    </span>
+                    <span style={{ fontSize: '14px', fontWeight: 800 }}>
+                      {streamLive.homeName || 'Home'} vs {streamLive.awayName || 'Away'}
+                    </span>
+                  </span>
+                  <span style={{ fontSize: '13px', fontWeight: 800, color: preset.accent }}>Watch →</span>
+                </Link>
+              ) : null}
+
+              <div
+                style={{
+                  background: preset.surfaceBg,
+                  border: `1px solid ${preset.surfaceBorder}`,
+                  borderRadius: '16px',
+                  padding: '20px 20px 18px',
+                  marginBottom: latestNewsSection ? '16px' : 0,
+                  boxShadow: '0 10px 28px -20px rgba(0,0,0,0.2)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px', marginBottom: '14px', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <CalendarDays size={20} color={preset.accent} aria-hidden />
+                    <div>
+                      <p style={{ margin: 0, fontSize: '11px', fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: preset.muted }}>
+                        Calendar
+                      </p>
+                      <p style={{ margin: '4px 0 0', fontSize: '17px', fontWeight: 900, color: preset.heading, letterSpacing: '-0.02em' }}>
+                        Up next
+                      </p>
+                    </div>
+                  </div>
+                  <Link
+                    href={`/league/${slug}?tab=schedule`}
+                    style={{ fontSize: '13px', fontWeight: 800, color: preset.accent, textDecoration: 'none', whiteSpace: 'nowrap' }}
+                  >
+                    Full schedule
+                  </Link>
+                </div>
+                {homeSchedulePreviewRows.length === 0 ? (
+                  <p style={{ margin: 0, fontSize: '14px', color: preset.muted, lineHeight: 1.55 }}>
+                    No league games or open drop-ins on the calendar yet. Check back soon—or ask your organizer to post dates.
+                  </p>
+                ) : (
+                  <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0' }}>
+                    {homeSchedulePreviewRows.map((row, idx) => {
+                      if (row.kind === 'single') {
+                        const item = row.item
+                        const local = formatDropInSessionLocal(item.scheduled_at, org.league_timezone)
+                        const isDropin = item.type === 'drop_in'
+                        const href = isDropin
+                          ? `/join/${slug}/dropins`
+                          : `/games/${item.source_id}/scoreboard`
+                        const badgeBg = isDropin ? preset.accentSoftBg : '#f3e8ff'
+                        const badgeColor = isDropin ? preset.accent : '#6d28d9'
+                        const badgeLabel = isDropin ? 'Drop-in' : 'League game'
+                        return (
+                          <li
+                            key={item.id}
+                            style={{
+                              borderTop: idx === 0 ? 'none' : `1px solid ${preset.surfaceBorder}`,
+                              padding: '12px 0',
+                            }}
+                          >
+                            <Link href={href} style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '6px' }}>
+                                <span
+                                  style={{
+                                    fontSize: '10px',
+                                    fontWeight: 800,
+                                    letterSpacing: '0.04em',
+                                    textTransform: 'uppercase',
+                                    padding: '2px 7px',
+                                    borderRadius: '999px',
+                                    background: badgeBg,
+                                    color: badgeColor,
+                                    border: `1px solid ${preset.surfaceBorder}`,
+                                  }}
+                                >
+                                  {badgeLabel}
+                                </span>
+                                {item.is_user_playing ? (
+                                  <span style={{ fontSize: '10px', fontWeight: 800, color: preset.accent }}>You&apos;re in</span>
+                                ) : null}
+                              </div>
+                              <p style={{ margin: '0 0 4px', fontSize: '15px', fontWeight: 800, color: preset.heading }}>{item.name}</p>
+                              <p style={{ margin: 0, fontSize: '13px', color: preset.muted }}>
+                                {local.day} · {local.time}
+                                {local.zone ? ` ${local.zone}` : ''}
+                              </p>
+                              {item.location_label ? (
+                                <p style={{ margin: '6px 0 0', fontSize: '12px', color: preset.body, display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+                                  <MapPin size={14} style={{ flexShrink: 0, marginTop: '2px', color: preset.accent }} aria-hidden />
+                                  <span>{item.location_label}</span>
+                                </p>
+                              ) : null}
+                              {isDropin ? (
+                                <p style={{ margin: '8px 0 0', fontSize: '12px', color: preset.muted }}>{dropinSignupSummary(item)}</p>
+                              ) : null}
+                              <span style={{ display: 'inline-block', marginTop: '10px', fontSize: '13px', fontWeight: 800, color: preset.accent }}>
+                                {isDropin ? 'Reserve spot' : 'Scoreboard'} →
+                              </span>
+                            </Link>
+                          </li>
+                        )
+                      }
+                      const { base, items } = row
+                      const next = items[0]!
+                      const local = formatDropInSessionLocal(next.scheduled_at, org.league_timezone)
+                      const moreCount = items.length - 1
+                      const loc0 = next.location_label
+                      return (
+                        <li
+                          key={`home-recur:${base}`}
+                          style={{
+                            borderTop: idx === 0 ? 'none' : `1px solid ${preset.surfaceBorder}`,
+                            padding: '12px 0',
+                          }}
+                        >
+                          <Link href={`/join/${slug}/dropins`} style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '6px' }}>
+                              <span
+                                style={{
+                                  fontSize: '10px',
+                                  fontWeight: 800,
+                                  letterSpacing: '0.04em',
+                                  textTransform: 'uppercase',
+                                  padding: '2px 7px',
+                                  borderRadius: '999px',
+                                  background: preset.accentSoftBg,
+                                  color: preset.accent,
+                                  border: `1px solid ${preset.surfaceBorder}`,
+                                }}
+                              >
+                                Repeating drop-in
+                              </span>
+                              {items.some((i) => i.is_user_playing) ? (
+                                <span style={{ fontSize: '10px', fontWeight: 800, color: preset.accent }}>You&apos;re in</span>
+                              ) : null}
+                            </div>
+                            <p style={{ margin: '0 0 4px', fontSize: '15px', fontWeight: 800, color: preset.heading }}>{base}</p>
+                            <p style={{ margin: 0, fontSize: '13px', color: preset.muted }}>
+                              Next: {local.day} · {local.time}
+                              {local.zone ? ` ${local.zone}` : ''}
+                              {moreCount > 0 ? ` · +${moreCount} more date${moreCount === 1 ? '' : 's'}` : ''}
+                            </p>
+                            {loc0 ? (
+                              <p style={{ margin: '6px 0 0', fontSize: '12px', color: preset.body, display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+                                <MapPin size={14} style={{ flexShrink: 0, marginTop: '2px', color: preset.accent }} aria-hidden />
+                                <span>{loc0}</span>
+                              </p>
+                            ) : null}
+                            <p style={{ margin: '8px 0 0', fontSize: '12px', color: preset.muted }}>{dropinSignupSummary(next)}</p>
+                            <span style={{ display: 'inline-block', marginTop: '10px', fontSize: '13px', fontWeight: 800, color: preset.accent }}>
+                              View drop-ins →
+                            </span>
+                          </Link>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+              </div>
+
+              {latestNewsSection && latestNewsSection.type === 'news' ? (
+                <div
+                  style={{
+                    background: preset.surfaceBg,
+                    border: `1px solid ${preset.surfaceBorder}`,
+                    borderRadius: '16px',
+                    padding: '20px 20px 22px',
+                    boxShadow: '0 10px 28px -20px rgba(0,0,0,0.2)',
+                  }}
+                >
+                  <p style={{ margin: '0 0 10px', fontSize: '11px', fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: preset.muted }}>
+                    Latest update
+                  </p>
+                  <p style={{ margin: '0 0 8px', fontSize: '18px', fontWeight: 900, color: preset.heading, letterSpacing: '-0.02em' }}>{latestNewsSection.title}</p>
+                  {latestNewsSection.body.trim() ? (
+                    <p style={{ margin: '0 0 14px', fontSize: '14px', color: preset.body, lineHeight: 1.55 }}>
+                      {truncatePlainText(latestNewsSection.body, 220)}
+                    </p>
+                  ) : null}
+                  <Link
+                    href={`/league/${slug}?tab=news`}
+                    style={{ fontSize: '13px', fontWeight: 800, color: preset.accent, textDecoration: 'none' }}
+                  >
+                    All league news →
+                  </Link>
+                </div>
+              ) : null}
+            </div>
+
             {competitiveSeason ? (
               <div
                 style={{
@@ -1293,7 +1571,14 @@ function LeagueHomeContent() {
         ) : null}
 
         {activeTab === 'stream' ? (
-          <div style={{ paddingTop: '24px' }}>
+          <div
+            style={{
+              paddingTop: '24px',
+              width: '100%',
+              maxWidth: 'min(960px, 100%)',
+              margin: '0 auto',
+            }}
+          >
             <h2
               style={{
                 fontSize: 'clamp(20px, 2.5vw, 24px)',
@@ -1305,9 +1590,8 @@ function LeagueHomeContent() {
             >
               Live stream
             </h2>
-            <p style={{ margin: '0 0 22px', fontSize: '14px', color: preset.muted, lineHeight: 1.55, maxWidth: '560px' }}>
-              When a season game is marked <strong style={{ color: preset.heading }}>live</strong> and a team has published a YouTube or Twitch link, you can watch here with the scoreboard on top. Use{' '}
-              <strong style={{ color: preset.heading }}>Full screen</strong> to expand video and overlay together.
+            <p style={{ margin: '0 0 22px', fontSize: '14px', color: preset.muted, lineHeight: 1.55, width: '100%' }}>
+              When a season game is marked live and a team has published a YouTube or Twitch link, you can watch here with the scoreboard on top. Use Full screen to expand video and overlay together.
             </p>
             {!streamLive ? (
               <div
@@ -1366,14 +1650,9 @@ function LeagueHomeContent() {
 
         {activeTab === 'schedule' ? (
           <div style={{ paddingTop: '24px' }}>
-            <h2 style={{ fontSize: 'clamp(20px, 2.5vw, 24px)', fontWeight: 900, color: preset.heading, margin: '0 0 8px', letterSpacing: '-0.02em' }}>
+            <h2 style={{ fontSize: 'clamp(20px, 2.5vw, 24px)', fontWeight: 900, color: preset.heading, margin: '0 0 18px', letterSpacing: '-0.02em' }}>
               Schedule & venues
             </h2>
-            <p style={{ margin: '0 0 22px', fontSize: '14px', color: preset.muted, lineHeight: 1.55, maxWidth: '62ch' }}>
-              Season games and drop-ins share one chronological list. Recurring drop-in runs use a single card with the next
-              sign-up-open date; use <strong style={{ color: preset.heading }}>Show more dates</strong> to see other upcoming
-              instances in that series. Only sessions that are open for registration appear here (same rule as the drop-in list).
-            </p>
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '14px' }}>
               <span
                 style={{
@@ -1393,7 +1672,7 @@ function LeagueHomeContent() {
                   aria-hidden
                   style={{ width: '8px', height: '8px', borderRadius: '999px', background: '#7c3aed' }}
                 />
-                Season game
+                League game
               </span>
               <span
                 style={{
@@ -1435,8 +1714,30 @@ function LeagueHomeContent() {
                     const local = formatDropInSessionLocal(item.scheduled_at, org.league_timezone)
                     const label =
                       item.type === 'drop_in' && item.is_recurring ? dropinSeriesBaseName(item.name) : item.name
+                    const rowHref =
+                      item.type === 'drop_in' ? `/join/${slug}/dropins` : `/games/${item.source_id}/scoreboard`
                     return (
-                      <div key={`personal-${item.id}`} style={{ fontSize: '13px', color: preset.body }}>
+                      <div
+                        key={`personal-${item.id}`}
+                        role="link"
+                        tabIndex={0}
+                        onClick={() => router.push(rowHref)}
+                        onKeyDown={(ev) => {
+                          if (ev.key === 'Enter' || ev.key === ' ') {
+                            ev.preventDefault()
+                            router.push(rowHref)
+                          }
+                        }}
+                        style={{
+                          fontSize: '13px',
+                          color: preset.body,
+                          cursor: 'pointer',
+                          padding: '8px 10px',
+                          margin: '0 -10px',
+                          borderRadius: '8px',
+                          outline: 'none',
+                        }}
+                      >
                         <strong style={{ color: preset.heading }}>{label}</strong> · {local.day} · {local.time}
                       </div>
                     )
@@ -1467,9 +1768,19 @@ function LeagueHomeContent() {
                     const local = formatDropInSessionLocal(item.scheduled_at, org.league_timezone)
                     const isDropin = item.type === 'drop_in'
                     const loc = item.location_label
+                    const cardHref = isDropin ? `/join/${slug}/dropins` : `/games/${item.source_id}/scoreboard`
                     return (
                       <div
                         key={item.id}
+                        role="link"
+                        tabIndex={0}
+                        onClick={() => router.push(cardHref)}
+                        onKeyDown={(ev) => {
+                          if (ev.key === 'Enter' || ev.key === ' ') {
+                            ev.preventDefault()
+                            router.push(cardHref)
+                          }
+                        }}
                         style={{
                           background: preset.surfaceBg,
                           border: `1px solid ${item.is_user_playing ? preset.accent : preset.surfaceBorder}`,
@@ -1480,6 +1791,8 @@ function LeagueHomeContent() {
                           justifyContent: 'space-between',
                           alignItems: 'flex-start',
                           gap: '14px',
+                          cursor: 'pointer',
+                          outline: 'none',
                         }}
                       >
                         <div style={{ minWidth: 0 }}>
@@ -1500,7 +1813,7 @@ function LeagueHomeContent() {
                               marginBottom: '8px',
                             }}
                           >
-                            {isDropin ? 'Drop-in' : 'Season game'}
+                            {isDropin ? 'Drop-in' : 'League game'}
                           </span>
                           {item.is_user_playing ? (
                             <span
@@ -1538,36 +1851,25 @@ function LeagueHomeContent() {
                           {isDropin && typeof item.fee_amount === 'number' ? (
                             <p style={{ margin: '10px 0 0', fontSize: '14px', fontWeight: 800, color: preset.accent }}>${item.fee_amount}</p>
                           ) : null}
+                          {isDropin ? (
+                            <p style={{ margin: '8px 0 0', fontSize: '13px', color: preset.muted }}>{dropinSignupSummary(item)}</p>
+                          ) : null}
                         </div>
-                        {isDropin ? (
-                          <Link
-                            href={`/join/${slug}/dropins`}
-                            style={{
-                              fontSize: '13px',
-                              fontWeight: 800,
-                              textDecoration: 'none',
-                              padding: '10px 18px',
-                              borderRadius: '10px',
-                              background: preset.accent,
-                              color: contrastTextForAccent(preset.accent),
-                              flexShrink: 0,
-                            }}
-                          >
-                            {item.is_user_playing ? 'Manage spot' : 'Reserve spot'}
-                          </Link>
-                        ) : (
-                          <span
-                            style={{
-                              fontSize: '12px',
-                              fontWeight: 700,
-                              color: preset.muted,
-                              padding: '10px 0',
-                              flexShrink: 0,
-                            }}
-                          >
-                            Season fixture
-                          </span>
-                        )}
+                        <span
+                          style={{
+                            fontSize: '13px',
+                            fontWeight: 800,
+                            padding: '10px 18px',
+                            borderRadius: '10px',
+                            background: isDropin ? preset.accent : preset.accentSoftBg,
+                            color: isDropin ? contrastTextForAccent(preset.accent) : preset.accent,
+                            border: isDropin ? 'none' : `1px solid ${preset.surfaceBorder}`,
+                            flexShrink: 0,
+                            alignSelf: 'flex-start',
+                          }}
+                        >
+                          {isDropin ? (item.is_user_playing ? 'Manage spot →' : 'Reserve spot →') : 'Scoreboard →'}
+                        </span>
                       </div>
                     )
                   }
@@ -1580,9 +1882,23 @@ function LeagueHomeContent() {
                   const expanded = !!expandedScheduleCluster[clusterKey]
                   const moreCount = items.length - 1
                   const loc0 = next.location_label
+                  const dropinHref = `/join/${slug}/dropins`
                   return (
                     <div
                       key={clusterKey}
+                      role="link"
+                      tabIndex={0}
+                      onClick={(ev) => {
+                        const el = ev.target as HTMLElement
+                        if (el.closest?.('[data-schedule-expand]')) return
+                        router.push(dropinHref)
+                      }}
+                      onKeyDown={(ev) => {
+                        if (ev.key === 'Enter' || ev.key === ' ') {
+                          ev.preventDefault()
+                          router.push(dropinHref)
+                        }
+                      }}
                       style={{
                         background: preset.surfaceBg,
                         border: `1px solid ${anyPlaying ? preset.accent : preset.surfaceBorder}`,
@@ -1593,6 +1909,8 @@ function LeagueHomeContent() {
                         justifyContent: 'space-between',
                         alignItems: 'flex-start',
                         gap: '14px',
+                        cursor: 'pointer',
+                        outline: 'none',
                       }}
                     >
                       <div style={{ minWidth: 0, flex: '1 1 220px' }}>
@@ -1613,7 +1931,7 @@ function LeagueHomeContent() {
                             marginBottom: '8px',
                           }}
                         >
-                          Drop-in · recurring
+                          Repeating drop-in
                         </span>
                         {anyPlaying ? (
                           <span
@@ -1654,26 +1972,31 @@ function LeagueHomeContent() {
                         {typeof next.fee_amount === 'number' ? (
                           <p style={{ margin: '10px 0 0', fontSize: '14px', fontWeight: 800, color: preset.accent }}>${next.fee_amount}</p>
                         ) : null}
+                        <p style={{ margin: '8px 0 0', fontSize: '13px', color: preset.muted }}>{dropinSignupSummary(next)}</p>
                         {moreCount > 0 ? (
                           <div style={{ marginTop: '12px' }}>
                             <button
                               type="button"
-                              onClick={() =>
+                              data-schedule-expand
+                              onClick={(e) => {
+                                e.stopPropagation()
                                 setExpandedScheduleCluster((prev) => ({
                                   ...prev,
                                   [clusterKey]: !prev[clusterKey],
                                 }))
-                              }
+                              }}
                               style={{
                                 background: 'transparent',
                                 border: `1px solid ${preset.surfaceBorder}`,
                                 borderRadius: '10px',
-                                padding: '8px 12px',
-                                fontSize: '12px',
+                                padding: '10px 14px',
+                                fontSize: '13px',
                                 fontWeight: 800,
                                 color: preset.heading,
                                 cursor: 'pointer',
                                 fontFamily: 'inherit',
+                                touchAction: 'manipulation',
+                                minHeight: '44px',
                               }}
                             >
                               {expanded ? 'Hide extra dates' : `Show ${moreCount} more date${moreCount === 1 ? '' : 's'}`}
@@ -1686,6 +2009,7 @@ function LeagueHomeContent() {
                                     <li key={ex.id}>
                                       {locEx.day} · {locEx.time}
                                       {locEx.zone ? ` ${locEx.zone}` : ''}
+                                      <span style={{ color: preset.muted }}> — {dropinSignupSummary(ex)}</span>
                                       {ex.is_user_playing ? (
                                         <span style={{ marginLeft: '6px', fontWeight: 800, color: preset.accent }}>(You&apos;re in)</span>
                                       ) : null}
@@ -1697,12 +2021,10 @@ function LeagueHomeContent() {
                           </div>
                         ) : null}
                       </div>
-                      <Link
-                        href={`/join/${slug}/dropins`}
+                      <span
                         style={{
                           fontSize: '13px',
                           fontWeight: 800,
-                          textDecoration: 'none',
                           padding: '10px 18px',
                           borderRadius: '10px',
                           background: preset.accent,
@@ -1711,8 +2033,8 @@ function LeagueHomeContent() {
                           alignSelf: 'flex-start',
                         }}
                       >
-                        {anyPlaying ? 'Manage spot' : 'Reserve spot'}
-                      </Link>
+                        {anyPlaying ? 'Manage spot →' : 'Reserve spot →'}
+                      </span>
                     </div>
                   )
                 })}

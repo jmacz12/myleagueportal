@@ -52,7 +52,7 @@ export default function DropinPage() {
               }}
             >?</button>
           </div>
-          <p className="page-subtitle">Manage casual sessions, track attendance and payments</p>
+          <p className="page-subtitle">Run pickup sessions, check people in, and track fees</p>
         </div>
       </div>
 
@@ -75,7 +75,7 @@ export default function DropinPage() {
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
               <div style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-primary)' }}>
-                Drop-in Sessions — Full Guide
+                How drop-ins work
               </div>
               <button type="button" onClick={() => setShowHelp(false)}
                 className="modal-close" aria-label="Close help">×</button>
@@ -84,10 +84,10 @@ export default function DropinPage() {
             {/* Section 1 — What is a drop-in */}
             <div style={{ marginBottom: '18px' }}>
               <div style={{ fontSize: '12px', fontWeight: '800', color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>
-                What is a Drop-in Session?
+                What is a drop-in?
               </div>
               <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.7' }}>
-                Drop-in sessions are casual, open play sessions — no fixed teams or standings needed. Players sign up, show up, and play. You handle check-in and payment tracking all in one place.
+                Open play: people sign up online, you check them in and note who paid. No league schedule required.
               </div>
             </div>
 
@@ -98,8 +98,8 @@ export default function DropinPage() {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 {[
-                  { title: 'One-time', desc: 'A single session on a specific date' },
-                  { title: 'Recurring', desc: 'Auto-creates weekly, biweekly or monthly sessions up to 52 weeks ahead' },
+                  { title: 'One-time', desc: 'One date and time' },
+                  { title: 'Repeating', desc: 'Adds weekly, every two weeks, or monthly dates (up to a year ahead)' },
                 ].map((item) => (
                   <div key={item.title} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', background: 'var(--bg-elevated)', borderRadius: '8px', padding: '10px 12px' }}>
                     <div>
@@ -118,10 +118,10 @@ export default function DropinPage() {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                 {[
-                  { label: 'Open now', desc: 'Players can sign up immediately' },
-                  { label: 'Keep closed', desc: 'You open it manually when ready' },
-                  { label: 'Schedule opening', desc: 'Auto-opens X days before session' },
-                  { label: 'Custom date & time', desc: 'Opens at an exact date and time' },
+                  { label: 'Open now', desc: 'Sign-up is on right away' },
+                  { label: 'Keep closed', desc: 'You turn sign-up on when you want' },
+                  { label: 'Schedule opening', desc: 'Opens a set number of days before the session' },
+                  { label: 'Custom date & time', desc: 'Opens at a date and time you pick' },
                 ].map((opt) => (
                   <div key={opt.label} style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
                     <strong style={{ color: 'var(--text-primary)' }}>{opt.label}</strong> — {opt.desc}
@@ -136,17 +136,17 @@ export default function DropinPage() {
                 On the Day
               </div>
               <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.7' }}>
-                Tap a session row or card to open it and check players in, mark no-shows, and track payments. Sessions auto-close at midnight and move to History.
+                Open a session to check people in and mark payments. After midnight it moves to History.
               </div>
             </div>
 
             {/* Section 5 — Guests */}
             <div style={{ marginBottom: '18px' }}>
               <div style={{ fontSize: '12px', fontWeight: '800', color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>
-                Guest System
+                Guests
               </div>
               <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.7', marginBottom: '8px' }}>
-                Players can bring guests. Each guest must accept the liability waiver. Guests are automatically grouped with their host in the Team Builder.
+                A player can add guests; each guest signs the waiver. Guests stay with their host when you build teams.
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
                 {[
@@ -168,7 +168,7 @@ export default function DropinPage() {
                 Points & Reputation
               </div>
               <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.7', marginBottom: '8px' }}>
-                Points are awarded automatically after each session. Only you can see standings — players never see each other&apos;s points.
+                Points update after each session. Only you see the standings list; players do not see each other&apos;s scores.
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '8px' }}>
                 {[
@@ -185,10 +185,10 @@ export default function DropinPage() {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                 {[
-                  { tier: 'Gold', pts: '200+ pts', desc: 'Priority waitlist spot', color: '#92400e', bg: '#fffbeb' },
-                  { tier: 'Silver', pts: '100–199 pts', desc: 'Priority waitlist spot', color: '#334155', bg: '#f1f5f9' },
-                  { tier: 'Bronze', pts: '0–99 pts', desc: 'Standard access', color: '#9a3412', bg: '#fff7ed' },
-                  { tier: 'Warning', pts: 'Negative', desc: 'Last on waitlist', color: '#dc2626', bg: '#fef2f2' },
+                  { tier: 'Gold', pts: '200+ pts', desc: 'Earlier on waitlists', color: '#92400e', bg: '#fffbeb' },
+                  { tier: 'Silver', pts: '100–199 pts', desc: 'Earlier on waitlists', color: '#334155', bg: '#f1f5f9' },
+                  { tier: 'Bronze', pts: '0–99 pts', desc: 'Normal order', color: '#9a3412', bg: '#fff7ed' },
+                  { tier: 'Warning', pts: 'Negative', desc: 'Back of waitlist', color: '#dc2626', bg: '#fef2f2' },
                 ].map((t) => (
                   <div key={t.tier} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span style={{ background: t.bg, color: t.color, border: `0.5px solid ${t.color}22`, borderRadius: '4px', fontSize: '10px', fontWeight: '800', padding: '2px 8px', width: '56px', textAlign: 'center', flexShrink: 0 }}>{t.tier}</span>
@@ -206,13 +206,13 @@ export default function DropinPage() {
                 <span style={{ background: 'var(--accent-muted)', color: 'var(--accent)', border: '0.5px solid var(--accent)', borderRadius: '99px', fontSize: '9px', fontWeight: '700', padding: '1px 7px', marginLeft: '6px', textTransform: 'none', letterSpacing: 0 }}>Pro</span>
               </div>
               <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.7', marginBottom: '8px' }}>
-                Automatically build balanced teams based on how many courts and players you have. Guests stay with their host.
+                Builds teams from who checked in. Guests stay with their host.
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                 {[
-                  { label: 'Random', desc: 'Shuffle players evenly across teams' },
-                  { label: 'By position', desc: 'Balance PGs, bigs, etc. across courts' },
-                  { label: 'By tier', desc: 'Spread Gold players so games are competitive' },
+                  { label: 'Random', desc: 'Split people evenly' },
+                  { label: 'By position', desc: 'Spread positions across teams' },
+                  { label: 'By tier', desc: 'Spread top point-earners so sides stay even' },
                 ].map((m) => (
                   <div key={m.label} style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
                     <strong style={{ color: 'var(--text-primary)' }}>{m.label}</strong> — {m.desc}

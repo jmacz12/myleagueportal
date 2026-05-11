@@ -13,7 +13,7 @@ export default function GamesPage() {
       {/* Header */}
       <div style={{ marginBottom: '24px' }}>
         <h1 className="page-title">Games & Sessions</h1>
-        <p className="page-subtitle">Manage your schedule, drop-ins and player check-ins</p>
+        <p className="page-subtitle">League games, drop-ins, and scores</p>
       </div>
 
       {/* Tab switcher */}
@@ -28,7 +28,7 @@ export default function GamesPage() {
         width: 'fit-content',
       }}>
         {[
-          { id: 'games', label: 'Season games' },
+          { id: 'games', label: 'League games' },
           { id: 'dropin', label: 'Drop-in sessions' },
         ].map((tab) => (
           <button

@@ -3,10 +3,10 @@
 /** Same choices as Drop-ins: when public season signup opens on the join page. */
 
 const OPTIONS = [
-  { value: 'open_now', title: 'Open now', sub: 'Sign up is available right away on the join page' },
-  { value: 'closed', title: 'Keep closed', sub: 'No signup on the join page until you change this' },
-  { value: 'scheduled', title: 'Schedule opening', sub: 'X days before season start date' },
-  { value: 'custom', title: 'Custom date & time', sub: 'Pick exactly when signups open' },
+  { value: 'open_now', title: 'Open now', sub: 'People can register right away' },
+  { value: 'closed', title: 'Keep closed', sub: 'Registration stays off until you open it' },
+  { value: 'scheduled', title: 'Schedule opening', sub: 'Opens a set number of days before season starts' },
+  { value: 'custom', title: 'Custom date & time', sub: 'Opens at a date and time you choose' },
 ] as const
 
 type Props = {
@@ -36,10 +36,10 @@ export default function SeasonSignupTimingFields({
   return (
     <div>
       <label className="label" style={{ marginBottom: '8px' }}>
-        When can people sign up on the join page?
+        When can people register?
       </label>
       <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '0 0 10px', lineHeight: 1.5 }}>
-        This is separate from <strong>season start/end</strong> below — it only controls your public registration window.
+        This is only the public sign-up window. Season dates below are separate.
       </p>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
         {OPTIONS.map((opt) => (
@@ -75,7 +75,7 @@ export default function SeasonSignupTimingFields({
         >
           {!seasonStartDate && (
             <p style={{ fontSize: '11px', color: '#b45309', margin: '0 0 8px', lineHeight: 1.45 }}>
-              Set a <strong>season start date</strong> above so we know what “days before” means.
+              Add a <strong>season start date</strong> above so “days before” has a reference date.
             </p>
           )}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>

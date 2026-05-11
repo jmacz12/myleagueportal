@@ -109,10 +109,10 @@ function DropinSessionFormFields({
   showRecurring: boolean
 }) {
   const signupOptions = [
-    { value: 'open_now', title: 'Open now', sub: 'Sign up immediately' },
-    { value: 'closed', title: 'Keep closed', sub: 'Open manually later' },
-    { value: 'scheduled', title: 'Schedule opening', sub: 'X days before session' },
-    { value: 'custom', title: 'Custom date & time', sub: 'Pick exact open time' },
+    { value: 'open_now', title: 'Open now', sub: 'Sign-up on right away' },
+    { value: 'closed', title: 'Keep closed', sub: 'You open sign-up when ready' },
+    { value: 'scheduled', title: 'Schedule opening', sub: 'Opens days before the session' },
+    { value: 'custom', title: 'Custom date & time', sub: 'Opens at a time you pick' },
   ]
 
   return (
@@ -272,7 +272,7 @@ function DropinSessionFormFields({
                 </div>
               </div>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                Sessions auto-close at midnight. Max 52 sessions created at once.
+                Each day ends at midnight. Up to 52 future dates at a time.
               </div>
             </div>
           )}
@@ -530,7 +530,7 @@ export default function DropinList({ onSelectSession }: Props) {
             <div>
               <div style={{ fontWeight: '700', fontSize: '15px', color: 'var(--text-primary)' }}>Edit drop-in session</div>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', maxWidth: '520px', lineHeight: 1.45 }}>
-                Change name, time, location, fees, payment info, and signup timing for this session. Existing sign-ups stay on the session.
+                Changes apply to this session only. People already signed up keep their spots.
               </div>
             </div>
             <button type="button" onClick={cancelEditSession}

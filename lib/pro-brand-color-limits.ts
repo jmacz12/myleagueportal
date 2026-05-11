@@ -2,7 +2,7 @@ export const PRO_BRAND_COLOR_CHANGES_PER_MONTH = 5
 
 /** Shown next to the Pro monthly brand-color counter (presets/fonts do not consume the cap). */
 export const PRO_BRAND_COLOR_COUNTER_HELPER =
-  'Theme presets and fonts are unlimited. Only changing the brand color counts toward this monthly limit.'
+  'Changing the main brand color uses one of your monthly edits. Switching theme style or font does not.'
 
 /**
  * Remaining Pro brand-color edits this UTC month.

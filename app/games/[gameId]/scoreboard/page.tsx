@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { Trophy } from 'lucide-react'
+import { DemoPublicScoreboard } from './demo-scoreboard'
 
 const statKeys = ['pts', 'fg2m', 'fg3m', 'ftm', 'ast', 'reb', 'stl', 'blk', 'tov', 'pf'] as const
 type StatKey = (typeof statKeys)[number]
@@ -54,6 +55,10 @@ export default async function PublicScoreboard({
   params: Promise<{ gameId: string }>
 }) {
   const { gameId } = await params
+
+  if (gameId === 'demo' || gameId === '__demo__') {
+    return <DemoPublicScoreboard />
+  }
 
   const { data: game } = await supabaseAdmin
     .from('games').select('*').eq('id', gameId).single()

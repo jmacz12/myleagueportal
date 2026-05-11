@@ -89,7 +89,7 @@ export default function DropinHistory() {
       }}>
         <span style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
           <Archive size={14} strokeWidth={1.5} style={{ flexShrink: 0 }} aria-hidden />
-          <span>History kept for <strong>30 days</strong> on Basic · <strong>1 year</strong> on Pro · <strong>Forever</strong> on Enterprise</span>
+          <span>Basic: <strong>30 days</strong> · Pro: <strong>1 year</strong> · Enterprise: <strong>unlimited</strong></span>
         </span>
         <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
           {sessions.length} session{sessions.length !== 1 ? 's' : ''} archived

@@ -564,13 +564,11 @@ export function LeagueTeamManagePanel({
           >
             <div style={{ fontSize: '12px', fontWeight: 800, color: shell.text, marginBottom: '6px' }}>Game stats & score sheets</div>
             <p style={{ fontSize: '12px', color: shell.muted, margin: 0, lineHeight: 1.5 }}>
-              Final scores and player stats come from games your league records. After each game, scorekeepers should enter
-              results in{' '}
+              Scores and stats come from games you enter under{' '}
               <Link href="/dashboard/games" style={{ fontWeight: 700, color: variant === 'public' ? '#5a7a2a' : 'var(--accent)' }}>
-                Dashboard → Games
+                Games
               </Link>
-              . Pro plans unlock headline stats on the public <strong style={{ color: shell.text }}>Stats</strong> tab; Enterprise adds
-              turnovers, fouls, and the game log.
+              . Pro shows main stats on the public Stats tab; Enterprise adds fouls, turnovers, and a full game log.
             </p>
           </div>
           <button
@@ -768,8 +766,7 @@ export function LeagueTeamManagePanel({
             ) : (
               <div style={{ marginTop: '8px' }}>
                 <p style={{ fontSize: '13px', color: shell.muted, marginBottom: '10px', lineHeight: 1.45 }}>
-                  Collect preferred jersey numbers from roster players (they confirm with the email they registered with).
-                  You still assign final numbers on Dashboard → Players.
+                  Players pick a number with the email they used to register. You set the final numbers under Players in the dashboard.
                 </p>
                 <button
                   type="button"

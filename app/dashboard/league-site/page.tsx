@@ -220,9 +220,8 @@ export default function LeagueSitePage() {
         League website
       </h1>
       <p style={{ fontSize: '14px', color: 'var(--sidebar-text)', margin: '0 0 24px', lineHeight: 1.5 }}>
-        <strong>Recommended:</strong> open your public league home and use <strong>Edit page</strong> (or add <code style={{ fontSize: '12px' }}>?edit=1</code> to the
-        URL) to change content in place. You can also edit here. Save a <strong>draft</strong> anytime; <strong>Publish</strong> when
-        visitors should see it.
+        Easiest: open your public league page and use <strong>Edit page</strong> (or add <code style={{ fontSize: '12px' }}>?edit=1</code> to the URL). You can also
+        edit here. <strong>Save</strong> keeps a draft; <strong>Publish</strong> shows it to everyone.
       </p>
 
       {message ? (
@@ -512,25 +511,24 @@ export default function LeagueSitePage() {
         </div>
 
         <p style={{ fontSize: '13px', color: 'var(--sidebar-text)', margin: '12px 0 10px', lineHeight: 1.5 }}>
-          On your public league home, content appears in this order (top to bottom):{' '}
-          <strong>Hero</strong> (name + logo + hero photo above) → <strong>Join / Drop-ins</strong> cards (not edited here) →{' '}
-          <strong>these sections</strong> in the order listed below → <strong>Active season and teams</strong>.
+          Public page order: <strong>Hero</strong> (name, logo, photo) → <strong>Join / Drop-ins</strong> (set elsewhere) → <strong>sections below</strong> →{' '}
+          <strong>Season and teams</strong>.
         </p>
         <ul style={{ fontSize: '12px', color: 'var(--sidebar-text)', margin: '0 0 14px', paddingLeft: '18px', lineHeight: 1.5 }}>
           <li>
-            <strong>Text</strong> — long-form copy (about us, rules, policies). Fills the large box under each section title.
+            <strong>Text</strong> — long text under a title (about, rules).
           </li>
           <li>
-            <strong>News</strong> — same layout as Text (title + body), meant for announcements or seasonal updates.
+            <strong>News</strong> — same as Text; use for updates.
           </li>
           <li>
-            <strong>Media</strong> — images and video links in a grid below the section title (no big text block).
+            <strong>Media</strong> — photo grid and video links.
           </li>
         </ul>
 
         {draft.sections.length === 0 ? (
           <p style={{ fontSize: '13px', color: 'var(--sidebar-text)', margin: '14px 0 0' }}>
-            No sections yet. Use the buttons above to add blocks; they will appear on the public page only after you <strong>Publish</strong>.
+            Add a section with the buttons above. Visitors only see it after you <strong>Publish</strong>.
           </p>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '16px' }}>

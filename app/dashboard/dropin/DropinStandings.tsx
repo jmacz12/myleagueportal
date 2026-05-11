@@ -119,7 +119,7 @@ export default function DropinStandings() {
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
         <span style={{ fontSize: '12px', color: 'var(--text-muted)', background: 'var(--bg-elevated)', border: '0.5px solid var(--border)', borderRadius: '6px', padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
           <Lock size={12} strokeWidth={2} aria-hidden />
-          Private — only you can see player standings
+          Only you see these standings
         </span>
         {inactive.length > 0 && (
           <span style={{ background: '#fef2f2', color: '#dc2626', border: '0.5px solid #fecaca', borderRadius: '6px', fontSize: '12px', fontWeight: '700', padding: '4px 10px', cursor: 'pointer' }}
