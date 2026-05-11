@@ -208,6 +208,7 @@ export function getThemePresets(brandColor: string | null | undefined): ThemePre
       muted: mix('#64748b', accentDeep, 0.42),
       accent: mix(accentDeep, '#020617', 0.16),
       accentSoftBg: mix(accentDeep, '#ffffff', 0.66),
+      accentMutedBg: mix(shiftHue(accentDeep, 88, 0.06, 0.03), mix(accentDeep, '#f2f3f8', 0.68), 0.36),
     },
     {
       id: 'preset-4',
