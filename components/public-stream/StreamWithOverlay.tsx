@@ -282,7 +282,6 @@ export function StreamWithOverlay({ watchUrl, liveGameId, accentColor = '#5a7a2a
           width: '100%',
           touchAction: 'manipulation',
           WebkitTapHighlightColor: 'transparent',
-          display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
           gap: '12px',
