@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { ExternalLink, Loader2 } from 'lucide-react'
+import { getPublicSiteOrigin } from '@/lib/public-site-origin'
 
 type EditorRow = {
   id: string
@@ -101,7 +102,10 @@ export function LeagueSiteAccessPanel({
   }
 
   const selectedTeam = teamRows.find((t) => t.id === selectedTeamId)
-  const watchOnlyUrl = slug ? `/league/${slug}/stream` : ''
+  /** Same canonical origin as game scoring “public watch” — avoids opening /league/… on the dashboard host when public fans use www (or NEXT_PUBLIC_PUBLIC_SITE_URL). */
+  const watchOnlyUrl = slug
+    ? `${getPublicSiteOrigin()}/league/${encodeURIComponent(slug)}/stream`
+    : ''
 
   return (
     <div style={{ display: 'grid', gap: '18px' }}>
@@ -118,7 +122,10 @@ export function LeagueSiteAccessPanel({
           Used when a game is <strong>live</strong> on the public league <strong>Stream</strong> tab (and the watch-only link below). Team URLs override the league default for that matchup; if both teams are blank, the league default is used.
         </p>
         {watchOnlyUrl ? (
-          <p style={{ fontSize: '13px', margin: '0 0 14px' }}>
+          <p style={{ fontSize: '13px', margin: '0 0 14px', lineHeight: 1.45 }}>
+            <span style={{ display: 'block', color: 'var(--sidebar-text)', marginBottom: '8px' }}>
+              Opens on your public league hostname (same idea as the watch link on game scoring), not the dashboard URL.
+            </span>
             <Link
               href={watchOnlyUrl}
               target="_blank"
