@@ -60,7 +60,7 @@ export function LandingSignedInNav({ leagueSlug }: LandingSignedInChromeProps) {
           Finish setup
         </Link>
       )}
-      <UserButton afterSignOutUrl="/" />
+      <UserButton />
     </>
   )
 }
