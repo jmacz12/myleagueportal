@@ -207,7 +207,8 @@ export default async function HomePage() {
             What you get
           </h2>
           <p style={{ fontSize: '15px', color: '#6b5e3a', maxWidth: '520px', margin: '0 auto' }}>
-            From your public league site and live scores to drop-ins, waivers, a league shop, and an AI helper—so organizers spend less time clicking around.
+            From your public league site and live scores to drop-ins and waivers.{' '}
+            <span style={{ fontWeight: 700, color: '#5c4a2a' }}>Enterprise</span> adds a league shop and an AI assistant—see pricing below.
           </p>
         </div>
 
@@ -261,13 +262,13 @@ export default async function HomePage() {
               },
               {
                 Icon: ShoppingBag,
-                title: 'League shop',
-                desc: 'Fans browse merch or fundraisers on your league pages—start with outbound links, then layer on-site checkout when you want it.',
+                title: 'League shop (Enterprise)',
+                desc: 'Enterprise leagues get a shop on their public pages—browse merch or fundraisers, with room to add on-site checkout when you turn it on.',
               },
               {
                 Icon: Sparkles,
-                title: 'AI setup assistant',
-                desc: 'Say what you need in plain language; get draft updates for schedule, news, teams, and rosters. Nothing goes live until you approve it.',
+                title: 'AI setup assistant (Enterprise)',
+                desc: 'Enterprise-only: describe changes in plain language; get draft updates for schedule, news, teams, and rosters. Nothing publishes until you approve it.',
               },
             ] satisfies { Icon: LucideIcon; title: string; desc: string }[]
           ).map(({ Icon, title, desc }) => (
@@ -313,7 +314,12 @@ export default async function HomePage() {
             <h2 style={{ fontSize: 'clamp(22px, 3vw, 32px)', fontWeight: '800', color: '#1a1a0a', marginBottom: '10px', letterSpacing: '-0.01em' }}>
               Simple, transparent pricing
             </h2>
-            <p style={{ fontSize: '15px', color: '#6b5e3a' }}>Start free. Upgrade when you need more. Shop and AI assistant scale with each plan.</p>
+            <p style={{ fontSize: '15px', color: '#6b5e3a' }}>
+              Start free. Upgrade when you need more.{' '}
+              <span style={{ fontWeight: 700, color: '#5c4a2a' }}>League shop</span> and{' '}
+              <span style={{ fontWeight: 700, color: '#5c4a2a' }}>AI assistant</span> are included on{' '}
+              <span style={{ fontWeight: 700, color: '#5c4a2a' }}>Enterprise</span> only.
+            </p>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '14px' }}>
@@ -331,8 +337,6 @@ export default async function HomePage() {
                   'Digital waivers',
                   '30 day history',
                   'Public registration page',
-                  'League shop — browse catalog & vendor links',
-                  'AI assistant — schedule & news drafts (you confirm)',
                 ],
               },
               {
@@ -349,8 +353,6 @@ export default async function HomePage() {
                   'Custom brand color',
                   'Drop-in team builder',
                   'Branded OBS stream overlay (template)',
-                  'League shop — featured listings on your league site',
-                  'AI assistant — schedule, news, team & roster drafts (you confirm)',
                   '1 year history',
                   'Everything in Basic',
                 ],
@@ -369,8 +371,8 @@ export default async function HomePage() {
                   'Multi-admin access',
                   'Custom domain',
                   'Custom stream overlays & sponsor layouts',
-                  'League shop — checkout options when your league enables them',
-                  'AI assistant — priority coverage for league & team workflows',
+                  'League shop — merch & fundraisers on your league site (browse + checkout when enabled)',
+                  'AI assistant — plain-language drafts for schedule, news, teams & rosters (you approve)',
                   'Priority support',
                   'Everything in Pro',
                 ],

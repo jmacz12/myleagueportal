@@ -23,7 +23,7 @@ Most of this is **not built yet**; this section records **Basic / Pro / Enterpri
 - **Join** — `**/join/[slug]`** is for **people taking action**: **season registration**, **drop-ins**, and **player tasks** (e.g. **jersey poll**). It should read as **“sign up / participate,”** not the full league destination. League home and join **cross-link** (e.g. “Register” on league home → join flows; “League home” from join when helpful).
 - **Shipped (Basic shell):** `**/league/[slug]`** — league home with **sticky tab nav** (Home, News, Schedule, Standings, Teams, About): Home = participate CTAs + league status; News = organizer updates; Schedule = combined season+drop-in list (+ venues/personalization); Standings = Basic upgrade messaging vs Pro data table; Teams = directory; About = evergreen CMS sections (history/media). News banner, season context, **team directory** → `**/league/[slug]/teams/[teamId]`**, links to `**/join/...`**. `**/join/[slug]`** root **redirects** to **`/league/[slug]`**; **season registration**, **drop-ins**, and **jersey polls** use **`/join/[slug]/register`**, **`/join/[slug]/dropins`**, **`/join/[slug]/jersey-poll/...`** respectively. Long-form CMS lives on league home only. Legacy `**/join/[slug]/teams/[id]**` redirects to `**/league/.../teams/[id]**`.
 - **Shipped (CMS v1):** Dashboard **League website** (`**/dashboard/league-site`**) and on-page editing at `**/league/[slug]?edit=1`** (owners / website editors) — **Save draft** / **Publish**; **hero** upload; **text**, **news**, **media** blocks with **Up / Down** reorder in dashboard and on-page editor. **Basic plan:** public league uses **MyLeaguePortal house branding** (fixed green + Classic preset + Bright); **no** custom hero / logo on public; **league-site save, publish, and uploads are API-blocked**; edit UI shows **locked** Pro previews and upgrade paths. **Pro+:** brand color, **five named presets** (**Classic / Bold / Soft / Bright / Midnight**; canonical ids on `**organizations.league_theme_preset**`, migration `**20260506200000_league_theme_choice_ids.sql**`), **Bright / Midnight** via `**organizations.league_appearance_mode**` (migration `**20260506140000_league_appearance_mode.sql**`) synced with **Dashboard → Settings** and on-page **Save brand & look** (`**/api/league-org-appearance**`); optional **page fonts** via `**league_site_content**` (`**publicFontKey**`). **Theme tokens** are **contrast-harmonized** in **`lib/leagueTheme.ts`** (readable type on page + card surfaces; **Midnight** = dark shell + light foreground; **public hero** keeps near-white hero type on the dark gradient). **Preset pickers:** compact **pill rows** in Settings and on-page editor (descriptions on hover/`title`). **Public tab bar:** **centered wrap** (no horizontal scroll / scrollbar) and **no** full-width border under the row—only the **active** tab accent underline. Live **theme preview** while editing (owner) before save. `**GET /api/join/[slug]/hub`** includes `**leagueSite`**, `**plan`**, appearance fields. APIs: `**/api/league-site`** (GET returns `**appearance**` meta + `**maxGalleryImages**`; PUT 403 on Basic), `**/api/league-site/upload`** (403 Basic), `**/api/me/org-access**`, `**/api/organization-editors**`. Join surfaces use `**resolveThemePreset(brand, preset, appearanceMode)**` + `**getPublicThemeInputsForOrg**` for tier-aware theming. Dev seed: `**POST /api/dev/seed-teams-players**` — `**withLeagueSiteDemo: true**` upserts rich `**league_site_content**`. Migrations: `**20260505213000_league_site_content.sql**` (+ `**20260505213039**` no-op).
-- **Future — Shop (not shipped):** Optional **Shop** entry point on **league home** (tab, band, or linked section) for **browse-first** merchandising—see **Product direction — League shop & merchandising** below. **Plan tier TBD** (not Enterprise-only by default).
+- **Future — Shop (not shipped):** Optional **Shop** on **league home** for **Enterprise** leagues first—see **Product direction — League shop & merchandising**. Basic/Pro do not include shop surfaces until product revisits tiering.
 
 ### Basic
 
@@ -56,6 +56,8 @@ Most of this is **not built yet**; this section records **Basic / Pro / Enterpri
 - **Theme controls (Enterprise):** Includes all Pro auto-brand behavior plus **fully customizable theme controls** (manual colors/tokens/section styling) with **unlimited edits**.
 - **Video / stream:** **First-party / league-owned streaming** on the platform (full product—**scope TBD**). Complements Pro’s **YouTube/Twitch-first** positioning for leagues that want an owned destination.
 - **Stream overlay:** **Fully customizable** overlays—layouts, branding, **sponsor placements**, advanced OBS/stream integration (see Phase 7).
+- **League shop & merchandising:** **Enterprise** — public **Shop** for browse + optional on-site checkout when enabled (see **Product direction — League shop**).
+- **AI-assisted setup & navigation:** **Enterprise** — plain-language copilot for schedule, news, teams, and rosters with confirm-before-apply (see **Product direction — AI-assisted setup**).
 - Pairs with **Phase 7** custom domains and multi-admin for operational scale.
 
 ### Org “employees” / staff (not payroll)
@@ -89,23 +91,23 @@ Most of this is **not built yet**; this section records **Basic / Pro / Enterpri
 
 **Status:** **Not started** — park after **League home**; **invites and permissions** (who is a team manager, roster membership) need explicit modeling so team tools don’t grant league-admin powers.
 
-### League shop & merchandising (future — plan tier TBD, not Enterprise-only)
+### League shop & merchandising (**Enterprise** — future)
 
-**Status:** **Not started** — scope and **which plans** unlock what are **TBD**; this is **not** framed as Enterprise-only so Basic/Pro leagues can eventually participate where product and compliance allow.
+**Status:** **Not started** — **Enterprise plan** for the shipped product; Basic/Pro do not expose shop until/unless tiering changes.
 
 - **Goal:** A **Shop** area where members and fans **browse** league-curated items—uniforms / spirit wear, fundraiser products, **optional tickets or passes**, **donations**, or digital goods—surfaced on **public league** pages (and optionally **public team** pages if scoped).
 - **Browse vs buy — TBD:** **v1** might be **catalog + outbound links** only (organizer-managed URLs to Shopify, Square, Spreadshirt, league vendor, etc.) so there is no inventory or tax on-platform yet. **Later option:** **native checkout** on MyLeaguePortal (Stripe Checkout / Payment Links, line items, receipts) once **fulfillment, sales tax, refunds, and payout routing** are defined—evaluate with legal and accounting before committing.
 - **Operator UX:** Organizers (and delegated roles when Phase 7 expands) configure **which products or links appear**, copy/pricing display rules, and **visibility** (league-wide vs team-scoped). No silent charges—any purchase flow must be explicit and auditable.
 - **IA:** Align with **Information architecture** bullet **Future — Shop** (tab or prominent section on `**/league/[slug]`**; exact route pattern TBD).
 
-### AI-assisted setup & navigation (future)
+### AI-assisted setup & navigation (**Enterprise** — future)
 
-**Status:** **Not started** — conceptual successor to “type once, get a schedule” (see Phase 6 **AI schedule generator**); broader **assistant** surfaces ship incrementally only after guardrails are clear.
+**Status:** **Not started** — **Enterprise plan** for the shipped assistant; Basic/Pro continue with manual dashboard flows until/unless scope changes.
 
 - **Goal:** An **AI setup / copilot** where organizers describe intent in **plain language** (e.g. “Add a bye before playoffs,” “Publish a rain-delay note to news,” “Split this roster into two balanced teams”) and the product returns **structured proposed actions** across **schedule**, **league news / CMS blocks**, **teams**, **players / roster**, and related entities—reducing time hunting through dashboard routes.
 - **Safety:** **Human review + confirm** (or explicit **Apply** per entity) before any **mutating** or **public-facing** change; respect **RLS**, **plan limits**, and **roles** (no AI-only path to billing, payouts, org ownership, or cross-org data).
 - **Scope creep guard:** Start with **read-heavy suggestions + draft content**; add **writes** one domain at a time (e.g. schedule drafts first, then news drafts, then roster moves with validation).
-- **Relationship to Phase 6:** The existing **AI schedule generator** (natural language → season schedule proposal) is the **first wedge**; this product direction covers **multi-surface** assistance and **navigation hints** (“take me to where I fix X”) as follow-ons.
+- **Relationship to Phase 6:** The **AI schedule generator** (natural language → season schedule proposal) is the **first technical wedge**; the **shipped product** for NL-driven scheduling and the broader assistant is **Enterprise**-gated alongside **League shop** on marketing and billing intent.
 
 ---
 
@@ -194,8 +196,8 @@ Most of this is **not built yet**; this section records **Basic / Pro / Enterpri
 
 - **Calendar imports:** `.ics` / `.csv` bulk upload (league and, later, **team manager** calendars—see **Team manager / club workspace**).
 - **Automated reminders:** ~24h SMS/email (e.g. Twilio / Resend) to cut no-shows; **shared plumbing** for **team manager** event and poll reminders.
-- **AI schedule generator:** Natural-language prompts → **proposed** season schedules (organizer confirms before games are committed to the database).
-- **AI league assistant (broader):** See **Product direction — AI-assisted setup & navigation** — extend NL → structured proposals to **news/CMS**, **teams**, **players**, and safer **navigation** (“where do I…?”) with the same **confirm-before-apply** model; ship incrementally after the schedule wedge is proven.
+- **AI schedule generator:** Natural-language prompts → **proposed** season schedules (organizer confirms before games are committed to the database). **Product intent:** ship as part of the **Enterprise** AI assistant bundle (see **Product direction — AI-assisted setup**); Basic/Pro remain manual.
+- **AI league assistant (broader):** See **Product direction — AI-assisted setup & navigation** — extend NL → structured proposals to **news/CMS**, **teams**, **players**, and safer **navigation** (“where do I…?”) with the same **confirm-before-apply** model; **Enterprise** when productized.
 
 ---
 
@@ -261,6 +263,7 @@ Use this when validating `**league_site_content`**, organization_editors, and `*
 
 ### Changelog
 
+- **2026-05-12:** **Plan tiering — Shop & AI are Enterprise-only:** Marketing **`/`** and **Simple, transparent pricing** now list **league shop** and **AI assistant** only under **Enterprise**; feature cards and intro copy state the Enterprise gate. **ROADMAP** updated: **Product direction** shop + AI subsections, **Enterprise** bullets, **IA — Future — Shop**, and **Phase 6** AI bullets aligned to **Enterprise** for the shipped product (Basic/Pro remain manual until scope changes).
 - **2026-05-12:** **Marketing `/` + auth entry:** **`/`** always shows the landing page (no redirect to dashboard when signed in). Nav + hero offer **Dashboard**, **League home** (`**/league/[slug]`** when slug resolves), **Teams** (`**/dashboard/teams`**), **Finish setup** → **`/onboarding`** if no org, plus **UserButton** (sign-out returns to **`/`**). **`SignIn`** `fallbackRedirectUrl="/"`; **`SignUp`** `fallbackRedirectUrl="/onboarding"`; **`proxy.ts`** lists **`/`** as public. Feature cards shortened; **League shop** + **AI setup helper** (coming soon) on marketing. **`components/marketing/LandingSignedInChrome.tsx`**.
 - **2026-05-12:** **Roadmap — League shop & AI assistant:** Added **Product direction — League shop & merchandising** (public **Shop** browse-first; native on-site checkout **TBD**; **plan tier TBD**, explicitly **not Enterprise-only**) and **AI-assisted setup & navigation** (plain-language → structured proposals for schedule, news/CMS, teams, players + safer navigation; **confirm-before-apply**; incremental delivery). **Phase 6** now links **AI schedule generator** to the broader **AI league assistant** concept. **Information architecture** gains a **Future — Shop** bullet for league home placement.
 - **2026-05-12:** **Marketing home (`/`):** Hero uses full-bleed generated gym photo (`**/public/marketing-hero-gym.jpg`**) with gradient overlay; **Plus Jakarta** layout retained; feature grid highlights shipped differentiators (public league/join IA, bench scoring & fan surfaces, **Pro vs Enterprise stream overlays**, drop-ins & organizer reputation, league site CMS & tiered themes, jersey polls, waivers incl. Pro PDF digitizer, team news & calendar). **Stripe** in pricing; **Pro** lists branded OBS overlay template; **Enterprise** lists custom overlay & sponsor layouts. House logo **`/myleagueportal-logo.png`**. Hero names **team managers, captains & club leads** alongside organizers. (Removed standalone “Roadmap at a glance” block from `/` in favor of deploy-ready marketing copy.)
