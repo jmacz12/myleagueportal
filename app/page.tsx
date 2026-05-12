@@ -207,7 +207,7 @@ export default async function HomePage() {
             What you get
           </h2>
           <p style={{ fontSize: '15px', color: '#6b5e3a', maxWidth: '520px', margin: '0 auto' }}>
-            Short blurbs below. Two ideas at the end are on the roadmap—browse-only shop first, then smarter AI setup when we&apos;re ready.
+            From your public league site and live scores to drop-ins, waivers, a league shop, and an AI helper—so organizers spend less time clicking around.
           </p>
         </div>
 
@@ -261,13 +261,13 @@ export default async function HomePage() {
               },
               {
                 Icon: ShoppingBag,
-                title: 'League shop (coming soon)',
-                desc: 'A place to browse league merch or fundraisers. On-site checkout is TBD—we may start with links to your existing store.',
+                title: 'League shop',
+                desc: 'Fans browse merch or fundraisers on your league pages—start with outbound links, then layer on-site checkout when you want it.',
               },
               {
                 Icon: Sparkles,
-                title: 'AI setup helper (coming soon)',
-                desc: 'Describe changes in plain English—like “add a bye week” or “post a rain delay”—and get drafts for schedule, news, or rosters. You approve before anything goes live.',
+                title: 'AI setup assistant',
+                desc: 'Say what you need in plain language; get draft updates for schedule, news, teams, and rosters. Nothing goes live until you approve it.',
               },
             ] satisfies { Icon: LucideIcon; title: string; desc: string }[]
           ).map(({ Icon, title, desc }) => (
@@ -313,7 +313,7 @@ export default async function HomePage() {
             <h2 style={{ fontSize: 'clamp(22px, 3vw, 32px)', fontWeight: '800', color: '#1a1a0a', marginBottom: '10px', letterSpacing: '-0.01em' }}>
               Simple, transparent pricing
             </h2>
-            <p style={{ fontSize: '15px', color: '#6b5e3a' }}>Start free. Upgrade when you need more.</p>
+            <p style={{ fontSize: '15px', color: '#6b5e3a' }}>Start free. Upgrade when you need more. Shop and AI assistant scale with each plan.</p>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '14px' }}>
@@ -324,7 +324,16 @@ export default async function HomePage() {
                 period: 'forever',
                 color: '#9a8c6a',
                 highlight: false,
-                features: ['50 players', '1 active season', '2 drop-in sessions', 'Digital waivers', '30 day history', 'Public registration page'],
+                features: [
+                  '50 players',
+                  '1 active season',
+                  '2 drop-in sessions',
+                  'Digital waivers',
+                  '30 day history',
+                  'Public registration page',
+                  'League shop — browse catalog & vendor links',
+                  'AI assistant — schedule & news drafts (you confirm)',
+                ],
               },
               {
                 name: 'Pro',
@@ -340,6 +349,8 @@ export default async function HomePage() {
                   'Custom brand color',
                   'Drop-in team builder',
                   'Branded OBS stream overlay (template)',
+                  'League shop — featured listings on your league site',
+                  'AI assistant — schedule, news, team & roster drafts (you confirm)',
                   '1 year history',
                   'Everything in Basic',
                 ],
@@ -358,6 +369,8 @@ export default async function HomePage() {
                   'Multi-admin access',
                   'Custom domain',
                   'Custom stream overlays & sponsor layouts',
+                  'League shop — checkout options when your league enables them',
+                  'AI assistant — priority coverage for league & team workflows',
                   'Priority support',
                   'Everything in Pro',
                 ],
