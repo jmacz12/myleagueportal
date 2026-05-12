@@ -103,7 +103,7 @@ export function LandingLeagueSearch() {
           Find a league or team
         </h2>
         <p style={{ fontSize: '13px', color: '#6b5e3a', textAlign: 'center', margin: '0 0 14px', lineHeight: 1.5 }}>
-          Search by league name, web address slug, or team name—then open the public league or team page.
+          Search by league name, team name, or the last part of your league&apos;s web address—then open the public league or team page.
         </p>
         <div style={{ position: 'relative' }}>
           <label htmlFor={`${listId}-input`} className="sr-only">
@@ -127,7 +127,7 @@ export function LandingLeagueSearch() {
               type="search"
               enterKeyHint="search"
               autoComplete="off"
-              placeholder="e.g. city league, hawks, your-slug"
+              placeholder="League or team name, or part of your link"
               value={q}
               onChange={(e) => {
                 setQ(e.target.value)
@@ -175,7 +175,7 @@ export function LandingLeagueSearch() {
                 <div style={{ padding: '14px 16px', fontSize: '13px', color: '#8b2942' }}>{error}</div>
               ) : !hasResults ? (
                 <div style={{ padding: '14px 16px', fontSize: '13px', color: '#6b5e3a' }}>
-                  No matches yet—try another spelling or slug.
+                  No matches yet—try another spelling or a shorter part of the name.
                 </div>
               ) : (
                 <>
