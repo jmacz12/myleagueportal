@@ -103,7 +103,7 @@ export function LandingLeagueSearch() {
           Find a league or team
         </h2>
         <p style={{ fontSize: '13px', color: '#6b5e3a', textAlign: 'center', margin: '0 0 14px', lineHeight: 1.5 }}>
-          Search by league name, team name, or the last part of your league&apos;s web address—then open the public league or team page.
+          Search by league or team name, then pick a result to open that page.
         </p>
         <div style={{ position: 'relative' }}>
           <label htmlFor={`${listId}-input`} className="sr-only">
@@ -127,7 +127,7 @@ export function LandingLeagueSearch() {
               type="search"
               enterKeyHint="search"
               autoComplete="off"
-              placeholder="League or team name, or part of your link"
+              placeholder="League or team name"
               value={q}
               onChange={(e) => {
                 setQ(e.target.value)
@@ -174,9 +174,7 @@ export function LandingLeagueSearch() {
               ) : error ? (
                 <div style={{ padding: '14px 16px', fontSize: '13px', color: '#8b2942' }}>{error}</div>
               ) : !hasResults ? (
-                <div style={{ padding: '14px 16px', fontSize: '13px', color: '#6b5e3a' }}>
-                  No matches yet—try another spelling or a shorter part of the name.
-                </div>
+                <div style={{ padding: '14px 16px', fontSize: '13px', color: '#6b5e3a' }}>No matches yet—try another spelling.</div>
               ) : (
                 <>
                   {leagues.length > 0 ? (
@@ -218,7 +216,7 @@ export function LandingLeagueSearch() {
                               marginTop: '2px',
                             }}
                           >
-                            /league/{L.slug}
+                            League home
                           </span>
                         </Link>
                       ))}
