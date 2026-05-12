@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { auth, clerkClient } from '@clerk/nextjs/server'
 import { EMPTY_LEAGUE_SITE, parseLeagueSitePayload } from '@/lib/league-site'
+import { pickFeaturedPublicScheduleItem } from '@/lib/league-public-home-schedule'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -281,6 +282,8 @@ export async function GET(
     (a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime()
   )
 
+  const featuredGame = pickFeaturedPublicScheduleItem(scheduleItems)
+
   let leagueSite = EMPTY_LEAGUE_SITE
   const { data: siteRow, error: siteErr } = await supabaseAdmin
     .from('league_site_content')
@@ -295,6 +298,7 @@ export async function GET(
   return NextResponse.json({
     sessions: sessionsWithSignups,
     scheduleItems,
+    featuredGame,
     organization: org,
     leagueSite,
   })

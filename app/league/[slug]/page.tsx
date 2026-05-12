@@ -34,6 +34,7 @@ import { subscribeLeagueAppearanceUpdated } from '@/lib/league-appearance-sync'
 import { googleFontStylesheetHref, resolvePublicLeagueFontStack } from '@/lib/public-league-fonts'
 import { StreamWithOverlay } from '@/components/public-stream/StreamWithOverlay'
 import { createClient } from '@supabase/supabase-js'
+import { type LeagueFeaturedGamePayload } from '@/lib/league-public-home-schedule'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -311,6 +312,185 @@ function buildLeagueScheduleDisplayRows(sorted: LeagueScheduleItem[]): LeagueSch
   return out
 }
 
+function LeagueHomeFeaturedGameCard({
+  slug,
+  preset,
+  leagueTimezone,
+  featured,
+}: {
+  slug: string
+  preset: ReturnType<typeof resolveThemePreset>
+  leagueTimezone: string | null | undefined
+  featured: LeagueFeaturedGamePayload | null
+}) {
+  const badgeFor = (f: LeagueFeaturedGamePayload) => {
+    if (f.type === 'season_game') return 'League game'
+    if (f.is_recurring) return 'Repeating drop-in'
+    return 'Drop-in'
+  }
+  const primaryHref =
+    featured?.type === 'season_game'
+      ? `/games/${featured.source_id}/scoreboard`
+      : `/join/${slug}/dropins`
+  const primaryLabel = featured?.type === 'season_game' ? 'Scoreboard' : 'Reserve spot'
+
+  return (
+    <section
+      aria-label="Featured game"
+      style={{
+        marginBottom: '16px',
+        borderRadius: '16px',
+        background: preset.surfaceBg,
+        border: `1px solid ${preset.surfaceBorder}`,
+        boxShadow: '0 10px 28px -20px rgba(0,0,0,0.2)',
+        overflow: 'hidden',
+      }}
+    >
+      <div
+        style={{
+          height: '3px',
+          background: `linear-gradient(90deg, ${preset.accent} 0%, ${preset.accent} 40%, transparent 100%)`,
+        }}
+      />
+      <div style={{ padding: '20px 20px 18px' }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            gap: '10px',
+            flexWrap: 'wrap',
+            marginBottom: featured ? '14px' : '0',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+            <Trophy size={20} color={preset.accent} aria-hidden style={{ flexShrink: 0 }} />
+            <div style={{ minWidth: 0 }}>
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  letterSpacing: '0.12em',
+                  textTransform: 'uppercase',
+                  color: preset.muted,
+                }}
+              >
+                Featured next
+              </p>
+              {!featured ? (
+                <p style={{ margin: '6px 0 0', fontSize: '17px', fontWeight: 900, color: preset.heading, letterSpacing: '-0.02em' }}>
+                  Nothing scheduled yet
+                </p>
+              ) : null}
+            </div>
+          </div>
+          {featured ? (
+            <span
+              style={{
+                fontSize: '10px',
+                fontWeight: 800,
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+                padding: '4px 10px',
+                borderRadius: '999px',
+                border: `1px solid ${preset.surfaceBorder}`,
+                color: preset.heading,
+                background: preset.accentSoftBg,
+                flexShrink: 0,
+              }}
+            >
+              {badgeFor(featured)}
+            </span>
+          ) : null}
+        </div>
+
+        {!featured ? (
+          <p style={{ margin: 0, fontSize: '14px', color: preset.muted, lineHeight: 1.55 }}>
+            Add season games or open drop-ins to spotlight the next big date here—easy to share with players and fans.
+          </p>
+        ) : (
+          <>
+            <p
+              style={{
+                margin: '0 0 8px',
+                fontSize: 'clamp(18px, 4.2vw, 22px)',
+                fontWeight: 900,
+                color: preset.heading,
+                letterSpacing: '-0.02em',
+                lineHeight: 1.2,
+              }}
+            >
+              {featured.name}
+            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '6px' }}>
+              <p style={{ margin: 0, fontSize: '13px', color: preset.muted, fontWeight: 600 }}>
+                {(() => {
+                  const loc = formatDropInSessionLocal(featured.scheduled_at, leagueTimezone)
+                  return (
+                    <>
+                      {loc.day} · {loc.time}
+                      {loc.zone ? ` ${loc.zone}` : ''}
+                    </>
+                  )
+                })()}
+              </p>
+              {featured.is_user_playing ? (
+                <span style={{ fontSize: '10px', fontWeight: 800, color: preset.accent }}>You&apos;re in</span>
+              ) : null}
+            </div>
+            {featured.location_label ? (
+              <p
+                style={{
+                  margin: '0 0 14px',
+                  fontSize: '13px',
+                  color: preset.body,
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '6px',
+                }}
+              >
+                <MapPin size={15} style={{ flexShrink: 0, marginTop: '2px', color: preset.accent }} aria-hidden />
+                <span>{featured.location_label}</span>
+              </p>
+            ) : (
+              <div style={{ height: '2px' }} />
+            )}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
+              <Link
+                href={primaryHref}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '11px 18px',
+                  borderRadius: '10px',
+                  fontSize: '13px',
+                  fontWeight: 800,
+                  textDecoration: 'none',
+                  background: preset.heading,
+                  color: preset.pageBg,
+                  minHeight: '44px',
+                  boxSizing: 'border-box',
+                }}
+              >
+                {primaryLabel}
+                <ChevronRight size={16} aria-hidden />
+              </Link>
+              <Link
+                href={`/league/${slug}?tab=schedule`}
+                style={{ fontSize: '13px', fontWeight: 800, color: preset.accent, textDecoration: 'none' }}
+              >
+                Full schedule
+              </Link>
+            </div>
+          </>
+        )}
+      </div>
+    </section>
+  )
+}
+
 function LeaguePublicTabBar({
   active,
   onChange,
@@ -416,6 +596,7 @@ function LeagueHomeContent() {
     }[]
   >([])
   const [scheduleItems, setScheduleItems] = useState<LeagueScheduleItem[]>([])
+  const [featuredGame, setFeaturedGame] = useState<LeagueFeaturedGamePayload | null>(null)
   const [expandedScheduleCluster, setExpandedScheduleCluster] = useState<Record<string, boolean>>({})
   const [standingsRows, setStandingsRows] = useState<LeagueStandingRow[]>([])
   const [leadersRows, setLeadersRows] = useState<LeagueLeaderRow[]>([])
@@ -466,6 +647,7 @@ function LeagueHomeContent() {
           setHub(null)
           setTeams([])
           setScheduleItems([])
+          setFeaturedGame(null)
           setStandingsRows([])
           setLeadersRows([])
           setStreamLive(null)
@@ -481,6 +663,7 @@ function LeagueHomeContent() {
           setHub(null)
           setTeams([])
           setScheduleItems([])
+          setFeaturedGame(null)
           setStandingsRows([])
           setLeadersRows([])
           setStreamLive(null)
@@ -526,6 +709,15 @@ function LeagueHomeContent() {
                   }))
                 : []
           )
+          const fg = sesJson.featuredGame as LeagueFeaturedGamePayload | undefined
+          setFeaturedGame(
+            fg &&
+              (fg.type === 'season_game' || fg.type === 'drop_in') &&
+              typeof fg.source_id === 'string' &&
+              typeof fg.scheduled_at === 'string'
+              ? fg
+              : null
+          )
           setStandingsRows(Array.isArray(standingsJson.standings) ? standingsJson.standings : [])
           setLeadersRows(Array.isArray(standingsJson.leaders) ? standingsJson.leaders : [])
           const live = streamJson?.live
@@ -546,6 +738,7 @@ function LeagueHomeContent() {
           setHub(null)
           setTeams([])
           setScheduleItems([])
+          setFeaturedGame(null)
           setStandingsRows([])
           setLeadersRows([])
           setStreamLive(null)
@@ -819,11 +1012,6 @@ function LeagueHomeContent() {
   const leagueScheduleDisplayRows = useMemo(
     () => buildLeagueScheduleDisplayRows(rankedScheduleItems),
     [rankedScheduleItems]
-  )
-  /** Home tab: next few schedule rows (same grouping as Schedule tab for recurring drop-ins). */
-  const homeSchedulePreviewRows = useMemo(
-    () => leagueScheduleDisplayRows.slice(0, 6),
-    [leagueScheduleDisplayRows]
   )
   const latestNewsSection = newsSections[0] ?? null
   const personalizedSchedule = useMemo(() => {
@@ -1359,159 +1547,12 @@ function LeagueHomeContent() {
                 </Link>
               ) : null}
 
-              <div
-                style={{
-                  background: preset.surfaceBg,
-                  border: `1px solid ${preset.surfaceBorder}`,
-                  borderRadius: '16px',
-                  padding: '20px 20px 18px',
-                  marginBottom: latestNewsSection ? '16px' : 0,
-                  boxShadow: '0 10px 28px -20px rgba(0,0,0,0.2)',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px', marginBottom: '14px', flexWrap: 'wrap' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <CalendarDays size={20} color={preset.accent} aria-hidden />
-                    <div>
-                      <p style={{ margin: 0, fontSize: '11px', fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: preset.muted }}>
-                        Calendar
-                      </p>
-                      <p style={{ margin: '4px 0 0', fontSize: '17px', fontWeight: 900, color: preset.heading, letterSpacing: '-0.02em' }}>
-                        Up next
-                      </p>
-                    </div>
-                  </div>
-                  <Link
-                    href={`/league/${slug}?tab=schedule`}
-                    style={{ fontSize: '13px', fontWeight: 800, color: preset.accent, textDecoration: 'none', whiteSpace: 'nowrap' }}
-                  >
-                    Full schedule
-                  </Link>
-                </div>
-                {homeSchedulePreviewRows.length === 0 ? (
-                  <p style={{ margin: 0, fontSize: '14px', color: preset.muted, lineHeight: 1.55 }}>
-                    No league games or open drop-ins on the calendar yet. Check back soon—or ask your organizer to post dates.
-                  </p>
-                ) : (
-                  <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0' }}>
-                    {homeSchedulePreviewRows.map((row, idx) => {
-                      if (row.kind === 'single') {
-                        const item = row.item
-                        const local = formatDropInSessionLocal(item.scheduled_at, org.league_timezone)
-                        const isDropin = item.type === 'drop_in'
-                        const href = isDropin
-                          ? `/join/${slug}/dropins`
-                          : `/games/${item.source_id}/scoreboard`
-                        const badgeBg = isDropin ? preset.accentSoftBg : '#f3e8ff'
-                        const badgeColor = isDropin ? preset.accent : '#6d28d9'
-                        const badgeLabel = isDropin ? 'Drop-in' : 'League game'
-                        return (
-                          <li
-                            key={item.id}
-                            style={{
-                              borderTop: idx === 0 ? 'none' : `1px solid ${preset.surfaceBorder}`,
-                              padding: '12px 0',
-                            }}
-                          >
-                            <Link href={href} style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '6px' }}>
-                                <span
-                                  style={{
-                                    fontSize: '10px',
-                                    fontWeight: 800,
-                                    letterSpacing: '0.04em',
-                                    textTransform: 'uppercase',
-                                    padding: '2px 7px',
-                                    borderRadius: '999px',
-                                    background: badgeBg,
-                                    color: badgeColor,
-                                    border: `1px solid ${preset.surfaceBorder}`,
-                                  }}
-                                >
-                                  {badgeLabel}
-                                </span>
-                                {item.is_user_playing ? (
-                                  <span style={{ fontSize: '10px', fontWeight: 800, color: preset.accent }}>You&apos;re in</span>
-                                ) : null}
-                              </div>
-                              <p style={{ margin: '0 0 4px', fontSize: '15px', fontWeight: 800, color: preset.heading }}>{item.name}</p>
-                              <p style={{ margin: 0, fontSize: '13px', color: preset.muted }}>
-                                {local.day} · {local.time}
-                                {local.zone ? ` ${local.zone}` : ''}
-                              </p>
-                              {item.location_label ? (
-                                <p style={{ margin: '6px 0 0', fontSize: '12px', color: preset.body, display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
-                                  <MapPin size={14} style={{ flexShrink: 0, marginTop: '2px', color: preset.accent }} aria-hidden />
-                                  <span>{item.location_label}</span>
-                                </p>
-                              ) : null}
-                              {isDropin ? (
-                                <p style={{ margin: '8px 0 0', fontSize: '12px', color: preset.muted }}>{dropinSignupSummary(item)}</p>
-                              ) : null}
-                              <span style={{ display: 'inline-block', marginTop: '10px', fontSize: '13px', fontWeight: 800, color: preset.accent }}>
-                                {isDropin ? 'Reserve spot' : 'Scoreboard'} →
-                              </span>
-                            </Link>
-                          </li>
-                        )
-                      }
-                      const { base, items } = row
-                      const next = items[0]!
-                      const local = formatDropInSessionLocal(next.scheduled_at, org.league_timezone)
-                      const moreCount = items.length - 1
-                      const loc0 = next.location_label
-                      return (
-                        <li
-                          key={`home-recur:${base}`}
-                          style={{
-                            borderTop: idx === 0 ? 'none' : `1px solid ${preset.surfaceBorder}`,
-                            padding: '12px 0',
-                          }}
-                        >
-                          <Link href={`/join/${slug}/dropins`} style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '6px' }}>
-                              <span
-                                style={{
-                                  fontSize: '10px',
-                                  fontWeight: 800,
-                                  letterSpacing: '0.04em',
-                                  textTransform: 'uppercase',
-                                  padding: '2px 7px',
-                                  borderRadius: '999px',
-                                  background: preset.accentSoftBg,
-                                  color: preset.accent,
-                                  border: `1px solid ${preset.surfaceBorder}`,
-                                }}
-                              >
-                                Repeating drop-in
-                              </span>
-                              {items.some((i) => i.is_user_playing) ? (
-                                <span style={{ fontSize: '10px', fontWeight: 800, color: preset.accent }}>You&apos;re in</span>
-                              ) : null}
-                            </div>
-                            <p style={{ margin: '0 0 4px', fontSize: '15px', fontWeight: 800, color: preset.heading }}>{base}</p>
-                            <p style={{ margin: 0, fontSize: '13px', color: preset.muted }}>
-                              Next: {local.day} · {local.time}
-                              {local.zone ? ` ${local.zone}` : ''}
-                              {moreCount > 0 ? ` · +${moreCount} more date${moreCount === 1 ? '' : 's'}` : ''}
-                            </p>
-                            {loc0 ? (
-                              <p style={{ margin: '6px 0 0', fontSize: '12px', color: preset.body, display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
-                                <MapPin size={14} style={{ flexShrink: 0, marginTop: '2px', color: preset.accent }} aria-hidden />
-                                <span>{loc0}</span>
-                              </p>
-                            ) : null}
-                            <p style={{ margin: '8px 0 0', fontSize: '12px', color: preset.muted }}>{dropinSignupSummary(next)}</p>
-                            <span style={{ display: 'inline-block', marginTop: '10px', fontSize: '13px', fontWeight: 800, color: preset.accent }}>
-                              View drop-ins →
-                            </span>
-                          </Link>
-                        </li>
-                      )
-                    })}
-                  </ul>
-                )}
-              </div>
+              <LeagueHomeFeaturedGameCard
+                slug={slug}
+                preset={preset}
+                leagueTimezone={org.league_timezone}
+                featured={featuredGame}
+              />
 
               {latestNewsSection && latestNewsSection.type === 'news' ? (
                 <div

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { ImagePlus, Loader2 } from 'lucide-react'
 import ThemeSelector from './ThemeSelector'
 import { contrastTextForAccent, resolveLeagueThemeChoice } from '@/lib/leagueTheme'
@@ -57,6 +58,7 @@ interface WaiverData {
 }
 
 export default function SettingsPage() {
+  const router = useRouter()
   const [settings, setSettings] = useState<OrgSettings | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -103,6 +105,53 @@ export default function SettingsPage() {
     fetchSettings()
     fetchWaivers()
   }, [])
+
+  /** After Stripe Checkout, webhook may lag; sync from `session_id` then refresh settings. */
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    const sessionId = params.get('session_id')
+    const upgraded = params.get('upgraded')
+    if (!sessionId || (upgraded !== 'true' && upgraded !== '1')) return
+
+    const doneKey = `mlp_stripe_sync_done_${sessionId}`
+    if (sessionStorage.getItem(doneKey) === '1') {
+      void fetchSettings()
+      router.replace('/dashboard/settings', { scroll: false })
+      return
+    }
+
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch('/api/stripe/sync-checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId }),
+        })
+        if (cancelled) return
+        if (res.ok) {
+          sessionStorage.setItem(doneKey, '1')
+          setSuccess(true)
+          await fetchSettings()
+        } else {
+          const j = (await res.json().catch(() => null)) as { error?: string } | null
+          setError(j?.error || 'Could not confirm your upgrade yet. Wait a few seconds and refresh the page.')
+        }
+      } catch {
+        if (!cancelled) {
+          setError('Could not confirm your upgrade yet. Wait a few seconds and refresh the page.')
+        }
+      } finally {
+        if (!cancelled) {
+          router.replace('/dashboard/settings', { scroll: false })
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [router])
 
   useEffect(() => {
     return subscribeLeagueAppearanceUpdated(() => {
