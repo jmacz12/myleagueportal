@@ -38,6 +38,9 @@ export function LeagueSiteAccessPanel({
   const [streamMessage, setStreamMessage] = useState('')
   const [defaultStream, setDefaultStream] = useState('')
   const [teamRows, setTeamRows] = useState<TeamStreamRow[]>([])
+  const [selectedTeamId, setSelectedTeamId] = useState('')
+  /** When checked, Save copies the league URL into every team's row before writing (one click). */
+  const [copyLeagueUrlToAllTeams, setCopyLeagueUrlToAllTeams] = useState(false)
 
   const loadStreams = useCallback(async () => {
     setStreamLoading(true)
@@ -50,7 +53,12 @@ export function LeagueSiteAccessPanel({
         return
       }
       setDefaultStream(typeof data.defaultStreamUrl === 'string' ? data.defaultStreamUrl : '')
-      setTeamRows(Array.isArray(data.teams) ? data.teams : [])
+      const teams = Array.isArray(data.teams) ? data.teams : []
+      setTeamRows(teams)
+      setSelectedTeamId((id) => {
+        if (id && teams.some((t: TeamStreamRow) => t.id === id)) return id
+        return teams[0]?.id ?? ''
+      })
     } finally {
       setStreamLoading(false)
     }
@@ -65,12 +73,18 @@ export function LeagueSiteAccessPanel({
     setStreamError('')
     setStreamMessage('')
     try {
+      const league = defaultStream.trim()
+      let rows = teamRows
+      if (copyLeagueUrlToAllTeams && league) {
+        rows = teamRows.map((t) => ({ ...t, stream_url: league }))
+        setTeamRows(rows)
+      }
       const res = await fetch('/api/league-streams', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          defaultStreamUrl: defaultStream.trim() || null,
-          teamStreams: teamRows.map((t) => ({ teamId: t.id, streamUrl: t.stream_url })),
+          defaultStreamUrl: league || null,
+          teamStreams: rows.map((t) => ({ teamId: t.id, streamUrl: t.stream_url })),
         }),
       })
       const data = await res.json().catch(() => ({}))
@@ -79,37 +93,14 @@ export function LeagueSiteAccessPanel({
         return
       }
       setStreamMessage('Stream links saved.')
+      setCopyLeagueUrlToAllTeams(false)
       await loadStreams()
     } finally {
       setStreamSaving(false)
     }
   }
 
-  async function applyDefaultToAllTeams() {
-    setStreamSaving(true)
-    setStreamError('')
-    setStreamMessage('')
-    try {
-      const res = await fetch('/api/league-streams', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          defaultStreamUrl: defaultStream.trim() || null,
-          applyDefaultToAllTeams: true,
-        }),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        setStreamError(typeof data.error === 'string' ? data.error : 'Apply failed')
-        return
-      }
-      setStreamMessage('League URL applied to every team.')
-      await loadStreams()
-    } finally {
-      setStreamSaving(false)
-    }
-  }
-
+  const selectedTeam = teamRows.find((t) => t.id === selectedTeamId)
   const watchOnlyUrl = slug ? `/league/${slug}/stream` : ''
 
   return (
@@ -181,9 +172,29 @@ export function LeagueSiteAccessPanel({
                   fontFamily: 'inherit',
                 }}
               />
-              <p style={{ fontSize: '12px', color: 'var(--sidebar-text)', margin: '8px 0 0', lineHeight: 1.45 }}>
-                <strong>Apply to all teams</strong> copies the league URL above onto every team (and saves that league default). Use <strong>Save stream links</strong> first if you only changed per-team rows.
-              </p>
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '10px',
+                  marginTop: '12px',
+                  fontSize: '13px',
+                  color: 'var(--sidebar-text)',
+                  lineHeight: 1.45,
+                  cursor: streamSaving ? 'wait' : 'pointer',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={copyLeagueUrlToAllTeams}
+                  disabled={streamSaving || !defaultStream.trim()}
+                  onChange={(e) => setCopyLeagueUrlToAllTeams(e.target.checked)}
+                  style={{ marginTop: '3px', flexShrink: 0 }}
+                />
+                <span>
+                  When saving, also set <strong style={{ color: 'var(--sidebar-text-active)' }}>every team&apos;s</strong> stream URL to the league default above (optional).
+                </span>
+              </label>
             </div>
 
             <div style={{ marginBottom: '14px' }}>
@@ -197,34 +208,67 @@ export function LeagueSiteAccessPanel({
                   marginBottom: '8px',
                 }}
               >
-                Per team
+                Team override (optional)
               </div>
-              <div style={{ display: 'grid', gap: '10px' }}>
-                {teamRows.map((t) => (
-                  <div key={t.id}>
-                    <div style={{ fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: 'var(--sidebar-text-active)' }}>
-                      {t.name}
-                    </div>
-                    <input
-                      type="url"
-                      placeholder="Team stream URL (optional)"
-                      value={t.stream_url ?? ''}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        setTeamRows((rows) => rows.map((r) => (r.id === t.id ? { ...r, stream_url: v } : r)))
-                      }}
+              <p style={{ fontSize: '12px', color: 'var(--sidebar-text)', margin: '0 0 10px', lineHeight: 1.45 }}>
+                Pick a team to set its own watch link. Leave blank to rely on the league default when this team is in a live game.
+              </p>
+              {teamRows.length === 0 ? (
+                <p style={{ fontSize: '13px', color: 'var(--sidebar-text)' }}>No teams yet — add teams under Dashboard → Teams.</p>
+              ) : (
+                <div style={{ display: 'grid', gap: '10px' }}>
+                  <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--sidebar-text-active)' }}>
+                    Team
+                    <select
+                      value={selectedTeamId}
+                      onChange={(e) => setSelectedTeamId(e.target.value)}
                       style={{
+                        display: 'block',
                         width: '100%',
+                        marginTop: '6px',
                         padding: '8px 10px',
                         borderRadius: '8px',
                         border: '1px solid var(--sidebar-border)',
-                        fontSize: '13px',
+                        fontSize: '14px',
                         fontFamily: 'inherit',
+                        background: 'var(--bg-elevated, #fff)',
+                        color: 'var(--sidebar-text-active)',
                       }}
-                    />
-                  </div>
-                ))}
-              </div>
+                    >
+                      {teamRows.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {selectedTeam ? (
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--sidebar-text-active)' }}>
+                        Stream URL <span style={{ fontWeight: 500, color: 'var(--sidebar-text)' }}>(optional)</span>
+                      </label>
+                      <input
+                        type="url"
+                        placeholder="https://…"
+                        value={selectedTeam.stream_url ?? ''}
+                        onChange={(e) => {
+                          const v = e.target.value
+                          setTeamRows((rows) => rows.map((r) => (r.id === selectedTeam.id ? { ...r, stream_url: v } : r)))
+                        }}
+                        style={{
+                          width: '100%',
+                          marginTop: '6px',
+                          padding: '8px 10px',
+                          borderRadius: '8px',
+                          border: '1px solid var(--sidebar-border)',
+                          fontSize: '13px',
+                          fontFamily: 'inherit',
+                        }}
+                      />
+                    </div>
+                  ) : null}
+                </div>
+              )}
             </div>
 
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
@@ -249,24 +293,9 @@ export function LeagueSiteAccessPanel({
                 {streamSaving ? <Loader2 size={18} className="animate-spin" aria-hidden /> : null}
                 {streamSaving ? 'Saving…' : 'Save stream links'}
               </button>
-              <button
-                type="button"
-                disabled={streamSaving || !defaultStream.trim()}
-                onClick={() => void applyDefaultToAllTeams()}
-                title={!defaultStream.trim() ? 'Enter a league default URL first' : undefined}
-                style={{
-                  padding: '10px 14px',
-                  borderRadius: '10px',
-                  border: '1px solid var(--sidebar-border)',
-                  background: 'var(--bg-elevated, #fff)',
-                  fontWeight: 700,
-                  fontSize: '13px',
-                  cursor: streamSaving || !defaultStream.trim() ? 'not-allowed' : 'pointer',
-                  opacity: !defaultStream.trim() ? 0.55 : 1,
-                }}
-              >
-                Apply league URL to all teams
-              </button>
+              <span style={{ fontSize: '12px', color: 'var(--sidebar-text)', maxWidth: '320px', lineHeight: 1.4 }}>
+                Saves the league default and all team URLs in one step.
+              </span>
             </div>
           </>
         )}

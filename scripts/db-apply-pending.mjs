@@ -45,6 +45,7 @@ const FILES = [
   '20260508210000_player_game_stats_team_id.sql',
   '20260509130000_dropin_waitlist.sql',
   '20260511120000_team_stream_house_rules.sql',
+  '20260511220000_organizations_default_stream_url.sql',
 ]
 
 async function main() {
