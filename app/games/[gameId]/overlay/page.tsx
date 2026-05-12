@@ -58,10 +58,13 @@ export default function LiveGameOverlayPage() {
   const [cfg, setCfg] = useState<OverlayConfig>(DEFAULT_CONFIG)
   const [isEmbed, setIsEmbed] = useState(false)
   const [narrowEmbed, setNarrowEmbed] = useState(false)
+  const [miniBand, setMiniBand] = useState(false)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    setIsEmbed(new URLSearchParams(window.location.search).get('embed') === '1')
+    const q = new URLSearchParams(window.location.search)
+    setIsEmbed(q.get('embed') === '1')
+    setMiniBand(q.get('mini') === '1')
   }, [])
 
   useEffect(() => {
@@ -195,6 +198,8 @@ export default function LiveGameOverlayPage() {
   const wingAwayBg = `linear-gradient(-105deg, ${rgba(awayTint, 0.14)} 0%, rgba(17, 24, 39, 0.88) 55%)`
   const centerBg = 'linear-gradient(180deg, rgba(15, 23, 42, 0.95) 0%, rgba(2, 6, 23, 0.92) 100%)'
   const microEmbed = isEmbed && narrowEmbed
+  /** Stream embed on narrow phones: parent uses a short slot + scale; hide sponsor strip to save vertical space */
+  const hideEmbedBranding = isEmbed && miniBand
 
   const nameSize = microEmbed
     ? cfg.compact
@@ -354,7 +359,8 @@ export default function LiveGameOverlayPage() {
             backdropFilter: 'blur(12px)',
           }}
         >
-          {/* Sponsor / brand — always on top */}
+          {/* Sponsor / brand — skipped in mini stream embed (saves height inside scaled iframe) */}
+          {!hideEmbedBranding ? (
           <div
             style={{
               padding: microEmbed ? '3px 8px' : isEmbed ? '5px 10px' : '5px 14px',
@@ -370,13 +376,14 @@ export default function LiveGameOverlayPage() {
           >
             {brandingLabel}
           </div>
+          ) : null}
 
           {/* Esports-style row: angled wings + center score block (muted colors) */}
           <div
             style={{
               display: 'flex',
               alignItems: 'stretch',
-              minHeight: microEmbed ? 34 : isEmbed ? 46 : 56,
+              minHeight: hideEmbedBranding ? 30 : microEmbed ? 34 : isEmbed ? 46 : 56,
               background: 'rgba(15, 23, 42, 0.82)',
             }}
           >

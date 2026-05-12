@@ -14,8 +14,8 @@ import { streamWatchUrlToEmbedSrc } from '@/lib/stream-embed'
 
 /** Desktop / tablet — band tall enough for sponsor + score row inside the iframe. */
 export const STREAM_OVERLAY_BAND_HEIGHT = 'clamp(96px, 14%, 158px)'
-/** Phones — shorter than desktop but tall enough that sponsor + score row are not clipped inside the iframe */
-export const STREAM_OVERLAY_BAND_HEIGHT_MOBILE = 'clamp(76px, 13%, 124px)'
+/** Phones — ~½ the desktop band height; score iframe is scaled down inside (see wrapper in component) */
+export const STREAM_OVERLAY_BAND_HEIGHT_MOBILE = 'clamp(38px, 6.5%, 62px)'
 
 const MOBILE_MQ = '(max-width: 768px)'
 const PORTRAIT_MQ = '(orientation: portrait)'
@@ -178,7 +178,10 @@ export function StreamWithOverlay({ watchUrl, liveGameId, accentColor = '#5a7a2a
   const overlaySrc = useMemo(() => {
     if (!liveGameId) return null
     const q = new URLSearchParams({ embed: '1' })
-    if (isNarrow) q.set('compact', '1')
+    if (isNarrow) {
+      q.set('compact', '1')
+      q.set('mini', '1')
+    }
     return `/games/${liveGameId}/overlay?${q}`
   }, [liveGameId, isNarrow])
 
@@ -320,22 +323,54 @@ export function StreamWithOverlay({ watchUrl, liveGameId, accentColor = '#5a7a2a
             }}
           />
           {overlaySrc ? (
-            <iframe
-              title="Live score overlay"
-              src={overlaySrc}
-              style={{
-                position: 'absolute',
-                left: 0,
-                right: 0,
-                bottom: 0,
-                width: '100%',
-                height: overlayBandHeight,
-                border: 'none',
-                pointerEvents: 'none',
-                zIndex: 2,
-                backgroundColor: 'transparent',
-              }}
-            />
+            isNarrow ? (
+              <div
+                style={{
+                  position: 'absolute',
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  height: overlayBandHeight,
+                  overflow: 'hidden',
+                  pointerEvents: 'none',
+                  zIndex: 2,
+                }}
+              >
+                <iframe
+                  title="Live score overlay"
+                  src={overlaySrc}
+                  style={{
+                    position: 'absolute',
+                    left: '50%',
+                    bottom: 0,
+                    width: '200%',
+                    height: '200%',
+                    border: 'none',
+                    pointerEvents: 'none',
+                    backgroundColor: 'transparent',
+                    transform: 'translateX(-50%) scale(0.5)',
+                    transformOrigin: 'bottom center',
+                  }}
+                />
+              </div>
+            ) : (
+              <iframe
+                title="Live score overlay"
+                src={overlaySrc}
+                style={{
+                  position: 'absolute',
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  width: '100%',
+                  height: overlayBandHeight,
+                  border: 'none',
+                  pointerEvents: 'none',
+                  zIndex: 2,
+                  backgroundColor: 'transparent',
+                }}
+              />
+            )
           ) : null}
         </div>
       </div>
@@ -373,17 +408,11 @@ export function StreamWithOverlay({ watchUrl, liveGameId, accentColor = '#5a7a2a
       </button>
 
       {!immersive ? (
-        <p style={{ margin: '12px 0 0', fontSize: '13px', color: 'rgba(15,23,42,0.72)', lineHeight: 1.55 }}>
-          Use the video&apos;s own controls to play or pause.{' '}
-          <strong style={{ color: 'rgba(15,23,42,0.88)' }}>Full screen with overlay</strong> keeps the live scoreboard with the stream (best-effort on phones — not the same as the player&apos;s own fullscreen).{' '}
-          For system fullscreen only, use the player&apos;s fullscreen button; the score strip won&apos;t appear there.
-          {isNarrow ? (
-            <>
-              {' '}
-              <strong style={{ color: 'rgba(15,23,42,0.88)' }}>Tip:</strong> for the smoothest stream <strong style={{ color: 'rgba(15,23,42,0.88)' }}>and</strong> score overlay together, use a{' '}
-              <strong style={{ color: 'rgba(15,23,42,0.88)' }}>laptop or desktop</strong> if you can — mobile browsers can&apos;t match that experience.
-            </>
-          ) : null}
+        <p style={{ margin: '12px 0 0', fontSize: '13px', color: 'rgba(15,23,42,0.72)', lineHeight: 1.5 }}>
+          Play/pause in the video.{' '}
+          <strong style={{ color: 'rgba(15,23,42,0.88)' }}>Full screen with overlay</strong> keeps scores with the stream — best on{' '}
+          <strong style={{ color: 'rgba(15,23,42,0.88)' }}>desktop</strong>; phones are limited.{' '}
+          <strong style={{ color: 'rgba(15,23,42,0.88)' }}>Player fullscreen</strong> is true OS fullscreen without the score strip.
         </p>
       ) : null}
 
