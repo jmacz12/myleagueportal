@@ -12,6 +12,7 @@ const isPublicRoute = createRouteMatcher([
   '/join(.*)',
   '/league(.*)',
   '/api/join(.*)',
+  '/api/public(.*)',
   '/games(.*)',
 ])
 

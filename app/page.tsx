@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 
 import { LandingSignedInHeroActions, LandingSignedInNav } from '@/components/marketing/LandingSignedInChrome'
+import { LandingLeagueSearch } from '@/components/marketing/LandingLeagueSearch'
 import { getOrgAccessForClerkUser } from '@/lib/org-access'
 
 export default async function HomePage() {
@@ -199,6 +200,8 @@ export default async function HomePage() {
           ))}
         </div>
       </section>
+
+      <LandingLeagueSearch />
 
       {/* Features — original grid + white cards */}
       <section style={{ maxWidth: '960px', margin: '0 auto', padding: '64px 24px' }}>
