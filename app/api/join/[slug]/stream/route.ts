@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { fetchOrganizationForPublicJoin, normalizeJoinSlugParam } from '@/lib/join-public-org'
+import { normalizeStreamUrl } from '@/lib/stream-url'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -69,8 +70,22 @@ export async function GET(
   }
   const home = rows.find((t) => t.id === live.home_team_id)
   const away = rows.find((t) => t.id === live.away_team_id)
-  const streamRaw = (home as { stream_url?: string | null } | undefined)?.stream_url?.trim()
-    || (away as { stream_url?: string | null } | undefined)?.stream_url?.trim()
+
+  let orgDefault: string | null = null
+  const orgStreamQ = await supabaseAdmin
+    .from('organizations')
+    .select('default_stream_url')
+    .eq('id', orgHub.id)
+    .maybeSingle()
+  if (!orgStreamQ.error && orgStreamQ.data) {
+    const raw = (orgStreamQ.data as { default_stream_url?: string | null }).default_stream_url
+    orgDefault = normalizeStreamUrl(typeof raw === 'string' ? raw : null)
+  }
+
+  const streamRaw =
+    normalizeStreamUrl((home as { stream_url?: string | null } | undefined)?.stream_url)
+    || normalizeStreamUrl((away as { stream_url?: string | null } | undefined)?.stream_url)
+    || orgDefault
     || null
 
   return NextResponse.json({

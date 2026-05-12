@@ -1,9 +1,11 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { Suspense, useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { ChevronDown, ChevronUp, ExternalLink, ImagePlus, Loader2, Plus, Save, Send, Trash2 } from 'lucide-react'
 import { InlineCircularProgress } from '@/components/league-site/InlineCircularProgress'
+import { LeagueSiteAccessPanel } from '@/components/dashboard/LeagueSiteAccessPanel'
 import type { LeagueSitePayload, LeagueSiteSection } from '@/lib/league-site'
 import { DEFAULT_LEAGUE_HERO_TAGLINE, EMPTY_LEAGUE_SITE, createLeagueSiteSection } from '@/lib/league-site'
 import { countGalleryImages } from '@/lib/league-site-limits'
@@ -17,6 +19,16 @@ type EditorRow = {
 }
 
 export default function LeagueSitePage() {
+  return (
+    <Suspense fallback={<p style={{ color: 'var(--sidebar-text)' }}>Loading…</p>}>
+      <LeagueSitePageClient />
+    </Suspense>
+  )
+}
+
+function LeagueSitePageClient() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [loading, setLoading] = useState(true)
   const [slug, setSlug] = useState('')
   const [role, setRole] = useState<'owner' | 'editor' | ''>('')
@@ -213,6 +225,8 @@ export default function LeagueSitePage() {
   }
 
   const publicUrl = slug ? `/league/${slug}` : ''
+  const activeTab =
+    role === 'owner' && searchParams.get('section') === 'access' ? 'access' : 'content'
 
   return (
     <div style={{ maxWidth: '720px' }}>
@@ -224,6 +238,43 @@ export default function LeagueSitePage() {
         edit here. <strong>Save</strong> keeps a draft; <strong>Publish</strong> shows it to everyone.
       </p>
 
+      {role === 'owner' ? (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '18px' }}>
+          <button
+            type="button"
+            onClick={() => router.replace('/dashboard/league-site')}
+            style={{
+              padding: '8px 14px',
+              borderRadius: '10px',
+              border: activeTab === 'content' ? '2px solid var(--sidebar-active-border)' : '1px solid var(--sidebar-border)',
+              background: activeTab === 'content' ? 'var(--sidebar-active-bg)' : 'var(--bg-elevated, #fff)',
+              fontWeight: 700,
+              fontSize: '13px',
+              cursor: 'pointer',
+              color: 'var(--sidebar-text-active)',
+            }}
+          >
+            Website content
+          </button>
+          <button
+            type="button"
+            onClick={() => router.replace('/dashboard/league-site?section=access')}
+            style={{
+              padding: '8px 14px',
+              borderRadius: '10px',
+              border: activeTab === 'access' ? '2px solid var(--sidebar-active-border)' : '1px solid var(--sidebar-border)',
+              background: activeTab === 'access' ? 'var(--sidebar-active-bg)' : 'var(--bg-elevated, #fff)',
+              fontWeight: 700,
+              fontSize: '13px',
+              cursor: 'pointer',
+              color: 'var(--sidebar-text-active)',
+            }}
+          >
+            Access & streams
+          </button>
+        </div>
+      ) : null}
+
       {message ? (
         <p style={{ fontSize: '13px', color: '#15803d', marginBottom: '12px' }}>{message}</p>
       ) : null}
@@ -231,6 +282,8 @@ export default function LeagueSitePage() {
         <p style={{ fontSize: '13px', color: '#b91c1c', marginBottom: '12px' }}>{error}</p>
       ) : null}
 
+      {activeTab === 'content' ? (
+        <>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '24px' }}>
         {publicUrl ? (
           <Link
@@ -665,97 +718,20 @@ export default function LeagueSitePage() {
         )}
         </div>
       </details>
+        </>
+      ) : (
+        <LeagueSiteAccessPanel
+          slug={slug}
+          editors={editors}
+          editorEmail={editorEmail}
+          setEditorEmail={setEditorEmail}
+          addEditor={addEditor}
+          removeEditor={removeEditor}
+          editorBusy={editorBusy}
+        />
+      )}
 
-      {role === 'owner' ? (
-        <section
-          style={{
-            background: 'var(--bg-elevated, #fff)',
-            border: '0.5px solid var(--sidebar-border)',
-            borderRadius: '12px',
-            padding: '18px',
-            marginBottom: '18px',
-          }}
-        >
-          <h2 style={{ fontSize: '15px', fontWeight: 800, margin: '0 0 8px' }}>Website editors</h2>
-          <p style={{ fontSize: '13px', color: 'var(--sidebar-text)', margin: '0 0 12px', lineHeight: 1.45 }}>
-            Invite someone by the email they use with their Clerk account. They must sign up once before you can add them.
-            Editors can update this page only (not billing or all dashboard areas).
-          </p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
-            <input
-              type="email"
-              placeholder="editor@email.com"
-              value={editorEmail}
-              onChange={(e) => setEditorEmail(e.target.value)}
-              style={{
-                flex: '1 1 200px',
-                padding: '8px 10px',
-                borderRadius: '8px',
-                border: '1px solid var(--sidebar-border)',
-                fontSize: '14px',
-              }}
-            />
-            <button
-              type="button"
-              disabled={editorBusy || !editorEmail.trim()}
-              onClick={addEditor}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '8px 14px',
-                borderRadius: '8px',
-                border: 'none',
-                fontWeight: 700,
-                fontSize: '13px',
-                cursor: editorBusy ? 'wait' : 'pointer',
-                background: 'var(--sidebar-active-border)',
-                color: '#fff',
-              }}
-            >
-              {editorBusy ? <Loader2 size={15} className="animate-spin" aria-hidden /> : null}
-              {editorBusy ? 'Adding…' : 'Add'}
-            </button>
-          </div>
-          {editors.length > 0 ? (
-            <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-              {editors.map((ed) => (
-                <li
-                  key={ed.id}
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    fontSize: '13px',
-                    padding: '8px 0',
-                    borderTop: '0.5px solid var(--sidebar-border)',
-                  }}
-                >
-                  <span>{ed.invited_email || ed.clerk_user_id}</span>
-                  <button
-                    type="button"
-                    disabled={editorBusy}
-                    onClick={() => removeEditor(ed.clerk_user_id)}
-                    style={{
-                      border: 'none',
-                      background: 'transparent',
-                      color: '#b91c1c',
-                      cursor: 'pointer',
-                      fontSize: '12px',
-                      fontWeight: 700,
-                    }}
-                  >
-                    Remove
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p style={{ fontSize: '12px', color: 'var(--sidebar-text)' }}>No extra editors yet.</p>
-          )}
-        </section>
-      ) : null}
-
+      {activeTab === 'content' ? (
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
         <button
           type="button"
@@ -802,6 +778,7 @@ export default function LeagueSitePage() {
           Live site uses the last published version ({published.sections.length} sections).
         </span>
       </div>
+      ) : null}
     </div>
   )
 }

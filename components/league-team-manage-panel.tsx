@@ -503,7 +503,8 @@ export function LeagueTeamManagePanel({
               Watch live / stream link
             </div>
             <p style={{ fontSize: '12px', color: shell.muted, margin: '6px 0 8px', lineHeight: 1.45 }}>
-              YouTube, Twitch, or any https link. Shows as a &quot;Watch live&quot; button for fans on Overview.
+              YouTube, Twitch, or any https link. Shows as a &quot;Watch live&quot; button on the team Overview. League organizers can also set defaults and all teams in{' '}
+              <strong style={{ color: shell.text }}>Dashboard → League website → Access & streams</strong>.
             </p>
             <input
               type="url"

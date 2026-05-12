@@ -2,23 +2,12 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { auth } from '@clerk/nextjs/server'
 import { getTeamManagerAccess } from '@/lib/team-manager-access'
+import { normalizeStreamUrl } from '@/lib/stream-url'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
-
-function normalizeStreamUrl(raw: string | null | undefined): string | null {
-  if (raw == null || String(raw).trim() === '') return null
-  const s = String(raw).trim()
-  try {
-    const u = new URL(s.startsWith('http://') || s.startsWith('https://') ? s : `https://${s}`)
-    if (u.protocol !== 'http:' && u.protocol !== 'https:') return null
-    return u.toString()
-  } catch {
-    return null
-  }
-}
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ teamId: string }> }) {
   const { userId } = await auth()

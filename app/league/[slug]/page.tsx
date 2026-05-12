@@ -1603,7 +1603,7 @@ function LeagueHomeContent() {
               Live stream
             </h2>
             <p style={{ margin: '0 0 22px', fontSize: '14px', color: preset.muted, lineHeight: 1.55, width: '100%' }}>
-              When a season game is marked live and a team has published a YouTube or Twitch link, you can watch here with the scoreboard strip below the video. Use the player&apos;s own fullscreen control for the biggest picture (the strip stays on this page only — see the note under the player).
+              When a season game is marked live and a team has published a YouTube or Twitch link, you can watch here with the scoreboard on top. Use Full screen to expand video and overlay together.
             </p>
             {!streamLive ? (
               <div
@@ -1637,8 +1637,9 @@ function LeagueHomeContent() {
                 <strong style={{ color: preset.heading }}>
                   {streamLive.homeName || 'Home'} vs {streamLive.awayName || 'Away'}
                 </strong>{' '}
-                is live, but neither team has added a stream URL yet. Ask the home or away manager to add one under{' '}
-                <strong style={{ color: preset.heading }}>Manage team → Page & links</strong>.
+                is live, but neither team has added a stream URL yet. Add a <strong style={{ color: preset.heading }}>league default</strong> or team links in{' '}
+                <strong style={{ color: preset.heading }}>Dashboard → League website → Access & streams</strong>, or under{' '}
+                <strong style={{ color: preset.heading }}>Manage team → Page & links</strong> on a team page.
               </div>
             ) : (
               (() => {
