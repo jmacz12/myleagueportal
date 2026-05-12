@@ -72,7 +72,7 @@ export default function SignInPage() {
 
       {/* Clerk sign in */}
       <div>
-        <SignIn />
+        <SignIn fallbackRedirectUrl="/" />
       </div>
     </div>
   )

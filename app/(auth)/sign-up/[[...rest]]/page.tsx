@@ -35,7 +35,7 @@ export default function SignUpPage() {
             Create your free account to get started
           </p>
         </div>
-        <SignUp />
+        <SignUp fallbackRedirectUrl="/onboarding" signInFallbackRedirectUrl="/sign-in" />
       </div>
     </div>
   )
