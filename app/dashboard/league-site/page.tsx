@@ -1,13 +1,21 @@
 'use client'
 
-import { Suspense, useCallback, useEffect, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { ChevronDown, ChevronUp, ExternalLink, ImagePlus, Loader2, Plus, Save, Send, Trash2 } from 'lucide-react'
 import { InlineCircularProgress } from '@/components/league-site/InlineCircularProgress'
 import { LeagueSiteAccessPanel } from '@/components/dashboard/LeagueSiteAccessPanel'
-import type { LeagueSitePayload, LeagueSiteSection } from '@/lib/league-site'
-import { DEFAULT_LEAGUE_HERO_TAGLINE, EMPTY_LEAGUE_SITE, createLeagueSiteSection } from '@/lib/league-site'
+import { LeagueSiteContentSectionFields } from '@/components/league-site/LeagueSiteOnPageEditor'
+import { resolveThemePreset } from '@/lib/leagueTheme'
+import type { LeagueSiteContentSurface, LeagueSitePayload, LeagueSiteSection } from '@/lib/league-site'
+import {
+  DEFAULT_LEAGUE_HERO_TAGLINE,
+  EMPTY_LEAGUE_SITE,
+  LEAGUE_SITE_MEDIA_PLACEMENT_LABELS,
+  createLeagueSiteContentSection,
+  createLeagueSiteSection,
+} from '@/lib/league-site'
 import { countGalleryImages } from '@/lib/league-site-limits'
 import { subscribeLeagueAppearanceUpdated } from '@/lib/league-appearance-sync'
 
@@ -43,6 +51,8 @@ function LeagueSitePageClient() {
   const [editorEmail, setEditorEmail] = useState('')
   const [editorBusy, setEditorBusy] = useState(false)
 
+  const [dashCreativeSurface, setDashCreativeSurface] = useState<LeagueSiteContentSurface>('about')
+  const dashboardSiteEditorPreset = useMemo(() => resolveThemePreset(null, null, 'light'), [])
   const [maxGalleryImages, setMaxGalleryImages] = useState(100)
   const [orgPlan, setOrgPlan] = useState('basic')
   const [heroUploading, setHeroUploading] = useState(false)
@@ -505,60 +515,46 @@ function LeagueSitePageClient() {
           <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--sidebar-text)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             Add blocks
           </span>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+            {(['home', 'news', 'about'] as const).map((surf) => (
+              <button
+                key={surf}
+                type="button"
+                onClick={() => setDashCreativeSurface(surf)}
+                style={{
+                  padding: '5px 10px',
+                  borderRadius: '999px',
+                  border: `1px solid ${dashCreativeSurface === surf ? 'var(--sidebar-active-border)' : 'var(--sidebar-border)'}`,
+                  background: dashCreativeSurface === surf ? 'rgba(90,122,42,0.12)' : 'transparent',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  color: 'var(--sidebar-text-active)',
+                }}
+              >
+                {surf === 'home' ? 'Home' : surf === 'news' ? 'News' : 'About'}
+              </button>
+            ))}
             <button
               type="button"
-              onClick={() => setDraft((d) => ({ ...d, sections: [...d.sections, createLeagueSiteSection('text')] }))}
+              onClick={() =>
+                setDraft((d) => ({ ...d, sections: [createLeagueSiteContentSection(dashCreativeSurface), ...d.sections] }))
+              }
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '4px',
                 fontSize: '12px',
                 fontWeight: 700,
-                padding: '6px 10px',
+                padding: '6px 12px',
                 borderRadius: '8px',
-                border: '1px solid var(--sidebar-border)',
-                background: 'transparent',
+                border: '1px solid var(--sidebar-active-border)',
+                background: 'rgba(90,122,42,0.12)',
                 cursor: 'pointer',
+                color: 'var(--sidebar-text-active)',
               }}
             >
-              <Plus size={14} /> Text
-            </button>
-            <button
-              type="button"
-              onClick={() => setDraft((d) => ({ ...d, sections: [...d.sections, createLeagueSiteSection('news')] }))}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '4px',
-                fontSize: '12px',
-                fontWeight: 700,
-                padding: '6px 10px',
-                borderRadius: '8px',
-                border: '1px solid var(--sidebar-border)',
-                background: 'transparent',
-                cursor: 'pointer',
-              }}
-            >
-              <Plus size={14} /> News
-            </button>
-            <button
-              type="button"
-              onClick={() => setDraft((d) => ({ ...d, sections: [...d.sections, createLeagueSiteSection('media')] }))}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '4px',
-                fontSize: '12px',
-                fontWeight: 700,
-                padding: '6px 10px',
-                borderRadius: '8px',
-                border: '1px solid var(--sidebar-border)',
-                background: 'transparent',
-                cursor: 'pointer',
-              }}
-            >
-              <Plus size={14} /> Media
+              <Plus size={14} /> New block
             </button>
           </div>
         </div>
@@ -569,15 +565,37 @@ function LeagueSitePageClient() {
         </p>
         <ul style={{ fontSize: '12px', color: 'var(--sidebar-text)', margin: '0 0 14px', paddingLeft: '18px', lineHeight: 1.5 }}>
           <li>
-            <strong>Text</strong> — long text under a title (about, rules).
+            <strong>New block</strong> — title, text, and one adjustable photo (Home, News, or About). Matches the in-page editor.
           </li>
           <li>
-            <strong>News</strong> — same as Text; use for updates.
-          </li>
-          <li>
-            <strong>Media</strong> — photo grid and video links.
+            <strong>Legacy Text / News / Media</strong> — still supported for older layouts; prefer new blocks for new content.
           </li>
         </ul>
+
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center', marginBottom: '8px' }}>
+          <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--sidebar-text)' }}>Legacy add:</span>
+          <button
+            type="button"
+            onClick={() => setDraft((d) => ({ ...d, sections: [createLeagueSiteSection('text'), ...d.sections] }))}
+            style={{ fontSize: '11px', fontWeight: 700, padding: '4px 8px', borderRadius: '6px', border: '1px solid var(--sidebar-border)', background: 'transparent', cursor: 'pointer' }}
+          >
+            Text
+          </button>
+          <button
+            type="button"
+            onClick={() => setDraft((d) => ({ ...d, sections: [createLeagueSiteSection('news'), ...d.sections] }))}
+            style={{ fontSize: '11px', fontWeight: 700, padding: '4px 8px', borderRadius: '6px', border: '1px solid var(--sidebar-border)', background: 'transparent', cursor: 'pointer' }}
+          >
+            News
+          </button>
+          <button
+            type="button"
+            onClick={() => setDraft((d) => ({ ...d, sections: [createLeagueSiteSection('media'), ...d.sections] }))}
+            style={{ fontSize: '11px', fontWeight: 700, padding: '4px 8px', borderRadius: '6px', border: '1px solid var(--sidebar-border)', background: 'transparent', cursor: 'pointer' }}
+          >
+            Media
+          </button>
+        </div>
 
         {draft.sections.length === 0 ? (
           <p style={{ fontSize: '13px', color: 'var(--sidebar-text)', margin: '14px 0 0' }}>
@@ -600,7 +618,9 @@ function LeagueSitePageClient() {
                       ? 'Text block'
                       : sec.type === 'news'
                         ? 'News block'
-                        : 'Media block'}{' '}
+                        : sec.type === 'media'
+                          ? 'Media block'
+                          : `Creative block (${sec.surface})`}{' '}
                     · position {idx + 1} on page
                   </span>
                   <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -678,26 +698,113 @@ function LeagueSitePageClient() {
                   }}
                 />
                 {sec.type === 'media' ? (
-                  <MediaEditor
-                    section={sec}
-                    draft={draft}
-                    maxGalleryImages={maxGalleryImages}
-                    orgPlan={orgPlan}
-                    onChange={(next) => updateSection(sec.id, () => next)}
-                  />
-                ) : (
+                  <>
+                    <p style={{ fontSize: '12px', fontWeight: 700, margin: '0 0 6px', color: 'var(--sidebar-text-active)' }}>Photo layout</p>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '10px' }}>
+                      {(['below', 'behind'] as const).map((m) => (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() =>
+                            updateSection(sec.id, (s) => (s.type === 'media' ? { ...s, mediaLayout: m } : s))
+                          }
+                          style={{
+                            padding: '5px 9px',
+                            borderRadius: '6px',
+                            border: `1px solid ${sec.mediaLayout === m ? 'var(--sidebar-active-border)' : 'var(--sidebar-border)'}`,
+                            background: sec.mediaLayout === m ? 'rgba(90,122,42,0.12)' : 'transparent',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            color: 'var(--sidebar-text-active)',
+                          }}
+                        >
+                          {LEAGUE_SITE_MEDIA_PLACEMENT_LABELS[m]}
+                        </button>
+                      ))}
+                    </div>
+                    <MediaEditor
+                      section={sec}
+                      draft={draft}
+                      maxGalleryImages={maxGalleryImages}
+                      orgPlan={orgPlan}
+                      onChange={(next) => updateSection(sec.id, () => next)}
+                    />
+                  </>
+                ) : sec.type === 'news' ? (
                   <>
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>
-                      {sec.type === 'news'
-                        ? 'News content (appears under the heading on the league home)'
-                        : 'Main text (appears under the heading on the league home, below Join / Drop-ins)'}
+                      News content (News tab + latest on league home)
                     </label>
                     <textarea
                       value={sec.body}
                       onChange={(e) =>
-                        updateSection(sec.id, (s) =>
-                          s.type === 'text' || s.type === 'news' ? { ...s, body: e.target.value } : s
-                        )
+                        updateSection(sec.id, (s) => (s.type === 'news' ? { ...s, body: e.target.value } : s))
+                      }
+                      rows={6}
+                      style={{
+                        width: '100%',
+                        padding: '8px 10px',
+                        borderRadius: '8px',
+                        border: '1px solid var(--sidebar-border)',
+                        fontSize: '14px',
+                        fontFamily: 'inherit',
+                        resize: 'vertical',
+                        marginBottom: '10px',
+                      }}
+                    />
+                    <p style={{ fontSize: '12px', fontWeight: 700, margin: '0 0 6px', color: 'var(--sidebar-text-active)' }}>
+                      Photo placement
+                    </p>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '10px' }}>
+                      {(['below', 'left', 'right', 'behind'] as const).map((m) => (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() =>
+                            updateSection(sec.id, (s) => (s.type === 'news' ? { ...s, mediaLayout: m } : s))
+                          }
+                          style={{
+                            padding: '5px 9px',
+                            borderRadius: '6px',
+                            border: `1px solid ${sec.mediaLayout === m ? 'var(--sidebar-active-border)' : 'var(--sidebar-border)'}`,
+                            background: sec.mediaLayout === m ? 'rgba(90,122,42,0.12)' : 'transparent',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            color: 'var(--sidebar-text-active)',
+                          }}
+                        >
+                          {LEAGUE_SITE_MEDIA_PLACEMENT_LABELS[m]}
+                        </button>
+                      ))}
+                    </div>
+                    <MediaEditor
+                      section={sec}
+                      draft={draft}
+                      maxGalleryImages={maxGalleryImages}
+                      orgPlan={orgPlan}
+                      onChange={(next) => updateSection(sec.id, () => next)}
+                    />
+                  </>
+                ) : sec.type === 'content' ? (
+                  <LeagueSiteContentSectionFields
+                    sec={sec}
+                    value={draft}
+                    preset={dashboardSiteEditorPreset}
+                    maxGalleryImages={maxGalleryImages}
+                    updateSection={updateSection}
+                    onNavigateToCreativeSurface={(surf) => setDashCreativeSurface(surf)}
+                  />
+                ) : (
+                  <>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>
+                      Main text (appears under the heading on the league home, below Join / Drop-ins)
+                    </label>
+                    <textarea
+                      value={sec.body}
+                      onChange={(e) =>
+                        updateSection(sec.id, (s) => (s.type === 'text' ? { ...s, body: e.target.value } : s))
                       }
                       rows={8}
                       style={{
@@ -790,11 +897,11 @@ function MediaEditor({
   orgPlan,
   onChange,
 }: {
-  section: Extract<LeagueSiteSection, { type: 'media' }>
+  section: Extract<LeagueSiteSection, { type: 'media' }> | Extract<LeagueSiteSection, { type: 'news' }>
   draft: LeagueSitePayload
   maxGalleryImages: number
   orgPlan: string
-  onChange: (s: Extract<LeagueSiteSection, { type: 'media' }>) => void
+  onChange: (s: Extract<LeagueSiteSection, { type: 'media' }> | Extract<LeagueSiteSection, { type: 'news' }>) => void
 }) {
   const [uploadBatch, setUploadBatch] = useState<{ current: number; total: number } | null>(null)
 
@@ -834,7 +941,7 @@ function MediaEditor({
   return (
     <div>
       <p style={{ fontSize: '12px', color: 'var(--sidebar-text)', margin: '0 0 8px', lineHeight: 1.45 }}>
-        Gallery photos (all media sections): <strong>{galleryTotal}</strong> / {maxGalleryImages}{' '}
+        Gallery photos (all media + news blocks): <strong>{galleryTotal}</strong> / {maxGalleryImages}{' '}
         <span style={{ fontSize: '11px', opacity: 0.85 }}>({orgPlan} plan)</span>
         {overLimit ? (
           <span style={{ color: '#b91c1c', fontWeight: 700 }}> — over limit; save or publish will fail until you remove images.</span>

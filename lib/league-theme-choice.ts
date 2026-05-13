@@ -1,9 +1,16 @@
 /**
- * Pro league public theme: exactly five named choices. Fresh + Modern are retired;
+ * Pro league public theme: exactly six named choices. Fresh + Modern are retired;
  * Bright uses the former Fresh palette; Midnight is the dark (formerly "mode") look.
  */
 
-export const LEAGUE_THEME_CHOICE_ORDER = ['classic', 'bold', 'soft', 'bright', 'midnight'] as const
+export const LEAGUE_THEME_CHOICE_ORDER = [
+  'portal_original',
+  'classic',
+  'bold',
+  'soft',
+  'bright',
+  'midnight',
+] as const
 
 export type LeagueThemeChoiceId = (typeof LEAGUE_THEME_CHOICE_ORDER)[number]
 
@@ -11,6 +18,10 @@ export const LEAGUE_THEME_CHOICE_META: Record<
   LeagueThemeChoiceId,
   { name: string; description: string }
 > = {
+  portal_original: {
+    name: 'MyLeaguePortal Original',
+    description: 'Cream shell and house green — matches marketing and dashboard (not your brand color)',
+  },
   classic: {
     name: 'Classic',
     description: 'Clean, balanced default derived from your brand color',
@@ -33,10 +44,12 @@ export const LEAGUE_THEME_CHOICE_META: Record<
   },
 }
 
-/** Maps each public choice to the internal brand-gradient row used by getThemePresets(). */
+type InternalPresetRowId = 'preset-1' | 'preset-2' | 'preset-3' | 'preset-5'
+
+/** Maps each public choice (except portal_original) to the internal preset row id from `getThemePresets()`. */
 export const INTERNAL_PRESET_ID_BY_CHOICE: Record<
-  LeagueThemeChoiceId,
-  'preset-1' | 'preset-2' | 'preset-3' | 'preset-5'
+  Exclude<LeagueThemeChoiceId, 'portal_original'>,
+  InternalPresetRowId
 > = {
   classic: 'preset-1',
   bold: 'preset-3',
@@ -63,8 +76,8 @@ function legacyPresetToBaseChoice(p: string): LeagueThemeChoiceId {
 }
 
 /**
- * Normalize DB / API value to one of five theme choices.
- * Dark appearance always resolves to `midnight` (single dark preset).
+ * Normalize DB / API value to one of six theme choices.
+ * Dark appearance maps light presets to `midnight`, except `portal_original` (always light shell).
  */
 export function normalizeLeagueThemePresetId(rawPreset: unknown, rawMode?: unknown): LeagueThemeChoiceId {
   const p = typeof rawPreset === 'string' ? rawPreset.trim().toLowerCase() : ''
@@ -73,6 +86,7 @@ export function normalizeLeagueThemePresetId(rawPreset: unknown, rawMode?: unkno
   if (CANONICAL.has(p)) {
     const c = p as LeagueThemeChoiceId
     if (c === 'midnight') return 'midnight'
+    if (c === 'portal_original') return 'portal_original'
     if (mode === 'dark') return 'midnight'
     return c
   }

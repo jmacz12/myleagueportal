@@ -19,6 +19,15 @@ export function sanitizePublicFontKey(raw: unknown): string | null {
   return s
 }
 
+/** Serif stack for MyLeaguePortal Original poster layout headings (no extra font request). */
+export const PORTAL_ORIGINAL_HEADING_SERIF_STACK =
+  'Georgia, "Palatino Linotype", "Book Antiqua", Palatino, "Times New Roman", serif'
+
+/** League body font + serif display for section titles / tabs in the Original layout. */
+export function resolvePortalOriginalHeadingFontStack(key: string | null | undefined): string {
+  return `${PORTAL_ORIGINAL_HEADING_SERIF_STACK}, ${resolvePublicLeagueFontStack(key)}`
+}
+
 export function resolvePublicLeagueFontStack(key: string | null | undefined): string {
   const k = key || 'plus-jakarta'
   switch (k) {

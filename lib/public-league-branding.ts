@@ -1,8 +1,9 @@
 import type { LeagueAppearanceMode } from '@/lib/leagueTheme'
+import type { LeagueThemeChoiceId } from '@/lib/league-theme-choice'
 
-/** Default public look for Basic leagues (matches MyLeaguePortal house style). */
+/** Default public look for Basic leagues (MyLeaguePortal Original house shell + lockup). */
 export const BASIC_PUBLIC_PRIMARY_COLOR = '#5a7a2a'
-export const BASIC_PUBLIC_THEME_PRESET = 'classic'
+export const BASIC_PUBLIC_THEME_PRESET: LeagueThemeChoiceId = 'portal_original'
 export const BASIC_PUBLIC_APPEARANCE_MODE: LeagueAppearanceMode = 'light'
 
 export type PublicOrgThemeRow = {

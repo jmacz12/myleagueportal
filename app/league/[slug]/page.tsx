@@ -1,11 +1,12 @@
 'use client'
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams, usePathname } from 'next/navigation'
 import {
   LeagueSiteHeroEditOverlay,
   LeagueSiteLookControls,
+  LeagueSiteSectionQuickAdd,
   LeagueSiteSectionsEditor,
   LeagueSiteStickyEditBar,
 } from '@/components/league-site/LeagueSiteOnPageEditor'
@@ -26,12 +27,34 @@ import { MediaGalleryPublic } from '@/components/league-site/MediaGalleryPublic'
 import { LeagueNotFoundOrganizerHint } from '@/components/LeagueNotFoundOrganizerHint'
 import { PublicLeagueHeroBand } from '@/components/league-site/PublicLeagueHeroBand'
 import type { LeagueAppearanceMode } from '@/lib/leagueTheme'
-import { contrastTextForAccent, publicHeroThemeFromPreset, resolveThemePreset } from '@/lib/leagueTheme'
+import {
+  PRESET_PORTAL_ORIGINAL_ID,
+  contrastTextForAccent,
+  publicHeroThemeFromPreset,
+  resolveThemePreset,
+} from '@/lib/leagueTheme'
 import { getPublicThemeInputsForOrg } from '@/lib/public-league-branding'
-import type { LeagueSitePayload, LeagueSiteSection } from '@/lib/league-site'
-import { DEFAULT_LEAGUE_HERO_TAGLINE, EMPTY_LEAGUE_SITE, displayHeroInitials } from '@/lib/league-site'
+import type {
+  LeagueSiteContentSurface,
+  LeagueSiteNewsTabSection,
+  LeagueSitePayload,
+  LeagueSiteSection,
+  LeagueSiteSectionMediaPlacement,
+} from '@/lib/league-site'
+import {
+  DEFAULT_LEAGUE_HERO_TAGLINE,
+  EMPTY_LEAGUE_SITE,
+  displayHeroInitials,
+  isLeagueSiteAboutTabSection,
+  isLeagueSiteHomeSurfaceSection,
+  isLeagueSiteNewsSurfaceSection,
+} from '@/lib/league-site'
 import { subscribeLeagueAppearanceUpdated } from '@/lib/league-appearance-sync'
-import { googleFontStylesheetHref, resolvePublicLeagueFontStack } from '@/lib/public-league-fonts'
+import {
+  googleFontStylesheetHref,
+  resolvePortalOriginalHeadingFontStack,
+  resolvePublicLeagueFontStack,
+} from '@/lib/public-league-fonts'
 import { StreamWithOverlay } from '@/components/public-stream/StreamWithOverlay'
 import { createClient } from '@supabase/supabase-js'
 import { type LeagueFeaturedGamePayload } from '@/lib/league-public-home-schedule'
@@ -119,55 +142,449 @@ interface LeagueLeaderRow {
 function LeagueSiteSections({
   site,
   preset,
+  maxWidth = '1000px',
+  posterLayout = false,
+  headingFontFamily,
 }: {
   site: LeagueSitePayload
   preset: ReturnType<typeof resolveThemePreset>
+  maxWidth?: string
+  posterLayout?: boolean
+  headingFontFamily?: string
 }) {
   if (!site.sections.length) return null
   return (
-    <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '0 0 32px' }}>
+    <div style={{ maxWidth, margin: '0 auto', padding: '0 0 32px' }}>
       {site.sections.map((sec) => (
-        <LeagueSiteSectionBlock key={sec.id} section={sec} preset={preset} />
+        <LeagueSiteSectionBlock
+          key={sec.id}
+          section={sec}
+          preset={preset}
+          posterLayout={posterLayout}
+          headingFontFamily={headingFontFamily}
+        />
       ))}
     </div>
   )
 }
 
+function firstImageInItems(items: { kind: string; url: string }[]): { index: number; url: string } | null {
+  const index = items.findIndex((i) => i.kind === 'image')
+  if (index < 0) return null
+  return { index, url: items[index].url }
+}
+
 function LeagueSiteSectionBlock({
   section,
   preset,
+  posterLayout = false,
+  headingFontFamily,
 }: {
   section: LeagueSiteSection
   preset: ReturnType<typeof resolveThemePreset>
+  posterLayout?: boolean
+  headingFontFamily?: string
 }) {
+  const rail = posterLayout ? (
+    <div
+      style={{
+        height: '3px',
+        background: `linear-gradient(90deg, ${preset.accent} 0%, ${preset.accentMutedBg} 55%, transparent 100%)`,
+      }}
+    />
+  ) : (
+    <div
+      style={{
+        height: '4px',
+        background: `linear-gradient(90deg, ${preset.accent} 0%, ${preset.accent} 35%, transparent 100%)`,
+      }}
+    />
+  )
+
+  const h2Style: CSSProperties = {
+    fontFamily: headingFontFamily,
+    fontSize: posterLayout ? 'clamp(22px, 2.8vw, 28px)' : 'clamp(20px, 2.5vw, 24px)',
+    fontWeight: posterLayout ? 800 : 900,
+    color: preset.heading,
+    margin: '0 0 16px',
+    letterSpacing: posterLayout ? '-0.01em' : '-0.02em',
+  }
+
+  const bodyText = (body: string) => (
+    <div style={{ fontSize: '15px', color: preset.body, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{body}</div>
+  )
+
+  if (section.type === 'text') {
+    return (
+      <section
+        style={{
+          position: 'relative',
+          marginBottom: posterLayout ? '24px' : '28px',
+          padding: '0',
+          borderRadius: posterLayout ? '16px' : '18px',
+          background: preset.surfaceBg,
+          border: posterLayout ? `1px solid ${preset.surfaceBorder}` : `1px solid ${preset.surfaceBorder}`,
+          boxShadow: posterLayout
+            ? '0 10px 40px -24px rgba(0,0,0,0.14)'
+            : '0 12px 40px -24px rgba(0,0,0,0.4)',
+          overflow: 'hidden',
+        }}
+      >
+        {rail}
+        <div style={{ padding: posterLayout ? '20px 22px 22px' : '24px 24px 26px' }}>
+          <h2 style={h2Style}>{section.title}</h2>
+          {bodyText(section.body)}
+        </div>
+      </section>
+    )
+  }
+
+  if (section.type === 'media') {
+    const rawLayout: LeagueSiteSectionMediaPlacement = section.mediaLayout ?? 'below'
+    const layout: LeagueSiteSectionMediaPlacement =
+      rawLayout === 'left' || rawLayout === 'right' ? 'below' : rawLayout
+    const first = firstImageInItems(section.items)
+    const restItems = first ? [...section.items.slice(0, first.index), ...section.items.slice(first.index + 1)] : section.items
+
+    return (
+      <section
+        style={{
+          position: 'relative',
+          marginBottom: posterLayout ? '24px' : '28px',
+          padding: '0',
+          borderRadius: posterLayout ? '16px' : '18px',
+          background: preset.surfaceBg,
+          border: posterLayout ? `1px solid ${preset.surfaceBorder}` : `1px solid ${preset.surfaceBorder}`,
+          boxShadow: posterLayout
+            ? '0 10px 40px -24px rgba(0,0,0,0.14)'
+            : '0 12px 40px -24px rgba(0,0,0,0.4)',
+          overflow: 'hidden',
+        }}
+      >
+        {rail}
+        <div style={{ padding: posterLayout ? '20px 22px 22px' : '24px 24px 26px' }}>
+          {layout === 'behind' && first ? (
+            <>
+              <div
+                style={{
+                  position: 'relative',
+                  borderRadius: posterLayout ? '12px' : '14px',
+                  overflow: 'hidden',
+                  minHeight: 'min(240px, 42vw)',
+                  marginBottom: restItems.length ? '18px' : 0,
+                }}
+              >
+                <img
+                  src={first.url}
+                  alt=""
+                  style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+                <div
+                  style={{
+                    position: 'relative',
+                    zIndex: 1,
+                    minHeight: 'min(240px, 42vw)',
+                    display: 'flex',
+                    alignItems: 'flex-end',
+                    padding: '20px 22px 22px',
+                    background: 'linear-gradient(180deg, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.72) 100%)',
+                  }}
+                >
+                  <h2 style={{ ...h2Style, margin: 0, color: '#fafafa', textShadow: '0 2px 16px rgba(0,0,0,0.65)' }}>
+                    {section.title}
+                  </h2>
+                </div>
+              </div>
+              {restItems.length > 0 ? <MediaGalleryPublic items={restItems} preset={preset} /> : null}
+            </>
+          ) : (
+            <>
+              <h2 style={h2Style}>{section.title}</h2>
+              <MediaGalleryPublic items={section.items} preset={preset} />
+            </>
+          )}
+        </div>
+      </section>
+    )
+  }
+
+  if (section.type === 'content') {
+    const img = section.image
+    const sidePad = posterLayout ? '20px 22px 22px' : '24px 24px 26px'
+    const minH =
+      img != null
+        ? `min(${Math.min(Math.round(img.maxHeightPx * Math.min(img.scale, 2.5) + 56), 680)}px, 92vw)`
+        : undefined
+
+    return (
+      <section
+        style={{
+          position: 'relative',
+          marginBottom: posterLayout ? '24px' : '28px',
+          padding: '0',
+          borderRadius: posterLayout ? '16px' : '18px',
+          background: preset.surfaceBg,
+          border: posterLayout ? `1px solid ${preset.surfaceBorder}` : `1px solid ${preset.surfaceBorder}`,
+          boxShadow: posterLayout
+            ? '0 10px 40px -24px rgba(0,0,0,0.14)'
+            : '0 12px 40px -24px rgba(0,0,0,0.4)',
+          overflow: 'hidden',
+        }}
+      >
+        {rail}
+        <div
+          style={{
+            position: 'relative',
+            padding: sidePad,
+            overflow: 'hidden',
+            minHeight: minH,
+          }}
+        >
+          {img ? (
+            <div
+              aria-hidden
+              style={{
+                position: 'absolute',
+                left: `calc(50% + ${img.offsetX}%)`,
+                top: `calc(45% + ${img.offsetY}%)`,
+                width: `${img.widthPct}%`,
+                maxWidth: '130%',
+                transform: `translate(-50%, -50%) rotate(${img.rotateDeg}deg) scale(${img.scale})`,
+                transformOrigin: 'center center',
+                zIndex: 1,
+                pointerEvents: 'none',
+              }}
+            >
+              <div
+                style={{
+                  width: '100%',
+                  height: img.maxHeightPx,
+                  overflow: 'hidden',
+                  borderRadius: img.borderRadiusPx,
+                  margin: '0 auto',
+                }}
+              >
+                <img
+                  src={img.url}
+                  alt=""
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    objectPosition: `${img.objectPositionX}% ${img.objectPositionY}%`,
+                  }}
+                />
+              </div>
+            </div>
+          ) : null}
+          <div
+            style={{
+              position: 'relative',
+              zIndex: 2,
+              minHeight: img ? 'min(200px, 40vw)' : undefined,
+            }}
+          >
+            {(section.textPieces.length > 0
+              ? section.textPieces
+              : [
+                  ...(section.title.trim()
+                    ? [
+                        {
+                          id: `${section.id}-fallback-h`,
+                          role: 'heading' as const,
+                          text: section.title,
+                          xPct: 50,
+                          yPct: 22,
+                        },
+                      ]
+                    : []),
+                  ...(section.body.trim()
+                    ? [
+                        {
+                          id: `${section.id}-fallback-p`,
+                          role: 'paragraph' as const,
+                          text: section.body,
+                          xPct: 50,
+                          yPct: 46,
+                        },
+                      ]
+                    : []),
+                ]
+            )
+              .filter((p) => p.text.trim())
+              .map((p, idx) => {
+                const xPct = 'xPct' in p && typeof p.xPct === 'number' ? p.xPct : 50
+                const yPct = 'yPct' in p && typeof p.yPct === 'number' ? p.yPct : 14 + idx * 18
+                const wrapStyle: CSSProperties = {
+                  position: 'absolute',
+                  left: `${xPct}%`,
+                  top: `${yPct}%`,
+                  transform: 'translate(-50%, -50%)',
+                  maxWidth: 'min(92%, 540px)',
+                  width: 'max-content',
+                }
+                return p.role === 'heading' ? (
+                  <h2
+                    key={p.id}
+                    style={{
+                      ...h2Style,
+                      ...wrapStyle,
+                      margin: 0,
+                      textAlign: 'left',
+                    }}
+                  >
+                    {p.text}
+                  </h2>
+                ) : (
+                  <div key={p.id} style={{ ...wrapStyle, margin: 0 }}>
+                    {bodyText(p.text)}
+                  </div>
+                )
+              })}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (section.type === 'news') {
+  const layout: LeagueSiteSectionMediaPlacement = section.mediaLayout ?? 'below'
+  const first = firstImageInItems(section.items)
+  const effectiveLayout: LeagueSiteSectionMediaPlacement =
+    layout === 'behind' && !first ? 'below' : layout
+  const restItems =
+    first && effectiveLayout === 'behind'
+      ? [...section.items.slice(0, first.index), ...section.items.slice(first.index + 1)]
+      : section.items
+  const hasBody = section.body.trim().length > 0
+  const galleryBlock =
+    section.items.length > 0 ? (
+      <div style={{ flex: '1 1 280px', minWidth: 0 }}>
+        <MediaGalleryPublic items={section.items} preset={preset} />
+      </div>
+    ) : null
+  const bodyBlock = hasBody ? (
+    <div style={{ flex: '1 1 240px', minWidth: 0 }}>{bodyText(section.body)}</div>
+  ) : null
+
   return (
     <section
       style={{
-        marginBottom: '28px',
+        position: 'relative',
+        marginBottom: posterLayout ? '24px' : '28px',
         padding: '0',
-        borderRadius: '18px',
+        borderRadius: posterLayout ? '16px' : '18px',
         background: preset.surfaceBg,
-        border: `1px solid ${preset.surfaceBorder}`,
-        boxShadow: '0 12px 40px -24px rgba(0,0,0,0.4)',
+        border: posterLayout ? `1px solid ${preset.surfaceBorder}` : `1px solid ${preset.surfaceBorder}`,
+        boxShadow: posterLayout
+          ? '0 10px 40px -24px rgba(0,0,0,0.14)'
+          : '0 12px 40px -24px rgba(0,0,0,0.4)',
         overflow: 'hidden',
       }}
     >
-      <div
-        style={{
-          height: '4px',
-          background: `linear-gradient(90deg, ${preset.accent} 0%, ${preset.accent} 35%, transparent 100%)`,
-        }}
-      />
-      <div style={{ padding: '24px 24px 26px' }}>
-      <h2 style={{ fontSize: 'clamp(20px, 2.5vw, 24px)', fontWeight: 900, color: preset.heading, margin: '0 0 16px', letterSpacing: '-0.02em' }}>{section.title}</h2>
-      {section.type === 'media' ? (
-        <MediaGalleryPublic items={section.items} preset={preset} />
-      ) : (
-        <div style={{ fontSize: '15px', color: preset.body, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{section.body}</div>
-      )}
+      {rail}
+      <div style={{ padding: posterLayout ? '20px 22px 22px' : '24px 24px 26px' }}>
+        {effectiveLayout === 'behind' && first ? (
+          <>
+            <div
+              style={{
+                position: 'relative',
+                borderRadius: posterLayout ? '12px' : '14px',
+                overflow: 'hidden',
+                minHeight: 'min(260px, 48vw)',
+                marginBottom: restItems.length > 0 ? '18px' : 0,
+              }}
+            >
+              <img
+                src={first.url}
+                alt=""
+                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+              />
+              <div
+                style={{
+                  position: 'relative',
+                  zIndex: 1,
+                  minHeight: 'min(260px, 48vw)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'flex-end',
+                  gap: '10px',
+                  padding: '20px 22px',
+                  background: 'linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.78) 100%)',
+                }}
+              >
+                <h2
+                  style={{
+                    ...h2Style,
+                    margin: 0,
+                    color: '#fafafa',
+                    textShadow: '0 2px 16px rgba(0,0,0,0.65)',
+                  }}
+                >
+                  {section.title}
+                </h2>
+                {hasBody ? (
+                  <div
+                    style={{
+                      fontSize: '15px',
+                      color: '#f4f4f0',
+                      lineHeight: 1.65,
+                      whiteSpace: 'pre-wrap',
+                      textShadow: '0 1px 10px rgba(0,0,0,0.55)',
+                      maxWidth: '720px',
+                    }}
+                  >
+                    {section.body}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+            {restItems.length > 0 ? <MediaGalleryPublic items={restItems} preset={preset} /> : null}
+          </>
+        ) : (
+          <>
+            <h2 style={h2Style}>{section.title}</h2>
+            {effectiveLayout === 'below' ? (
+              <>
+                {hasBody ? bodyText(section.body) : null}
+                {section.items.length > 0 ? (
+                  <div style={{ marginTop: hasBody ? '18px' : 0 }}>{galleryBlock}</div>
+                ) : null}
+              </>
+            ) : effectiveLayout === 'left' ? (
+              <div
+                style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: '20px',
+                  alignItems: 'flex-start',
+                }}
+              >
+                {galleryBlock}
+                {bodyBlock}
+              </div>
+            ) : (
+              <div
+                style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: '20px',
+                  alignItems: 'flex-start',
+                }}
+              >
+                {bodyBlock}
+                {galleryBlock}
+              </div>
+            )}
+          </>
+        )}
       </div>
     </section>
   )
+  }
+
+  return null
 }
 
 function formatSeasonDates(cs: CompetitiveSeason): string | null {
@@ -197,6 +614,19 @@ const LEAGUE_TAB_META: { id: LeaguePublicTabId; label: string }[] = [
 function parseLeaguePublicTab(v: string | null): LeaguePublicTabId {
   if (v === 'stream' || v === 'news' || v === 'schedule' || v === 'standings' || v === 'teams' || v === 'about') return v
   return 'home'
+}
+
+function leagueTabToCreativeSurface(tab: LeaguePublicTabId): LeagueSiteContentSurface {
+  if (tab === 'home') return 'home'
+  if (tab === 'news') return 'news'
+  if (tab === 'about') return 'about'
+  return 'about'
+}
+
+function leaguePublicTabForCreativeSurface(surface: LeagueSiteContentSurface): LeaguePublicTabId {
+  if (surface === 'home') return 'home'
+  if (surface === 'news') return 'news'
+  return 'about'
 }
 
 function formatDropInSessionLocal(
@@ -495,11 +925,16 @@ function LeaguePublicTabBar({
   active,
   onChange,
   preset,
+  maxWidth = '1000px',
+  headingFontFamily,
 }: {
   active: LeaguePublicTabId
   onChange: (id: LeaguePublicTabId) => void
   preset: ReturnType<typeof resolveThemePreset>
+  maxWidth?: string
+  headingFontFamily?: string
 }) {
+  const poster = preset.id === PRESET_PORTAL_ORIGINAL_ID
   return (
     <nav
       aria-label="League sections"
@@ -507,15 +942,18 @@ function LeaguePublicTabBar({
         position: 'sticky',
         top: 0,
         zIndex: 45,
-        background: preset.pageBg,
-        boxShadow: '0 8px 24px -18px rgba(0,0,0,0.18)',
+        background: poster ? preset.surfaceBg : preset.pageBg,
+        backdropFilter: poster ? 'saturate(160%) blur(12px)' : undefined,
+        WebkitBackdropFilter: poster ? 'saturate(160%) blur(12px)' : undefined,
+        borderBottom: `1px solid ${preset.surfaceBorder}`,
+        boxShadow: poster ? '0 2px 16px -8px rgba(0,0,0,0.08)' : '0 8px 24px -18px rgba(0,0,0,0.18)',
       }}
     >
       <div
         style={{
-          maxWidth: '1000px',
+          maxWidth,
           margin: '0 auto',
-          padding: '0 8px 2px',
+          padding: poster ? '12px 12px 14px' : '0 8px 2px',
           display: 'flex',
           justifyContent: 'center',
         }}
@@ -525,8 +963,12 @@ function LeaguePublicTabBar({
             display: 'flex',
             flexWrap: 'wrap',
             justifyContent: 'center',
-            gap: '2px',
-            rowGap: '0',
+            gap: poster ? '6px' : '2px',
+            rowGap: poster ? '6px' : '0',
+            background: poster ? preset.pageBg : undefined,
+            padding: poster ? '5px' : undefined,
+            borderRadius: poster ? '999px' : undefined,
+            border: poster ? `1px solid ${preset.surfaceBorder}` : undefined,
           }}
         >
         {LEAGUE_TAB_META.map((t) => {
@@ -538,16 +980,51 @@ function LeaguePublicTabBar({
               onClick={() => onChange(t.id)}
               style={{
                 flex: '0 0 auto',
-                padding: '14px 14px',
-                fontSize: '13px',
-                fontWeight: 800,
-                letterSpacing: '0.02em',
-                border: 'none',
-                borderBottom: isActive ? `3px solid ${preset.accent}` : '3px solid transparent',
-                background: 'transparent',
-                color: isActive ? preset.heading : preset.muted,
+                padding: poster ? '9px 18px' : '14px 14px',
+                fontSize: poster ? '13px' : '13px',
+                fontWeight: poster ? 600 : 800,
+                letterSpacing: poster ? '0.01em' : '0.02em',
+                textTransform: 'none',
+                ...(poster
+                  ? (() => {
+                      const c = isActive ? preset.accent : 'transparent'
+                      return {
+                        borderTopWidth: '1px',
+                        borderRightWidth: '1px',
+                        borderBottomWidth: '1px',
+                        borderLeftWidth: '1px',
+                        borderTopStyle: 'solid' as const,
+                        borderRightStyle: 'solid' as const,
+                        borderBottomStyle: 'solid' as const,
+                        borderLeftStyle: 'solid' as const,
+                        borderTopColor: c,
+                        borderRightColor: c,
+                        borderBottomColor: c,
+                        borderLeftColor: c,
+                      }
+                    })()
+                  : {
+                      borderTop: 'none',
+                      borderLeft: 'none',
+                      borderRight: 'none',
+                      borderBottom: isActive ? `3px solid ${preset.accent}` : '3px solid transparent',
+                    }),
+                borderRadius: poster ? '999px' : undefined,
+                background: poster
+                  ? isActive
+                    ? preset.accent
+                    : 'transparent'
+                  : 'transparent',
+                color: poster
+                  ? isActive
+                    ? contrastTextForAccent(preset.accent)
+                    : preset.body
+                  : isActive
+                    ? preset.heading
+                    : preset.muted,
                 cursor: 'pointer',
-                fontFamily: 'inherit',
+                fontFamily: poster && headingFontFamily ? headingFontFamily : 'inherit',
+                boxShadow: poster && isActive ? '0 4px 14px -4px rgba(0,0,0,0.2)' : undefined,
               }}
             >
               {t.label}
@@ -572,13 +1049,16 @@ function LeagueHomeContent() {
     [searchParams]
   )
 
-  const setLeagueTab = (next: LeaguePublicTabId) => {
-    const paramsNext = new URLSearchParams(searchParams.toString())
-    if (next === 'home') paramsNext.delete('tab')
-    else paramsNext.set('tab', next)
-    const q = paramsNext.toString()
-    router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false })
-  }
+  const setLeagueTab = useCallback(
+    (next: LeaguePublicTabId) => {
+      const paramsNext = new URLSearchParams(searchParams.toString())
+      if (next === 'home') paramsNext.delete('tab')
+      else paramsNext.set('tab', next)
+      const q = paramsNext.toString()
+      router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false })
+    },
+    [pathname, router, searchParams]
+  )
 
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
@@ -627,6 +1107,27 @@ function LeagueHomeContent() {
     proBrandColorChangesRemaining: number | null
     proBrandColorChangesMonthlyLimit: number
   } | null>(null)
+  const [pendingEditorScroll, setPendingEditorScroll] = useState<{ tab: LeaguePublicTabId; id: string } | null>(null)
+
+  const handleDraftSectionCreated = useCallback(
+    (info: { id: string; surface: LeagueSiteContentSurface }) => {
+      const tab = leaguePublicTabForCreativeSurface(info.surface)
+      if (activeTab !== tab) setLeagueTab(tab)
+      setPendingEditorScroll({ tab, id: info.id })
+    },
+    [activeTab, setLeagueTab]
+  )
+
+  useEffect(() => {
+    if (!pendingEditorScroll) return
+    if (activeTab !== pendingEditorScroll.tab) return
+    const id = pendingEditorScroll.id
+    const timer = window.setTimeout(() => {
+      document.getElementById(`league-site-section-editor-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      setPendingEditorScroll(null)
+    }, 220)
+    return () => window.clearTimeout(timer)
+  }, [activeTab, pendingEditorScroll])
 
   useEffect(() => {
     let cancelled = false
@@ -873,12 +1374,15 @@ function LeagueHomeContent() {
     return editMode && draftSite ? draftSite : hub.leagueSite
   }, [hub, editMode, draftSite])
 
-  const newsSections = useMemo(
-    () => displaySite.sections.filter((s) => s.type === 'news'),
+  const newsSections = useMemo((): LeagueSiteNewsTabSection[] => {
+    return displaySite.sections.filter(isLeagueSiteNewsSurfaceSection)
+  }, [displaySite.sections])
+  const aboutSections = useMemo(
+    () => displaySite.sections.filter(isLeagueSiteAboutTabSection),
     [displaySite.sections]
   )
-  const aboutSections = useMemo(
-    () => displaySite.sections.filter((s) => s.type !== 'news'),
+  const homeSections = useMemo(
+    () => displaySite.sections.filter(isLeagueSiteHomeSurfaceSection),
     [displaySite.sections]
   )
 
@@ -984,7 +1488,7 @@ function LeagueHomeContent() {
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
-  const shellPreset = useMemo(() => resolveThemePreset('#5a7a2a', 'classic', 'light'), [])
+  const shellPreset = useMemo(() => resolveThemePreset('#5a7a2a', 'portal_original', 'light'), [])
 
   const preset = useMemo(() => {
     if (!hub) return shellPreset
@@ -1008,12 +1512,24 @@ function LeagueHomeContent() {
 
   const heroTheme = useMemo(() => publicHeroThemeFromPreset(preset), [preset])
 
+  const portalOriginalLayout = preset.id === PRESET_PORTAL_ORIGINAL_ID
+  const leagueContentMax = portalOriginalLayout ? 'min(1180px, 100%)' : '1000px'
+  const publicHeadingFontStack = useMemo(
+    () =>
+      portalOriginalLayout
+        ? resolvePortalOriginalHeadingFontStack(displaySite.publicFontKey)
+        : publicFontStack,
+    [portalOriginalLayout, displaySite.publicFontKey, publicFontStack]
+  )
+
   const rankedScheduleItems = useMemo(() => sortLeagueScheduleItems(scheduleItems), [scheduleItems])
   const leagueScheduleDisplayRows = useMemo(
     () => buildLeagueScheduleDisplayRows(rankedScheduleItems),
     [rankedScheduleItems]
   )
   const latestNewsSection = newsSections[0] ?? null
+  const latestNewsContentThumbnail =
+    latestNewsSection && latestNewsSection.type === 'content' ? (latestNewsSection.image?.url ?? null) : null
   const personalizedSchedule = useMemo(() => {
     const playing = rankedScheduleItems.filter((item) => !!item.is_user_playing)
     const out: LeagueScheduleItem[] = []
@@ -1285,12 +1801,12 @@ function LeagueHomeContent() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: '10px 16px',
+          padding: '12px 18px',
           borderBottom: `1px solid ${heroTheme.stickyBorder}`,
           background: heroTheme.stickyBackground,
-          backdropFilter: 'saturate(160%) blur(14px)',
-          WebkitBackdropFilter: 'saturate(160%) blur(14px)',
-          boxShadow: stickyVisible ? '0 8px 28px -18px rgba(0,0,0,0.35)' : 'none',
+          backdropFilter: 'saturate(180%) blur(16px)',
+          WebkitBackdropFilter: 'saturate(180%) blur(16px)',
+          boxShadow: stickyVisible ? '0 12px 32px -20px rgba(0,0,0,0.28)' : 'none',
           transform: stickyVisible ? 'translateY(0)' : 'translateY(-100%)',
           opacity: stickyVisible ? 1 : 0,
           pointerEvents: stickyVisible ? 'auto' : 'none',
@@ -1301,10 +1817,10 @@ function LeagueHomeContent() {
         <div
           style={{
             width: '100%',
-            maxWidth: '1000px',
+            maxWidth: leagueContentMax,
             display: 'flex',
             alignItems: 'center',
-            gap: '12px',
+            gap: '14px',
           }}
         >
           {publicBrandInputs.usePlatformBranding ? (
@@ -1312,10 +1828,10 @@ function LeagueHomeContent() {
               style={{
                 fontSize: '10px',
                 fontWeight: 900,
-                letterSpacing: '0.06em',
+                letterSpacing: '0.08em',
                 color: preset.heading,
-                padding: '6px 10px',
-                borderRadius: '8px',
+                padding: '7px 11px',
+                borderRadius: '10px',
                 border: `1px solid ${preset.surfaceBorder}`,
                 background: preset.surfaceBg,
                 flexShrink: 0,
@@ -1324,13 +1840,13 @@ function LeagueHomeContent() {
               MLP
             </span>
           ) : org.logo_url ? (
-            <img src={org.logo_url} alt="" style={{ height: '36px', width: '36px', objectFit: 'cover', borderRadius: '10px', flexShrink: 0 }} />
+            <img src={org.logo_url} alt="" style={{ height: '38px', width: '38px', objectFit: 'cover', borderRadius: '12px', flexShrink: 0, boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }} />
           ) : (
             <div
               style={{
-                height: '36px',
-                width: '36px',
-                borderRadius: '10px',
+                height: '38px',
+                width: '38px',
+                borderRadius: '12px',
                 background: preset.accentSoftBg,
                 border: `1px solid ${preset.surfaceBorder}`,
                 flexShrink: 0,
@@ -1338,7 +1854,7 @@ function LeagueHomeContent() {
             />
           )}
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: '14px', fontWeight: 800, color: preset.heading, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <div style={{ fontSize: '15px', fontWeight: 900, letterSpacing: '-0.02em', color: preset.heading, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {org.name}
             </div>
           </div>
@@ -1408,9 +1924,66 @@ function LeagueHomeContent() {
         ) : null}
       </div>
 
-      <LeaguePublicTabBar active={activeTab} onChange={setLeagueTab} preset={preset} />
+      <LeaguePublicTabBar
+        active={activeTab}
+        onChange={setLeagueTab}
+        preset={preset}
+        maxWidth={leagueContentMax}
+        headingFontFamily={portalOriginalLayout ? publicHeadingFontStack : undefined}
+      />
 
-      <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '0 24px 32px' }}>
+      {editMode && draftLoadState === 'ok' && draftSite && !websiteLockedForPlan ? (
+        <div
+          style={{
+            background: preset.surfaceBg,
+            borderBottom: `1px solid ${preset.surfaceBorder}`,
+            padding: '14px 16px',
+            boxShadow: '0 4px 24px -12px rgba(0,0,0,0.08)',
+          }}
+        >
+          <div
+            style={{
+              maxWidth: leagueContentMax,
+              margin: '0 auto',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+            }}
+          >
+            <p style={{ margin: 0, fontSize: '13px', color: preset.body, lineHeight: 1.5 }}>
+              {activeTab === 'about' ? (
+                <>
+                  Use <strong style={{ color: preset.heading }}>New block</strong> to add a creative block on <strong style={{ color: preset.heading }}>About</strong> (title, text, optional photo with layout controls). Switch tabs to place blocks on{' '}
+                  <strong style={{ color: preset.heading }}>Home</strong> or <strong style={{ color: preset.heading }}>News</strong>. Reorder in each tab&apos;s editor.
+                </>
+              ) : activeTab === 'news' ? (
+                <>
+                  Edit <strong style={{ color: preset.heading }}>News</strong> posts here — classic news blocks or new creative blocks with text and a photo. The top item can surface on{' '}
+                  <strong style={{ color: preset.heading }}>Home</strong>. Quick Add targets the tab you are on.
+                </>
+              ) : activeTab === 'home' ? (
+                <>
+                  <strong style={{ color: preset.heading }}>New block</strong> adds to <strong style={{ color: preset.heading }}>Home</strong> while you are on this tab. Open <strong style={{ color: preset.heading }}>News</strong> or{' '}
+                  <strong style={{ color: preset.heading }}>About</strong> to add blocks there instead. The editor scrolls to your new block.
+                </>
+              ) : (
+                <>
+                  <strong style={{ color: preset.heading }}>New block</strong> uses the tab you are on (<strong style={{ color: preset.heading }}>About</strong> for Stream, Schedule, Teams, and Standings). Switch to Home or News to place blocks on those tabs.
+                </>
+              )}
+            </p>
+            <LeagueSiteSectionQuickAdd
+              value={draftSite}
+              onChange={setDraftSite}
+              preset={preset}
+              activeSurface={leagueTabToCreativeSurface(activeTab)}
+              onSectionAdded={handleDraftSectionCreated}
+            />
+          </div>
+        </div>
+      ) : null}
+
+      <div style={{ maxWidth: leagueContentMax, margin: '0 auto', padding: '0 24px 32px' }}>
         {activeTab === 'home' ? (
           <>
             <div
@@ -1418,25 +1991,43 @@ function LeagueHomeContent() {
                 background: heroTheme.bandAltBg,
                 borderTop: `1px solid ${preset.surfaceBorder}`,
                 borderBottom: `1px solid ${preset.surfaceBorder}`,
-                padding: '34px 0',
-                margin: '0 -24px 28px',
+                paddingTop: portalOriginalLayout ? '40px' : '34px',
+                paddingBottom: portalOriginalLayout ? '40px' : '34px',
                 paddingLeft: '24px',
                 paddingRight: '24px',
+                margin: '0 -24px 28px',
               }}
             >
-              <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
+              <div style={{ maxWidth: leagueContentMax, margin: '0 auto' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '18px', flexWrap: 'wrap' }}>
                   <LayoutGrid size={20} color={preset.accent} aria-hidden />
                   <div>
                     <p style={{ margin: 0, fontSize: '11px', fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: preset.muted }}>
                       Get on the floor
                     </p>
-                    <p style={{ margin: '4px 0 0', fontSize: '18px', fontWeight: 900, color: preset.heading, letterSpacing: '-0.02em' }}>
+                    <p
+                      style={{
+                        margin: '4px 0 0',
+                        fontSize: portalOriginalLayout ? 'clamp(20px, 2.8vw, 26px)' : '18px',
+                        fontWeight: 900,
+                        color: preset.heading,
+                        letterSpacing: portalOriginalLayout ? '-0.01em' : '-0.02em',
+                        fontFamily: portalOriginalLayout ? publicHeadingFontStack : undefined,
+                      }}
+                    >
                       Join this league
                     </p>
                   </div>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '18px' }}>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: portalOriginalLayout
+                      ? 'repeat(auto-fit, minmax(300px, 1fr))'
+                      : 'repeat(auto-fit, minmax(280px, 1fr))',
+                    gap: portalOriginalLayout ? '22px' : '18px',
+                  }}
+                >
                   {competitiveSeason && seasonRegistrationOpen ? (
                     <Link
                       href={`/join/${slug}/register`}
@@ -1446,13 +2037,26 @@ function LeagueHomeContent() {
                         border: `1px solid ${preset.surfaceBorder}`,
                         borderRadius: '18px',
                         padding: '24px',
-                        boxShadow: '0 14px 36px -22px rgba(0,0,0,0.35)',
+                        boxShadow: portalOriginalLayout
+                          ? '0 12px 36px -20px rgba(0,0,0,0.12)'
+                          : '0 14px 36px -22px rgba(0,0,0,0.35)',
                         color: 'inherit',
                         transition: 'transform 0.15s ease, box-shadow 0.15s ease',
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
-                        <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: preset.accentSoftBg, color: preset.accent, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <div
+                          style={{
+                            width: '42px',
+                            height: '42px',
+                            borderRadius: portalOriginalLayout ? '12px' : '10px',
+                            background: preset.accentSoftBg,
+                            color: preset.accent,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
                           <Trophy size={22} />
                         </div>
                         <div>
@@ -1478,13 +2082,26 @@ function LeagueHomeContent() {
                       border: `1px solid ${preset.surfaceBorder}`,
                       borderRadius: '18px',
                       padding: '24px',
-                      boxShadow: '0 14px 36px -22px rgba(0,0,0,0.35)',
+                      boxShadow: portalOriginalLayout
+                        ? '0 12px 36px -20px rgba(0,0,0,0.12)'
+                        : '0 14px 36px -22px rgba(0,0,0,0.35)',
                       color: 'inherit',
                       transition: 'transform 0.15s ease, box-shadow 0.15s ease',
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
-                      <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: preset.accentSoftBg, color: preset.heading, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <div
+                        style={{
+                          width: '42px',
+                          height: '42px',
+                          borderRadius: portalOriginalLayout ? '12px' : '10px',
+                          background: preset.accentSoftBg,
+                          color: preset.heading,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
                         <CalendarDays size={22} />
                       </div>
                       <div>
@@ -1554,7 +2171,7 @@ function LeagueHomeContent() {
                 featured={featuredGame}
               />
 
-              {latestNewsSection && latestNewsSection.type === 'news' ? (
+              {latestNewsSection ? (
                 <div
                   style={{
                     background: preset.surfaceBg,
@@ -1572,6 +2189,24 @@ function LeagueHomeContent() {
                     <p style={{ margin: '0 0 14px', fontSize: '14px', color: preset.body, lineHeight: 1.55 }}>
                       {truncatePlainText(latestNewsSection.body, 220)}
                     </p>
+                  ) : null}
+                  {latestNewsSection.type === 'news' ? (
+                    latestNewsSection.items.filter((it) => it.kind === 'image').length > 0 ? (
+                      <div style={{ margin: '0 0 14px' }}>
+                        <MediaGalleryPublic
+                          items={latestNewsSection.items.filter((it) => it.kind === 'image').slice(0, 6)}
+                          preset={preset}
+                        />
+                      </div>
+                    ) : null
+                  ) : latestNewsContentThumbnail ? (
+                    <div style={{ margin: '0 0 14px', borderRadius: '12px', overflow: 'hidden', maxHeight: '160px' }}>
+                      <img
+                        src={latestNewsContentThumbnail}
+                        alt=""
+                        style={{ width: '100%', height: '100%', maxHeight: '160px', objectFit: 'cover' }}
+                      />
+                    </div>
                   ) : null}
                   <Link
                     href={`/league/${slug}?tab=news`}
@@ -1620,6 +2255,29 @@ function LeagueHomeContent() {
                 No active season is published yet. When your organizer opens registration, you&apos;ll see season status and signup options here.
               </p>
             )}
+
+            {editMode && draftSite && !websiteLockedForPlan ? (
+              <LeagueSiteSectionsEditor
+                value={draftSite}
+                onChange={setDraftSite}
+                preset={preset}
+                maxGalleryImages={draftGalleryLimit}
+                organizationId={org.id}
+                showAddToolbar={false}
+                maxWidth={leagueContentMax}
+                subsetMode="home"
+                onSectionAdded={handleDraftSectionCreated}
+                onNavigateToCreativeSurface={(surf) => setLeagueTab(leaguePublicTabForCreativeSurface(surf))}
+              />
+            ) : homeSections.length > 0 ? (
+              <LeagueSiteSections
+                site={{ ...displaySite, sections: homeSections }}
+                preset={preset}
+                maxWidth={leagueContentMax}
+                posterLayout={portalOriginalLayout}
+                headingFontFamily={portalOriginalLayout ? publicHeadingFontStack : undefined}
+              />
+            ) : null}
           </>
         ) : null}
 
@@ -2106,16 +2764,41 @@ function LeagueHomeContent() {
 
         {activeTab === 'news' ? (
           <div style={{ paddingTop: '28px' }}>
-            <h2 style={{ fontSize: 'clamp(20px, 2.5vw, 24px)', fontWeight: 900, color: preset.heading, margin: '0 0 8px', letterSpacing: '-0.02em' }}>
+            <h2
+              style={{
+                fontSize: 'clamp(20px, 2.5vw, 24px)',
+                fontWeight: 900,
+                color: preset.heading,
+                margin: '0 0 8px',
+                letterSpacing: '-0.02em',
+                fontFamily: portalOriginalLayout ? publicHeadingFontStack : undefined,
+              }}
+            >
               League news
             </h2>
             <p style={{ margin: '0 0 18px', fontSize: '14px', color: preset.muted, lineHeight: 1.55, maxWidth: '560px' }}>
               Weekly updates from organizers. Team pages also surface these league updates on their News tabs.
             </p>
-            {newsSections.length > 0 ? (
+            {editMode && draftSite && !websiteLockedForPlan ? (
+              <LeagueSiteSectionsEditor
+                value={draftSite}
+                onChange={setDraftSite}
+                preset={preset}
+                maxGalleryImages={draftGalleryLimit}
+                organizationId={org.id}
+                showAddToolbar={false}
+                maxWidth={leagueContentMax}
+                subsetMode="news"
+                onSectionAdded={handleDraftSectionCreated}
+                onNavigateToCreativeSurface={(surf) => setLeagueTab(leaguePublicTabForCreativeSurface(surf))}
+              />
+            ) : newsSections.length > 0 ? (
               <LeagueSiteSections
                 site={{ ...displaySite, sections: newsSections }}
                 preset={preset}
+                maxWidth={leagueContentMax}
+                posterLayout={portalOriginalLayout}
+                headingFontFamily={portalOriginalLayout ? publicHeadingFontStack : undefined}
               />
             ) : (
               <div
@@ -2129,7 +2812,7 @@ function LeagueHomeContent() {
               >
                 <p style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: preset.heading }}>No league news posted yet</p>
                 <p style={{ margin: '10px 0 0', fontSize: '14px', color: preset.muted, lineHeight: 1.55 }}>
-                  Organizers can add a <strong style={{ color: preset.heading }}>News</strong> section from <strong style={{ color: preset.heading }}>Edit page</strong>.
+                  Organizers can add a block from <strong style={{ color: preset.heading }}>Edit page</strong> while on the News tab (Quick Add), or publish from the dashboard.
                 </p>
               </div>
             )}
@@ -2140,7 +2823,16 @@ function LeagueHomeContent() {
           <div style={{ paddingTop: '24px' }}>
             {isProLike ? (
               <>
-                <h2 style={{ fontSize: 'clamp(20px, 2.5vw, 24px)', fontWeight: 900, color: preset.heading, margin: '0 0 8px', letterSpacing: '-0.02em' }}>
+                <h2
+                  style={{
+                    fontSize: 'clamp(20px, 2.5vw, 24px)',
+                    fontWeight: 900,
+                    color: preset.heading,
+                    margin: '0 0 8px',
+                    letterSpacing: '-0.02em',
+                    fontFamily: portalOriginalLayout ? publicHeadingFontStack : undefined,
+                  }}
+                >
                   Standings & leaders
                 </h2>
                 <p style={{ margin: '0 0 20px', fontSize: '14px', color: preset.muted, lineHeight: 1.55, maxWidth: '560px' }}>
@@ -2220,7 +2912,16 @@ function LeagueHomeContent() {
               </>
             ) : (
               <>
-                <h2 style={{ fontSize: 'clamp(20px, 2.5vw, 24px)', fontWeight: 900, color: preset.heading, margin: '0 0 8px', letterSpacing: '-0.02em' }}>
+                <h2
+                  style={{
+                    fontSize: 'clamp(20px, 2.5vw, 24px)',
+                    fontWeight: 900,
+                    color: preset.heading,
+                    margin: '0 0 8px',
+                    letterSpacing: '-0.02em',
+                    fontFamily: portalOriginalLayout ? publicHeadingFontStack : undefined,
+                  }}
+                >
                   Standings & leaders
                 </h2>
                 <div
@@ -2406,12 +3107,21 @@ function LeagueHomeContent() {
                   </Link>{' '}
                   to edit.
                 </div>
-                {hub.leagueSite.sections.filter((sec) => sec.type !== 'news').length > 0 ? (
+                {hub.leagueSite.sections.filter((sec) => !isLeagueSiteNewsSurfaceSection(sec)).length > 0 ? (
                   <div style={{ marginTop: '18px', opacity: 0.85 }}>
                     <p style={{ fontSize: '12px', fontWeight: 800, color: preset.muted, marginBottom: '12px' }}>
                       Published About content (read-only preview)
                     </p>
-                    <LeagueSiteSections site={{ ...hub.leagueSite, sections: hub.leagueSite.sections.filter((sec) => sec.type !== 'news') }} preset={preset} />
+                    <LeagueSiteSections
+                      site={{
+                        ...hub.leagueSite,
+                        sections: hub.leagueSite.sections.filter((sec) => !isLeagueSiteNewsSurfaceSection(sec)),
+                      }}
+                      preset={preset}
+                      maxWidth={leagueContentMax}
+                      posterLayout={portalOriginalLayout}
+                      headingFontFamily={portalOriginalLayout ? publicHeadingFontStack : undefined}
+                    />
                   </div>
                 ) : null}
               </div>
@@ -2422,9 +3132,20 @@ function LeagueHomeContent() {
                 preset={preset}
                 maxGalleryImages={draftGalleryLimit}
                 organizationId={org.id}
+                showAddToolbar={false}
+                maxWidth={leagueContentMax}
+                subsetMode="about"
+                onSectionAdded={handleDraftSectionCreated}
+                onNavigateToCreativeSurface={(surf) => setLeagueTab(leaguePublicTabForCreativeSurface(surf))}
               />
             ) : aboutSections.length > 0 ? (
-              <LeagueSiteSections site={{ ...displaySite, sections: aboutSections }} preset={preset} />
+              <LeagueSiteSections
+                site={{ ...displaySite, sections: aboutSections }}
+                preset={preset}
+                maxWidth={leagueContentMax}
+                posterLayout={portalOriginalLayout}
+                headingFontFamily={portalOriginalLayout ? publicHeadingFontStack : undefined}
+              />
             ) : (
               <div
                 style={{

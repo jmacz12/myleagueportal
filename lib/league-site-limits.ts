@@ -12,11 +12,12 @@ export function maxGalleryImagesForPlan(plan: string | null | undefined): number
 export function countGalleryImages(payload: LeagueSitePayload): number {
   let n = 0
   for (const s of payload.sections) {
-    if (s.type === 'media') {
+    if (s.type === 'media' || s.type === 'news') {
       for (const it of s.items) {
         if (it.kind === 'image') n++
       }
     }
+    if (s.type === 'content' && s.image?.url) n++
   }
   return n
 }

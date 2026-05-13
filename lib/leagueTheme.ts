@@ -265,13 +265,51 @@ export function applyLeagueAppearanceMode(
   })
 }
 
-/** Resolve one of the five named league themes (Classic, Bold, Soft, Bright, Midnight). */
+/** Internal preset id for MyLeaguePortal Original poster palette (not a row in `getThemePresets`). */
+export const PRESET_PORTAL_ORIGINAL_ID = 'preset-portal-original' as const
+
+/** Portal Original accent — aligned with dashboard / Basic public house green. */
+export const PORTAL_ORIGINAL_ARMY_ACCENT_HEX = '#5a7a2a'
+
+const PORTAL_LANDING_CREAM = '#f2ead6'
+const PORTAL_LANDING_INK = '#1a1a0a'
+const PORTAL_LANDING_BORDER = '#d4c9a8'
+
+function getMyLeaguePortalOriginalPreset(_brandColor: string | null | undefined): ThemePreset {
+  const accent = PORTAL_ORIGINAL_ARMY_ACCENT_HEX
+  const pageBg = PORTAL_LANDING_CREAM
+  const surfaceBg = '#faf8f0'
+  const surfaceBorder = PORTAL_LANDING_BORDER
+  const heading = PORTAL_LANDING_INK
+  const body = '#33332a'
+  const muted = '#5c5c4a'
+  return harmonizePresetContrast({
+    id: PRESET_PORTAL_ORIGINAL_ID,
+    name: 'MyLeaguePortal Original',
+    description: 'Cream shell with house green — matches marketing and dashboard',
+    pageBg,
+    surfaceBg,
+    surfaceBorder,
+    heading,
+    body,
+    muted,
+    accent,
+    accentSoftBg: mix(accent, '#f4f7ed', 0.88),
+    accentMutedBg: mix(shiftHue(accent, 22, 0.03, 0.02), pageBg, 0.42),
+  })
+}
+
+/** Resolve one of the six named league themes (MyLeaguePortal Original, Classic, Bold, Soft, Bright, Midnight). */
 export function resolveLeagueThemeChoice(
   brandColor: string | null | undefined,
   choice: LeagueThemeChoiceId
 ): ThemePreset {
-  const internalId = INTERNAL_PRESET_ID_BY_CHOICE[choice]
   const mode = appearanceModeForChoice(choice)
+  if (choice === 'portal_original') {
+    const base = getMyLeaguePortalOriginalPreset(brandColor)
+    return applyLeagueAppearanceMode(base, mode)
+  }
+  const internalId = INTERNAL_PRESET_ID_BY_CHOICE[choice]
   const presets = getThemePresets(brandColor)
   const base = presets.find((p) => p.id === internalId) || presets[0]
   return applyLeagueAppearanceMode(base, mode)
@@ -319,6 +357,31 @@ export function dropinPublicPageBackdrop(preset: ThemePreset): string {
 }
 
 export function publicHeroThemeFromPreset(preset: ThemePreset): PublicHeroTheme {
+  if (preset.id === PRESET_PORTAL_ORIGINAL_ID) {
+    const ac = preset.accent
+    const ink = PORTAL_LANDING_INK
+    const cream = PORTAL_LANDING_CREAM
+    const deep1 = mix(ink, ac, 0.14)
+    const deep2 = mix(mix(ink, '#0d0d08', 0.5), ac, 0.1)
+    const deep3 = mix('#0a0a06', ac, 0.08)
+    const glow = mix('#d4c97a', ac, 0.35)
+    const heroTitle = cream
+    const heroSub = mix(cream, ac, 0.08)
+    return {
+      heroGradient: `linear-gradient(155deg, ${deep1} 0%, ${deep2} 52%, ${deep3} 100%)`,
+      heroGlow: `radial-gradient(920px 520px at 88% 4%, ${withAlpha(glow, 0.22)} 0%, transparent 58%)`,
+      heroTitle,
+      heroSubtitle: withAlpha(heroSub, 0.9),
+      heroPlaceholderBg: mix(ink, ac, 0.18),
+      heroPlaceholderBorder: withAlpha(cream, 0.28),
+      heroPlaceholderColor: heroTitle,
+      stickyBackground: withAlpha(mix(preset.surfaceBg, preset.pageBg, 0.45), 0.94),
+      stickyBorder: withAlpha(preset.surfaceBorder, 0.85),
+      bandAltBg: mix(preset.pageBg, preset.surfaceBg, 0.35),
+      footerBarBg: mix(deep2, ink, 0.55),
+      footerBarText: withAlpha(cream, 0.9),
+    }
+  }
   const ac = preset.accent
   const deep1 = mix('#06060a', ac, 0.42)
   const deep2 = mix('#100c18', ac, 0.34)

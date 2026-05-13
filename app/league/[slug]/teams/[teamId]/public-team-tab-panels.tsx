@@ -32,6 +32,9 @@ type Props = {
   nextGameMapsHref: string | null
   /** Refetch team payload after saving jersey preference */
   onJerseyPreferenceSaved?: () => void
+  /** Pro/Enterprise + MyLeaguePortal Original preset: alternate tab + card chrome */
+  portalOriginalLayout?: boolean
+  headingFontFamily?: string
 }
 
 function JerseyPollOverviewCard({
@@ -275,6 +278,8 @@ export function PublicTeamTabPanels({
   liveGameId,
   nextGameMapsHref,
   onJerseyPreferenceSaved,
+  portalOriginalLayout = false,
+  headingFontFamily,
 }: Props) {
   const {
     team,
@@ -298,6 +303,7 @@ export function PublicTeamTabPanels({
 
   const tier = data.public_tier ?? 'basic'
   const proLike = tier === 'pro' || tier === 'enterprise'
+  const cardRadius = portalOriginalLayout ? '12px' : '14px'
 
   function fmtPts(n: number | undefined) {
     if (n === undefined || Number.isNaN(n)) return '—'
@@ -311,7 +317,7 @@ export function PublicTeamTabPanels({
           style={{
             background: preset.surfaceBg,
             border: `1px solid ${preset.surfaceBorder}`,
-            borderRadius: '14px',
+            borderRadius: cardRadius,
             padding: '24px 16px',
             textAlign: 'center',
             color: preset.muted,
@@ -328,7 +334,7 @@ export function PublicTeamTabPanels({
         style={{
           background: preset.surfaceBg,
           border: `1px solid ${preset.surfaceBorder}`,
-          borderRadius: '14px',
+          borderRadius: cardRadius,
           padding: '14px 16px',
           boxShadow: '0 6px 16px -12px rgba(0,0,0,0.28)',
         }}
@@ -418,7 +424,7 @@ export function PublicTeamTabPanels({
           style={{
             background: preset.surfaceBg,
             border: `1px solid ${preset.surfaceBorder}`,
-            borderRadius: '14px',
+            borderRadius: cardRadius,
             padding: '24px 16px',
             textAlign: 'center',
             color: preset.muted,
@@ -434,7 +440,7 @@ export function PublicTeamTabPanels({
         style={{
           background: preset.surfaceBg,
           border: `1px solid ${preset.surfaceBorder}`,
-          borderRadius: '14px',
+          borderRadius: cardRadius,
           padding: '14px 16px',
           boxShadow: '0 6px 16px -12px rgba(0,0,0,0.28)',
         }}
@@ -780,9 +786,11 @@ export function PublicTeamTabPanels({
         style={{
           display: 'flex',
           flexWrap: 'wrap',
-          gap: '8px',
+          gap: portalOriginalLayout ? '10px' : '8px',
           marginBottom: '18px',
           justifyContent: 'center',
+          padding: portalOriginalLayout ? '4px 0 8px' : undefined,
+          borderBottom: portalOriginalLayout ? `2px solid ${preset.surfaceBorder}` : undefined,
         }}
       >
         {tabItems.map(({ id, label, icon: Icon, suffix }) => {
@@ -796,15 +804,19 @@ export function PublicTeamTabPanels({
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '6px',
-                padding: '8px 14px',
-                borderRadius: '999px',
-                border: `1.5px solid ${active ? preset.accent : preset.surfaceBorder}`,
+                padding: portalOriginalLayout ? '9px 16px' : '8px 14px',
+                borderRadius: portalOriginalLayout ? '2px' : '999px',
+                border: portalOriginalLayout
+                  ? `2px solid ${active ? preset.accent : preset.surfaceBorder}`
+                  : `1.5px solid ${active ? preset.accent : preset.surfaceBorder}`,
                 background: active ? preset.accentSoftBg : preset.surfaceBg,
                 color: active ? preset.heading : preset.body,
-                fontSize: '12px',
+                fontSize: portalOriginalLayout ? '11px' : '12px',
                 fontWeight: 700,
+                letterSpacing: portalOriginalLayout ? '0.08em' : undefined,
+                textTransform: portalOriginalLayout ? 'uppercase' : undefined,
                 cursor: 'pointer',
-                fontFamily: 'inherit',
+                fontFamily: portalOriginalLayout && headingFontFamily ? headingFontFamily : 'inherit',
               }}
             >
               <Icon size={14} aria-hidden />
@@ -840,7 +852,7 @@ export function PublicTeamTabPanels({
                 gap: '10px',
                 marginBottom: '14px',
                 padding: '14px 16px',
-                borderRadius: '14px',
+                borderRadius: cardRadius,
                 background: preset.accent,
                 color: '#fff',
                 fontSize: '15px',
@@ -859,7 +871,7 @@ export function PublicTeamTabPanels({
                 marginBottom: '14px',
                 background: preset.surfaceBg,
                 border: `1px solid ${preset.surfaceBorder}`,
-                borderRadius: '14px',
+                borderRadius: cardRadius,
                 padding: '14px 16px',
               }}
             >
@@ -875,7 +887,7 @@ export function PublicTeamTabPanels({
                 marginBottom: '14px',
                 background: preset.surfaceBg,
                 border: `1px solid ${preset.surfaceBorder}`,
-                borderRadius: '14px',
+                borderRadius: cardRadius,
                 padding: '14px 16px',
                 boxShadow: '0 6px 16px -12px rgba(0,0,0,0.28)',
               }}
@@ -922,7 +934,7 @@ export function PublicTeamTabPanels({
                 marginTop: '16px',
                 background: preset.surfaceBg,
                 border: `1px solid ${preset.surfaceBorder}`,
-                borderRadius: '14px',
+                borderRadius: cardRadius,
                 padding: '14px 16px',
               }}
             >
@@ -967,7 +979,7 @@ export function PublicTeamTabPanels({
           ) : (
             <div
               style={{
-                borderRadius: '14px',
+                borderRadius: cardRadius,
                 padding: '22px 18px',
                 textAlign: 'center',
                 background: preset.surfaceBg,
@@ -1057,7 +1069,7 @@ export function PublicTeamTabPanels({
               style={{
                 marginTop: '16px',
                 padding: '16px',
-                borderRadius: '14px',
+                borderRadius: cardRadius,
                 border: `1px dashed ${preset.surfaceBorder}`,
                 background: preset.accentSoftBg,
               }}

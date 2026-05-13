@@ -1,8 +1,27 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type PointerEvent as ReactPointerEvent,
+  type WheelEvent as ReactWheelEvent,
+} from 'react'
 import Link from 'next/link'
-import { ChevronDown, ChevronUp, ImagePlus, Loader2, Palette, Plus, Save, Send, Trash2, X } from 'lucide-react'
+import {
+  ChevronDown,
+  ChevronUp,
+  ImagePlus,
+  Loader2,
+  Palette,
+  Plus,
+  Save,
+  Send,
+  Trash2,
+  X,
+} from 'lucide-react'
 import type { LeagueAppearanceMode, ThemePreset } from '@/lib/leagueTheme'
 import { sanitizeLeagueAppearanceMode } from '@/lib/public-league-branding'
 import {
@@ -12,13 +31,356 @@ import {
   normalizeLeagueThemePresetId,
   type LeagueThemeChoiceId,
 } from '@/lib/league-theme-choice'
-import type { LeagueSitePayload, LeagueSiteSection } from '@/lib/league-site'
+import type {
+  LeagueSiteContentSurface,
+  LeagueSiteContentTextPiece,
+  LeagueSitePayload,
+  LeagueSiteSection,
+  LeagueSiteSectionMediaPlacement,
+} from '@/lib/league-site'
 import { PUBLIC_LEAGUE_FONT_OPTIONS } from '@/lib/public-league-fonts'
-import { createLeagueSiteSection } from '@/lib/league-site'
+import {
+  LEAGUE_SITE_MEDIA_PLACEMENT_LABELS,
+  createLeagueSiteContentSection,
+  defaultLeagueSiteContentImage,
+  defaultLeagueSiteContentTextPieceLayout,
+  isLeagueSiteAboutTabSection,
+  isLeagueSiteHomeSurfaceSection,
+  isLeagueSiteNewsSurfaceSection,
+  newLeagueSiteContentTextPieceId,
+  syncContentDerivedFields,
+} from '@/lib/league-site'
 import { countGalleryImages } from '@/lib/league-site-limits'
 import { broadcastLeagueAppearanceUpdated } from '@/lib/league-appearance-sync'
 import { PRO_BRAND_COLOR_CHANGES_PER_MONTH, PRO_BRAND_COLOR_COUNTER_HELPER } from '@/lib/pro-brand-color-limits'
 import { InlineCircularProgress } from '@/components/league-site/InlineCircularProgress'
+import {
+  LEAGUE_SITE_CREATIVE_CANVAS_MIN_HEIGHT,
+  LeagueSiteCreativeBlockCanvas,
+} from '@/components/league-site/LeagueSiteCreativeBlockCanvas'
+
+type LeagueSiteGallerySection =
+  | Extract<LeagueSiteSection, { type: 'media' }>
+  | Extract<LeagueSiteSection, { type: 'news' }>
+
+function sectionMatchesSubset(sec: LeagueSiteSection, subsetMode: 'all' | 'news' | 'about' | 'home'): boolean {
+  if (subsetMode === 'all') return true
+  if (subsetMode === 'news') return isLeagueSiteNewsSurfaceSection(sec)
+  if (subsetMode === 'home') return isLeagueSiteHomeSurfaceSection(sec)
+  return isLeagueSiteAboutTabSection(sec)
+}
+
+function sectionMediaLayoutLabel(m: LeagueSiteSectionMediaPlacement): string {
+  return LEAGUE_SITE_MEDIA_PLACEMENT_LABELS[m]
+}
+
+export function LeagueSiteContentSectionFields({
+  sec,
+  value,
+  preset,
+  maxGalleryImages,
+  organizationId,
+  updateSection,
+  onNavigateToCreativeSurface,
+}: {
+  sec: Extract<LeagueSiteSection, { type: 'content' }>
+  value: LeagueSitePayload
+  preset: ThemePreset
+  maxGalleryImages: number
+  organizationId?: string
+  updateSection: (id: string, fn: (s: LeagueSiteSection) => LeagueSiteSection) => void
+  /** When set, choosing Home / News / About also switches the editor to that tab (public league page) or aligns add-block context (dashboard). */
+  onNavigateToCreativeSurface?: (surface: LeagueSiteContentSurface) => void
+}) {
+  const MAX_TEXT_PIECES_LOCAL = 24
+
+  function migrateLegacy(s: Extract<LeagueSiteSection, { type: 'content' }>): LeagueSiteContentTextPiece[] {
+    const out: LeagueSiteContentTextPiece[] = []
+    let i = 0
+    if (s.title.trim()) {
+      const d = defaultLeagueSiteContentTextPieceLayout(i, 'heading')
+      out.push({ id: `${s.id}-h`, role: 'heading', text: s.title, xPct: d.xPct, yPct: d.yPct })
+      i++
+    }
+    if (s.body.trim()) {
+      const d = defaultLeagueSiteContentTextPieceLayout(i, 'paragraph')
+      out.push({ id: `${s.id}-p`, role: 'paragraph', text: s.body, xPct: d.xPct, yPct: d.yPct })
+    }
+    return out
+  }
+
+  const piecesForUi = useMemo(() => {
+    if (sec.textPieces.length > 0) return sec.textPieces
+    return migrateLegacy(sec)
+  }, [sec.id, sec.textPieces, sec.title, sec.body])
+
+  function currentPieces(s: Extract<LeagueSiteSection, { type: 'content' }>): LeagueSiteContentTextPiece[] {
+    return s.textPieces.length > 0 ? s.textPieces : migrateLegacy(s)
+  }
+
+  function addPiece(role: 'heading' | 'paragraph') {
+    updateSection(sec.id, (s) => {
+      if (s.type !== 'content') return s
+      const cur = [...currentPieces(s)]
+      if (cur.length >= MAX_TEXT_PIECES_LOCAL) return s
+      const d = defaultLeagueSiteContentTextPieceLayout(cur.length, role)
+      cur.push({ id: newLeagueSiteContentTextPieceId(), role, text: '', xPct: d.xPct, yPct: d.yPct })
+      const { title, body } = syncContentDerivedFields(cur)
+      return { ...s, textPieces: cur, title, body }
+    })
+  }
+
+  const [uploadBusy, setUploadBusy] = useState(false)
+
+  const galleryTotal = countGalleryImages(value)
+  const remainingSlots = Math.max(0, maxGalleryImages - galleryTotal)
+  const canAddImage = !!sec.image || remainingSlots > 0
+  const img = sec.image
+
+  async function onImageFile(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file?.type.startsWith('image/') || !canAddImage) return
+    setUploadBusy(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      if (organizationId) fd.append('organization_id', organizationId)
+      const res = await fetch('/api/league-site/upload', { method: 'POST', body: fd, credentials: 'include' })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && typeof data.url === 'string') {
+        updateSection(sec.id, (s) => {
+          if (s.type !== 'content') return s
+          const nextImg = s.image ? { ...s.image, url: data.url } : defaultLeagueSiteContentImage(data.url)
+          return { ...s, image: nextImg }
+        })
+      }
+    } finally {
+      setUploadBusy(false)
+    }
+  }
+
+  return (
+    <>
+      <p style={{ fontSize: '12px', fontWeight: 700, margin: '0 0 6px', color: preset.heading }}>Tab placement</p>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '12px' }}>
+        {(['home', 'news', 'about'] as const).map((surf) => (
+          <button
+            key={surf}
+            type="button"
+            onClick={() => {
+              updateSection(sec.id, (s) => (s.type === 'content' ? { ...s, surface: surf } : s))
+              onNavigateToCreativeSurface?.(surf)
+            }}
+            style={{
+              padding: '6px 10px',
+              borderRadius: '8px',
+              border: `1px solid ${sec.surface === surf ? preset.accent : preset.surfaceBorder}`,
+              background: sec.surface === surf ? preset.accentSoftBg : preset.pageBg,
+              fontSize: '11px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              color: preset.heading,
+            }}
+          >
+            {surf === 'home' ? 'Home' : surf === 'news' ? 'News' : 'About'}
+          </button>
+        ))}
+      </div>
+
+      <p style={{ fontSize: '12px', color: preset.muted, margin: '0 0 8px', lineHeight: 1.45 }}>
+        Gallery photos (all blocks): <strong style={{ color: preset.heading }}>{galleryTotal}</strong> / {maxGalleryImages}
+      </p>
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center', marginBottom: '10px' }}>
+        <label
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            fontSize: '13px',
+            fontWeight: 700,
+            cursor: canAddImage && !uploadBusy ? 'pointer' : 'not-allowed',
+            color: canAddImage && !uploadBusy ? preset.accent : preset.muted,
+            opacity: canAddImage ? 1 : 0.65,
+          }}
+        >
+          <Plus size={14} aria-hidden /> {img ? 'Replace photo' : 'Add photo'}
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            hidden
+            disabled={!canAddImage || uploadBusy}
+            onChange={onImageFile}
+          />
+        </label>
+        {uploadBusy ? (
+          <span style={{ fontSize: '12px', fontWeight: 700, color: preset.heading }}>Uploading…</span>
+        ) : null}
+        {img ? (
+          <button
+            type="button"
+            onClick={() => updateSection(sec.id, (s) => (s.type === 'content' ? { ...s, image: null } : s))}
+            style={{
+              fontSize: '12px',
+              fontWeight: 700,
+              border: `1px solid ${preset.surfaceBorder}`,
+              background: preset.pageBg,
+              borderRadius: '8px',
+              padding: '6px 10px',
+              cursor: 'pointer',
+              color: '#b91c1c',
+            }}
+          >
+            Remove photo
+          </button>
+        ) : null}
+        <input
+          type="url"
+          placeholder="Or paste image URL"
+          onBlur={(e) => {
+            const url = e.target.value.trim()
+            if (!url) return
+            updateSection(sec.id, (s) => {
+              if (s.type !== 'content') return s
+              if (!canAddImage) return s
+              return { ...s, image: defaultLeagueSiteContentImage(url) }
+            })
+            e.target.value = ''
+          }}
+          style={{
+            flex: '1 1 200px',
+            minWidth: '160px',
+            padding: '8px 10px',
+            borderRadius: '8px',
+            border: `1px solid ${preset.surfaceBorder}`,
+            fontSize: '12px',
+          }}
+        />
+      </div>
+
+      <p style={{ fontSize: '12px', fontWeight: 800, margin: '14px 0 4px', color: preset.heading }}>Canvas</p>
+      <p style={{ fontSize: '11px', color: preset.muted, margin: '0 0 10px', lineHeight: 1.45 }}>
+        Build the block visually: image behind (layer 1), text in front (layer 2). Drag the photo to pan, use edge handles to
+        resize, corner to rotate, scroll to zoom. Drag text to position; it snaps to center and edges (green guides). Click
+        text to type; click away to finish. Add header or body with the buttons below.
+      </p>
+
+      <div
+        style={{
+          position: 'relative',
+          overflow: 'hidden',
+          borderRadius: '18px',
+          border: `2px dashed ${preset.accentMutedBg}`,
+          background: preset.surfaceBg,
+          boxShadow: '0 10px 32px -20px rgba(0,0,0,0.35)',
+          padding: '24px',
+          minHeight: img
+            ? `calc(120px + ${LEAGUE_SITE_CREATIVE_CANVAS_MIN_HEIGHT})`
+            : '240px',
+        }}
+      >
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '16px' }}>
+          <button
+            type="button"
+            onClick={() => addPiece('heading')}
+            disabled={piecesForUi.length >= MAX_TEXT_PIECES_LOCAL}
+            style={{
+              fontSize: '12px',
+              fontWeight: 800,
+              padding: '8px 12px',
+              borderRadius: '10px',
+              border: `1px solid ${preset.accent}`,
+              background: preset.accentSoftBg,
+              color: preset.heading,
+              cursor: piecesForUi.length >= MAX_TEXT_PIECES_LOCAL ? 'not-allowed' : 'pointer',
+              opacity: piecesForUi.length >= MAX_TEXT_PIECES_LOCAL ? 0.55 : 1,
+            }}
+          >
+            Add header
+          </button>
+          <button
+            type="button"
+            onClick={() => addPiece('paragraph')}
+            disabled={piecesForUi.length >= MAX_TEXT_PIECES_LOCAL}
+            style={{
+              fontSize: '12px',
+              fontWeight: 800,
+              padding: '8px 12px',
+              borderRadius: '10px',
+              border: `1px solid ${preset.surfaceBorder}`,
+              background: preset.pageBg,
+              color: preset.heading,
+              cursor: piecesForUi.length >= MAX_TEXT_PIECES_LOCAL ? 'not-allowed' : 'pointer',
+              opacity: piecesForUi.length >= MAX_TEXT_PIECES_LOCAL ? 0.55 : 1,
+            }}
+          >
+            Add text
+          </button>
+        </div>
+        {piecesForUi.length === 0 ? (
+          <p style={{ fontSize: '13px', color: preset.muted, margin: '0 0 12px', lineHeight: 1.5 }}>
+            Add a header or text block, then drag it on the canvas.
+          </p>
+        ) : null}
+        <LeagueSiteCreativeBlockCanvas sec={sec} preset={preset} updateSection={updateSection} pieces={piecesForUi} />
+      </div>
+    </>
+  )
+}
+
+/** Add a creative block on the tab you are viewing (Home / News / About). */
+export function LeagueSiteSectionQuickAdd({
+  value,
+  onChange,
+  preset,
+  activeSurface,
+  onSectionAdded,
+}: {
+  value: LeagueSitePayload
+  onChange: (next: LeagueSitePayload) => void
+  preset: ThemePreset
+  activeSurface: LeagueSiteContentSurface
+  /** Fires after a new block is prepended (tab switch + scroll use this id). */
+  onSectionAdded?: (info: { id: string; surface: LeagueSiteContentSurface }) => void
+}) {
+  function addBlock() {
+    const sec = createLeagueSiteContentSection(activeSurface)
+    onChange({ ...value, sections: [sec, ...value.sections] })
+    onSectionAdded?.({ id: sec.id, surface: activeSurface })
+  }
+
+  const surfaceLabel =
+    activeSurface === 'home' ? 'Home' : activeSurface === 'news' ? 'News' : 'About'
+
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
+      <button
+        type="button"
+        onClick={addBlock}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '6px',
+          fontSize: '13px',
+          fontWeight: 700,
+          padding: '10px 16px',
+          borderRadius: '999px',
+          border: `1px solid ${preset.accent}`,
+          background: preset.accentSoftBg,
+          color: preset.heading,
+          cursor: 'pointer',
+          boxShadow: '0 2px 8px -2px rgba(0,0,0,0.12)',
+        }}
+      >
+        <Plus size={16} aria-hidden /> New block ({surfaceLabel})
+      </button>
+      <span style={{ fontSize: '12px', color: preset.muted, lineHeight: 1.45, maxWidth: '360px' }}>
+        Adds to <strong style={{ color: preset.heading }}>{surfaceLabel}</strong>. Use the large preview to edit text and drag the photo into place.
+      </span>
+    </div>
+  )
+}
 
 export function LeagueSiteStickyEditBar({
   preset,
@@ -745,6 +1107,11 @@ export function LeagueSiteSectionsEditor({
   preset,
   maxGalleryImages = 100,
   organizationId,
+  showAddToolbar = true,
+  maxWidth = '1000px',
+  subsetMode = 'all',
+  onSectionAdded,
+  onNavigateToCreativeSurface,
 }: {
   value: LeagueSitePayload
   onChange: (next: LeagueSitePayload) => void
@@ -752,7 +1119,21 @@ export function LeagueSiteSectionsEditor({
   /** Total gallery images allowed (plan limit); enforced again on save. */
   maxGalleryImages?: number
   organizationId?: string
+  /** When false, use `LeagueSiteSectionQuickAdd` elsewhere (e.g. under tab bar on public edit). */
+  showAddToolbar?: boolean
+  maxWidth?: string
+  /** Edit only matching sections; reorder swaps within this subset in the full site list. */
+  subsetMode?: 'all' | 'news' | 'about' | 'home'
+  onSectionAdded?: (info: { id: string; surface: LeagueSiteContentSurface }) => void
+  /** Sync editor tab when changing a block's Home / News / About placement (see `LeagueSiteContentSectionFields`). */
+  onNavigateToCreativeSurface?: (surface: LeagueSiteContentSurface) => void
 }) {
+  const [nextCreativeSurface, setNextCreativeSurface] = useState<LeagueSiteContentSurface>('about')
+  const subsetIndices =
+    subsetMode === 'all'
+      ? value.sections.map((_, i) => i)
+      : value.sections.map((s, i) => (sectionMatchesSubset(s, subsetMode) ? i : -1)).filter((i): i is number => i >= 0)
+
   function updateSections(fn: (sections: LeagueSiteSection[]) => LeagueSiteSection[]) {
     onChange({ ...value, sections: fn(value.sections) })
   }
@@ -761,14 +1142,16 @@ export function LeagueSiteSectionsEditor({
     updateSections((sections) => sections.map((s) => (s.id === id ? fn(s) : s)))
   }
 
-  function move(idx: number, dir: -1 | 1) {
-    const next = idx + dir
-    if (next < 0 || next >= value.sections.length) return
+  function move(localIdx: number, dir: -1 | 1) {
+    const nextLocal = localIdx + dir
+    if (nextLocal < 0 || nextLocal >= subsetIndices.length) return
+    const a = subsetIndices[localIdx]
+    const b = subsetIndices[nextLocal]
     updateSections((sections) => {
       const copy = [...sections]
-      const t = copy[idx]
-      copy[idx] = copy[next]
-      copy[next] = t
+      const t = copy[a]
+      copy[a] = copy[b]
+      copy[b] = t
       return copy
     })
   }
@@ -777,85 +1160,109 @@ export function LeagueSiteSectionsEditor({
     updateSections((sections) => sections.filter((s) => s.id !== id))
   }
 
-  const add = (kind: LeagueSiteSection['type']) => {
-    updateSections((sections) => [...sections, createLeagueSiteSection(kind)])
+  const addCreativeBlock = () => {
+    const sec = createLeagueSiteContentSection(nextCreativeSurface)
+    updateSections((sections) => [sec, ...sections])
+    onSectionAdded?.({ id: sec.id, surface: nextCreativeSurface })
   }
 
   return (
-    <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '0 24px 32px' }}>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '16px' }}>
-        <button
-          type="button"
-          onClick={() => add('text')}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '4px',
-            fontSize: '12px',
-            fontWeight: 700,
-            padding: '8px 12px',
-            borderRadius: '10px',
-            border: `2px dashed ${preset.accent}`,
-            background: preset.accentSoftBg,
-            color: preset.heading,
-            cursor: 'pointer',
-          }}
-        >
-          <Plus size={14} /> Text section
-        </button>
-        <button
-          type="button"
-          onClick={() => add('news')}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '4px',
-            fontSize: '12px',
-            fontWeight: 700,
-            padding: '8px 12px',
-            borderRadius: '10px',
-            border: `2px dashed ${preset.accent}`,
-            background: preset.accentSoftBg,
-            color: preset.heading,
-            cursor: 'pointer',
-          }}
-        >
-          <Plus size={14} /> News section
-        </button>
-        <button
-          type="button"
-          onClick={() => add('media')}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '4px',
-            fontSize: '12px',
-            fontWeight: 700,
-            padding: '8px 12px',
-            borderRadius: '10px',
-            border: `2px dashed ${preset.accent}`,
-            background: preset.accentSoftBg,
-            color: preset.heading,
-            cursor: 'pointer',
-          }}
-        >
-          <Plus size={14} /> Media section
-        </button>
-      </div>
-
-      <p style={{ fontSize: '12px', color: preset.muted, margin: '0 0 16px', lineHeight: 1.5 }}>
-        Sections appear here on the page (below Join / Drop-ins), in this order. Use arrows to reorder.
-      </p>
+    <div style={{ maxWidth, margin: '0 auto', padding: '0 0 32px' }}>
+      {showAddToolbar ? (
+        <>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '12px', alignItems: 'center' }}>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: preset.muted }}>Place next block on:</span>
+            {(['home', 'news', 'about'] as const).map((surf) => (
+              <button
+                key={surf}
+                type="button"
+                onClick={() => {
+                  setNextCreativeSurface(surf)
+                  onNavigateToCreativeSurface?.(surf)
+                }}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '999px',
+                  border: `1px solid ${nextCreativeSurface === surf ? preset.accent : preset.surfaceBorder}`,
+                  background: nextCreativeSurface === surf ? preset.accentSoftBg : preset.pageBg,
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  color: preset.heading,
+                }}
+              >
+                {surf === 'home' ? 'Home' : surf === 'news' ? 'News' : 'About'}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={addCreativeBlock}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                fontSize: '12px',
+                fontWeight: 700,
+                padding: '8px 14px',
+                borderRadius: '10px',
+                border: `2px dashed ${preset.accent}`,
+                background: preset.accentSoftBg,
+                color: preset.heading,
+                cursor: 'pointer',
+              }}
+            >
+              <Plus size={14} /> New block
+            </button>
+          </div>
+          <p style={{ fontSize: '12px', color: preset.muted, margin: '0 0 16px', lineHeight: 1.5 }}>
+            Sections appear here on the page (below Join / Drop-ins), in this order. Use arrows to reorder.
+          </p>
+        </>
+      ) : (
+        <p style={{ fontSize: '12px', color: preset.muted, margin: '0 0 16px', lineHeight: 1.5 }}>
+          {subsetMode === 'news' ? (
+            <>
+              Reorder or edit <strong style={{ color: preset.heading }}>News</strong> posts below. Optional photos use the same gallery limit as older media blocks; the top item can surface on{' '}
+              <strong style={{ color: preset.heading }}>Home</strong>.
+            </>
+          ) : subsetMode === 'home' ? (
+            <>
+              Blocks here appear on the <strong style={{ color: preset.heading }}>Home</strong> tab only. Text always draws above the photo. Use Quick Add while on Home to prepend a block here.
+            </>
+          ) : subsetMode === 'about' ? (
+            <>
+              Reorder or edit <strong style={{ color: preset.heading }}>About</strong> blocks. League updates belong on <strong style={{ color: preset.heading }}>News</strong> — switch tabs or use Quick Add on News.
+            </>
+          ) : (
+            <>
+              Reorder or edit blocks below. Media and news blocks support <strong style={{ color: preset.heading }}>uploads</strong> and image URLs.
+            </>
+          )}
+        </p>
+      )}
 
       {value.sections.length === 0 ? (
         <p style={{ fontSize: '14px', color: preset.body, padding: '20px', border: `1px dashed ${preset.surfaceBorder}`, borderRadius: '12px', textAlign: 'center' }}>
           No sections yet — add one above.
         </p>
+      ) : subsetIndices.length === 0 ? (
+        <p style={{ fontSize: '14px', color: preset.body, padding: '20px', border: `1px dashed ${preset.surfaceBorder}`, borderRadius: '12px', textAlign: 'center' }}>
+          {subsetMode === 'about'
+            ? 'No About blocks yet — add a block from Quick Add while on About, or use the dashboard site editor.'
+            : subsetMode === 'news'
+              ? 'No News posts yet — add a block from Quick Add while on News.'
+              : subsetMode === 'home'
+                ? 'No Home blocks yet — add a block from Quick Add while on Home.'
+                : 'No matching sections.'}
+        </p>
       ) : null}
 
-      {value.sections.map((sec, idx) => (
+      {subsetIndices.map((globalIdx, localIdx) => {
+        const sec = value.sections[globalIdx]
+        return (
         <div
           key={sec.id}
+          id={`league-site-section-editor-${sec.id}`}
           style={{
             marginBottom: '18px',
             padding: '16px',
@@ -867,14 +1274,14 @@ export function LeagueSiteSectionsEditor({
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px', marginBottom: '12px', flexWrap: 'wrap' }}>
             <span style={{ fontSize: '11px', fontWeight: 800, color: preset.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-              {sec.type} · position {idx + 1}
+              {sec.type} · {subsetMode === 'all' ? `position ${localIdx + 1}` : `${subsetMode} ${localIdx + 1}`} · site #{globalIdx + 1}
             </span>
             <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
               <button
                 type="button"
                 title="Move block up"
-                disabled={idx === 0}
-                onClick={() => move(idx, -1)}
+                disabled={localIdx === 0}
+                onClick={() => move(localIdx, -1)}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -885,8 +1292,8 @@ export function LeagueSiteSectionsEditor({
                   background: preset.pageBg,
                   borderRadius: '8px',
                   padding: '6px 10px',
-                  cursor: idx === 0 ? 'not-allowed' : 'pointer',
-                  opacity: idx === 0 ? 0.4 : 1,
+                  cursor: localIdx === 0 ? 'not-allowed' : 'pointer',
+                  opacity: localIdx === 0 ? 0.4 : 1,
                   color: preset.heading,
                 }}
               >
@@ -895,8 +1302,8 @@ export function LeagueSiteSectionsEditor({
               <button
                 type="button"
                 title="Move block down"
-                disabled={idx >= value.sections.length - 1}
-                onClick={() => move(idx, 1)}
+                disabled={localIdx >= subsetIndices.length - 1}
+                onClick={() => move(localIdx, 1)}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -907,8 +1314,8 @@ export function LeagueSiteSectionsEditor({
                   background: preset.pageBg,
                   borderRadius: '8px',
                   padding: '6px 10px',
-                  cursor: idx >= value.sections.length - 1 ? 'not-allowed' : 'pointer',
-                  opacity: idx >= value.sections.length - 1 ? 0.4 : 1,
+                  cursor: localIdx >= subsetIndices.length - 1 ? 'not-allowed' : 'pointer',
+                  opacity: localIdx >= subsetIndices.length - 1 ? 0.4 : 1,
                   color: preset.heading,
                 }}
               >
@@ -931,41 +1338,127 @@ export function LeagueSiteSectionsEditor({
             </div>
           </div>
 
-          <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: preset.heading }}>Section heading</label>
-          <input
-            value={sec.title}
-            onChange={(e) => updateSection(sec.id, (s) => ({ ...s, title: e.target.value } as LeagueSiteSection))}
-            style={{
-              width: '100%',
-              padding: '10px 12px',
-              borderRadius: '10px',
-              border: `1px solid ${preset.surfaceBorder}`,
-              marginBottom: '12px',
-              fontSize: '15px',
-              fontWeight: 700,
-            }}
-          />
+          {sec.type !== 'content' ? (
+            <>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: preset.heading }}>Section heading</label>
+              <input
+                value={sec.title}
+                onChange={(e) => updateSection(sec.id, (s) => ({ ...s, title: e.target.value } as LeagueSiteSection))}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  borderRadius: '10px',
+                  border: `1px solid ${preset.surfaceBorder}`,
+                  marginBottom: '12px',
+                  fontSize: '15px',
+                  fontWeight: 700,
+                }}
+              />
+            </>
+          ) : null}
 
-          {sec.type === 'media' ? (
-            <MediaUrlsEditor
-              section={sec}
+          {sec.type === 'content' ? (
+            <LeagueSiteContentSectionFields
+              sec={sec}
+              value={value}
               preset={preset}
-              payload={value}
               maxGalleryImages={maxGalleryImages}
               organizationId={organizationId}
-              onChange={(next) => updateSection(sec.id, () => next)}
+              updateSection={updateSection}
+              onNavigateToCreativeSurface={onNavigateToCreativeSurface}
             />
-          ) : (
+          ) : sec.type === 'media' ? (
             <>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: preset.heading }}>
-                {sec.type === 'news' ? 'News content' : 'Main text'}
-              </label>
+              <p style={{ fontSize: '12px', fontWeight: 700, margin: '0 0 6px', color: preset.heading }}>Photo layout</p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '12px' }}>
+                {(['below', 'behind'] as const).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => updateSection(sec.id, (s) => (s.type === 'media' ? { ...s, mediaLayout: m } : s))}
+                    style={{
+                      padding: '6px 10px',
+                      borderRadius: '8px',
+                      border: `1px solid ${sec.mediaLayout === m ? preset.accent : preset.surfaceBorder}`,
+                      background: sec.mediaLayout === m ? preset.accentSoftBg : preset.pageBg,
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      color: preset.heading,
+                    }}
+                  >
+                    {sectionMediaLayoutLabel(m)}
+                  </button>
+                ))}
+              </div>
+              <MediaUrlsEditor
+                section={sec}
+                preset={preset}
+                payload={value}
+                maxGalleryImages={maxGalleryImages}
+                organizationId={organizationId}
+                onChange={(next) => updateSection(sec.id, () => next)}
+              />
+            </>
+          ) : sec.type === 'news' ? (
+            <>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: preset.heading }}>News content</label>
               <textarea
                 value={sec.body}
                 onChange={(e) =>
-                  updateSection(sec.id, (s) =>
-                    s.type === 'text' || s.type === 'news' ? { ...s, body: e.target.value } : s
-                  )
+                  updateSection(sec.id, (s) => (s.type === 'news' ? { ...s, body: e.target.value } : s))
+                }
+                rows={10}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  borderRadius: '10px',
+                  border: `1px solid ${preset.surfaceBorder}`,
+                  fontSize: '14px',
+                  fontFamily: 'inherit',
+                  lineHeight: 1.55,
+                  resize: 'vertical',
+                  marginBottom: '12px',
+                }}
+              />
+              <p style={{ fontSize: '12px', fontWeight: 700, margin: '0 0 6px', color: preset.heading }}>Photo placement</p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '12px' }}>
+                {(['below', 'left', 'right', 'behind'] as const).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => updateSection(sec.id, (s) => (s.type === 'news' ? { ...s, mediaLayout: m } : s))}
+                    style={{
+                      padding: '6px 10px',
+                      borderRadius: '8px',
+                      border: `1px solid ${sec.mediaLayout === m ? preset.accent : preset.surfaceBorder}`,
+                      background: sec.mediaLayout === m ? preset.accentSoftBg : preset.pageBg,
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      color: preset.heading,
+                    }}
+                  >
+                    {sectionMediaLayoutLabel(m)}
+                  </button>
+                ))}
+              </div>
+              <MediaUrlsEditor
+                section={sec}
+                preset={preset}
+                payload={value}
+                maxGalleryImages={maxGalleryImages}
+                organizationId={organizationId}
+                onChange={(next) => updateSection(sec.id, () => next)}
+              />
+            </>
+          ) : sec.type === 'text' ? (
+            <>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: preset.heading }}>Main text</label>
+              <textarea
+                value={sec.body}
+                onChange={(e) =>
+                  updateSection(sec.id, (s) => (s.type === 'text' ? { ...s, body: e.target.value } : s))
                 }
                 rows={10}
                 style={{
@@ -980,9 +1473,10 @@ export function LeagueSiteSectionsEditor({
                 }}
               />
             </>
-          )}
+          ) : null}
         </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
@@ -995,12 +1489,12 @@ function MediaUrlsEditor({
   organizationId,
   onChange,
 }: {
-  section: Extract<LeagueSiteSection, { type: 'media' }>
+  section: LeagueSiteGallerySection
   preset: ThemePreset
   payload: LeagueSitePayload
   maxGalleryImages: number
   organizationId?: string
-  onChange: (s: Extract<LeagueSiteSection, { type: 'media' }>) => void
+  onChange: (s: LeagueSiteGallerySection) => void
 }) {
   const [uploadBatch, setUploadBatch] = useState<{ current: number; total: number } | null>(null)
 

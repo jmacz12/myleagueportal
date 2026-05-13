@@ -5,9 +5,9 @@ import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { ChevronLeft, Settings2, Trophy } from 'lucide-react'
 import { LeagueTeamManagePanel } from '@/components/league-team-manage-panel'
-import { publicHeroThemeFromPreset, resolveThemePreset } from '@/lib/leagueTheme'
+import { PRESET_PORTAL_ORIGINAL_ID, publicHeroThemeFromPreset, resolveThemePreset } from '@/lib/leagueTheme'
 import { getPublicThemeInputsForOrg } from '@/lib/public-league-branding'
-import { googleFontStylesheetHref, resolvePublicLeagueFontStack } from '@/lib/public-league-fonts'
+import { googleFontStylesheetHref, resolvePortalOriginalHeadingFontStack, resolvePublicLeagueFontStack } from '@/lib/public-league-fonts'
 import { PublicTeamTabPanels } from './public-team-tab-panels'
 import type { PublicTeamTab, TeamPayload } from './team-page-types'
 
@@ -25,7 +25,6 @@ export default function LeaguePublicTeamPage() {
   const [isStaff, setIsStaff] = useState(false)
   const [manageOpen, setManageOpen] = useState(false)
   const [publicTab, setPublicTab] = useState<PublicTeamTab>('overview')
-  const contentMaxWidth = '920px'
 
   const refreshPayload = useCallback(async () => {
     if (!slug || !teamId) return
@@ -190,6 +189,16 @@ export default function LeaguePublicTeamPage() {
     [data?.publicFontKey]
   )
 
+  const portalOriginalLayout = preset.id === PRESET_PORTAL_ORIGINAL_ID
+  const teamContentMax = portalOriginalLayout ? 'min(1040px, 100%)' : '920px'
+  const publicHeadingFontStack = useMemo(
+    () =>
+      portalOriginalLayout
+        ? resolvePortalOriginalHeadingFontStack(data?.publicFontKey)
+        : publicFontStack,
+    [portalOriginalLayout, data?.publicFontKey, publicFontStack]
+  )
+
   useEffect(() => {
     const href = googleFontStylesheetHref(data?.publicFontKey)
     if (!href) return
@@ -296,7 +305,7 @@ export default function LeaguePublicTeamPage() {
         }}
         aria-hidden={!stickyVisible}
       >
-        <div style={{ width: '100%', maxWidth: contentMaxWidth, display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ width: '100%', maxWidth: teamContentMax, display: 'flex', alignItems: 'center', gap: '10px' }}>
           <Link
             href={`/league/${slug}`}
             style={{ color: preset.heading, display: 'flex', alignItems: 'center', flexShrink: 0 }}
@@ -349,12 +358,12 @@ export default function LeaguePublicTeamPage() {
           position: 'relative',
           overflow: 'hidden',
           background: heroTheme.heroGradient,
-          borderBottom: `4px solid ${teamStripe}`,
-          padding: '28px 20px 32px',
+          borderBottom: portalOriginalLayout ? `6px double ${teamStripe}` : `4px solid ${teamStripe}`,
+          padding: portalOriginalLayout ? '32px 22px 36px' : '28px 20px 32px',
         }}
       >
         <div style={{ pointerEvents: 'none', position: 'absolute', inset: 0, background: heroTheme.heroGlow }} />
-        <div style={{ position: 'relative', maxWidth: contentMaxWidth, margin: '0 auto' }}>
+        <div style={{ position: 'relative', maxWidth: teamContentMax, margin: '0 auto' }}>
           <Link
             href={`/league/${slug}`}
             style={{
@@ -405,11 +414,15 @@ export default function LeaguePublicTeamPage() {
                 </p>
                 <h1
                   style={{
+                    fontFamily: portalOriginalLayout
+                      ? 'Georgia, "Palatino Linotype", "Book Antiqua", Palatino, "Times New Roman", serif'
+                      : undefined,
+                    fontStyle: portalOriginalLayout ? 'italic' : undefined,
                     fontSize: 'clamp(24px, 5vw, 32px)',
                     fontWeight: 800,
                     color: heroTheme.heroTitle,
                     margin: '4px 0 0',
-                    letterSpacing: '-0.02em',
+                    letterSpacing: portalOriginalLayout ? '-0.01em' : '-0.02em',
                     lineHeight: 1.1,
                   }}
                 >
@@ -520,7 +533,7 @@ export default function LeaguePublicTeamPage() {
         </div>
       </div>
 
-      <div style={{ maxWidth: contentMaxWidth, margin: '0 auto', padding: '20px 20px 56px' }}>
+      <div style={{ maxWidth: teamContentMax, margin: '0 auto', padding: '20px 20px 56px' }}>
         {manageOpen && isStaff ? (
           <div style={{ marginBottom: '20px' }}>
             <LeagueTeamManagePanel
@@ -542,6 +555,8 @@ export default function LeaguePublicTeamPage() {
           liveGameId={data.live_game_id ?? null}
           nextGameMapsHref={nextGameMapsHref}
           onJerseyPreferenceSaved={() => void refreshPayload()}
+          portalOriginalLayout={portalOriginalLayout}
+          headingFontFamily={portalOriginalLayout ? publicHeadingFontStack : undefined}
         />
       </div>
 
