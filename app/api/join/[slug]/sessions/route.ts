@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { auth, clerkClient } from '@clerk/nextjs/server'
 import { EMPTY_LEAGUE_SITE, parseLeagueSitePayload } from '@/lib/league-site'
-import { pickFeaturedPublicScheduleItem } from '@/lib/league-public-home-schedule'
+import { pickFeaturedPublicScheduleItem, type LeagueFeaturedGamePayload } from '@/lib/league-public-home-schedule'
 import { fetchOrganizationForPublicJoin, normalizeJoinSlugParam } from '@/lib/join-public-org'
 
 const supabaseAdmin = createClient(
@@ -38,6 +38,8 @@ type GameScheduleRow = {
   status: string | null
   scheduled_at: string | null
   location: string | null
+  home_score: number | null
+  away_score: number | null
 }
 
 function isSignupOpen(session: DropinSessionRow, now: Date) {
@@ -79,6 +81,65 @@ async function getSignedInEmails(): Promise<string[]> {
     return [...new Set(emails)]
   } catch {
     return []
+  }
+}
+
+function mapGameToScheduleItem(
+  g: GameScheduleRow,
+  teamNameById: Map<string, string>,
+  playingTeamIds: Set<string>
+): {
+  id: string
+  source_id: string
+  type: 'season_game'
+  name: string
+  scheduled_at: string
+  location_label: string | null
+  is_user_playing: boolean
+  game_status: string | null
+  home_score: number | null
+  away_score: number | null
+} {
+  const homeName = g.home_team_id ? teamNameById.get(g.home_team_id) || 'Home team' : 'Home team'
+  const awayName = g.away_team_id ? teamNameById.get(g.away_team_id) || 'Away team' : 'Away team'
+  const isUserPlaying =
+    !!g.home_team_id &&
+    !!g.away_team_id &&
+    (playingTeamIds.has(g.home_team_id) || playingTeamIds.has(g.away_team_id))
+  return {
+    id: `game:${g.id}`,
+    source_id: g.id,
+    type: 'season_game' as const,
+    name: `${awayName} at ${homeName}`,
+    scheduled_at: g.scheduled_at as string,
+    location_label: (g.location as string | null) ?? null,
+    is_user_playing: isUserPlaying,
+    game_status: g.status,
+    home_score: typeof g.home_score === 'number' ? g.home_score : null,
+    away_score: typeof g.away_score === 'number' ? g.away_score : null,
+  }
+}
+
+function toFeaturedFromGame(
+  g: GameScheduleRow,
+  teamNameById: Map<string, string>,
+  playingTeamIds: Set<string>,
+  selection: LeagueFeaturedGamePayload['selection']
+): LeagueFeaturedGamePayload {
+  const row = mapGameToScheduleItem(g, teamNameById, playingTeamIds)
+  return {
+    type: 'season_game',
+    source_id: row.source_id,
+    name: row.name,
+    scheduled_at: row.scheduled_at,
+    location_label: row.location_label,
+    fee_amount: null,
+    is_user_playing: row.is_user_playing,
+    is_recurring: false,
+    selection,
+    game_status: row.game_status,
+    home_score: row.home_score,
+    away_score: row.away_score,
   }
 }
 
@@ -150,25 +211,41 @@ export async function GET(
     .eq('type', 'season')
 
   const seasonIds = (seasonRows || []).map((row) => row.id as string)
-  const { data: games } =
+
+  const { data: allSeasonGames } =
     seasonIds.length > 0
       ? await supabaseAdmin
           .from('games')
-          .select('id, season_id, home_team_id, away_team_id, status, scheduled_at, location')
+          .select(
+            'id, season_id, home_team_id, away_team_id, status, scheduled_at, location, home_score, away_score'
+          )
           .eq('organization_id', org.id)
           .in('season_id', seasonIds)
       : { data: [] as GameScheduleRow[] }
 
-  const upcomingGames = ((games || []) as GameScheduleRow[]).filter((g) => {
+  const games = (allSeasonGames || []) as GameScheduleRow[]
+
+  const upcomingGames = games.filter((g) => {
     if (!g.scheduled_at) return false
     if (g.status === 'final') return false
     const ts = new Date(g.scheduled_at).getTime()
     return Number.isFinite(ts) && ts >= now.getTime() - 60_000
   })
 
+  const recentCutoff = new Date(now)
+  recentCutoff.setDate(recentCutoff.getDate() - 45)
+  const recentFinalGames = games
+    .filter((g) => {
+      if (g.status !== 'final' || !g.scheduled_at) return false
+      const ts = new Date(g.scheduled_at).getTime()
+      return Number.isFinite(ts) && ts >= recentCutoff.getTime()
+    })
+    .sort((a, b) => new Date(b.scheduled_at!).getTime() - new Date(a.scheduled_at!).getTime())
+    .slice(0, 24)
+
   const teamIds = Array.from(
     new Set(
-      upcomingGames
+      [...upcomingGames, ...recentFinalGames]
         .flatMap((g) => [g.home_team_id, g.away_team_id])
         .filter((v): v is string => typeof v === 'string' && v.length > 0)
     )
@@ -211,23 +288,7 @@ export async function GET(
   }
 
   const seasonScheduleItems = upcomingGames
-    .map((g) => {
-      const homeName = g.home_team_id ? teamNameById.get(g.home_team_id) || 'Home team' : 'Home team'
-      const awayName = g.away_team_id ? teamNameById.get(g.away_team_id) || 'Away team' : 'Away team'
-      const isUserPlaying =
-        !!g.home_team_id &&
-        !!g.away_team_id &&
-        (playingTeamIds.has(g.home_team_id) || playingTeamIds.has(g.away_team_id))
-      return {
-        id: `game:${g.id}`,
-        source_id: g.id,
-        type: 'season_game' as const,
-        name: `${awayName} at ${homeName}`,
-        scheduled_at: g.scheduled_at as string,
-        location_label: (g.location as string | null) ?? null,
-        is_user_playing: isUserPlaying,
-      }
-    })
+    .map((g) => mapGameToScheduleItem(g, teamNameById, playingTeamIds))
     .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())
 
   const dropinScheduleItems = (sessionsWithSignups as SessionWithSignups[]).map((s) => {
@@ -252,11 +313,17 @@ export async function GET(
     }
   })
 
-  const scheduleItems = [...seasonScheduleItems, ...dropinScheduleItems].sort(
+  const upcomingCombined = [...seasonScheduleItems, ...dropinScheduleItems].sort(
     (a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime()
   )
 
-  const featuredGame = pickFeaturedPublicScheduleItem(scheduleItems)
+  const scheduleItems = upcomingCombined
+  const featuredGame = pickFeaturedPublicScheduleItem(upcomingCombined)
+
+  let lastFinalGame: LeagueFeaturedGamePayload | null = null
+  if (recentFinalGames.length > 0) {
+    lastFinalGame = toFeaturedFromGame(recentFinalGames[0]!, teamNameById, playingTeamIds, 'most_recent_final')
+  }
 
   let leagueSite = EMPTY_LEAGUE_SITE
   const { data: siteRow, error: siteErr } = await supabaseAdmin
@@ -273,6 +340,7 @@ export async function GET(
     sessions: sessionsWithSignups,
     scheduleItems,
     featuredGame,
+    lastFinalGame,
     organization: orgHub,
     leagueSite,
   })

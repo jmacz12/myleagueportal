@@ -38,20 +38,50 @@ export async function GET(req: Request) {
   const draft = parseLeagueSitePayload(row?.draft ?? EMPTY_LEAGUE_SITE)
   const published = parseLeagueSitePayload(row?.published ?? EMPTY_LEAGUE_SITE)
 
-  const { data: orgMeta } = await supabaseAdmin
+  let orgMetaRow: {
+    plan?: string | null
+    primary_color?: string | null
+    league_theme_preset?: string | null
+    league_appearance_mode?: string | null
+    brand_color_change_count?: number | null
+    brand_color_change_period_start?: string | null
+    custom_domain?: string | null
+    custom_domain_verified_at?: string | null
+  } | null = null
+
+  const wide = await supabaseAdmin
     .from('organizations')
     .select(
-      'plan, primary_color, league_theme_preset, league_appearance_mode, brand_color_change_count, brand_color_change_period_start'
+      'plan, primary_color, league_theme_preset, league_appearance_mode, brand_color_change_count, brand_color_change_period_start, custom_domain, custom_domain_verified_at'
     )
     .eq('id', access.organization.id)
     .maybeSingle()
 
-  const plan = normalizeOrgPlan(orgMeta?.plan)
+  if (!wide.error && wide.data) {
+    orgMetaRow = wide.data
+  } else {
+    const narrow = await supabaseAdmin
+      .from('organizations')
+      .select(
+        'plan, primary_color, league_theme_preset, league_appearance_mode, brand_color_change_count, brand_color_change_period_start'
+      )
+      .eq('id', access.organization.id)
+      .maybeSingle()
+    orgMetaRow = narrow.data
+  }
+
+  const plan = normalizeOrgPlan(orgMetaRow?.plan)
   const maxG = maxGalleryImagesForPlan(plan)
   const themeChoice = normalizeLeagueThemePresetId(
-    orgMeta?.league_theme_preset,
-    orgMeta?.league_appearance_mode
+    orgMetaRow?.league_theme_preset,
+    orgMetaRow?.league_appearance_mode
   )
+
+  const cd = orgMetaRow
+  const verifiedFanHostname =
+    cd?.custom_domain && cd.custom_domain_verified_at
+      ? String(cd.custom_domain).trim().toLowerCase()
+      : null
 
   return NextResponse.json({
     draft,
@@ -64,12 +94,13 @@ export async function GET(req: Request) {
     maxGalleryImages: maxG,
     appearance: {
       plan,
-      primaryColor: orgMeta?.primary_color ?? null,
+      primaryColor: orgMetaRow?.primary_color ?? null,
       leagueThemePreset: themeChoice,
       leagueAppearanceMode: appearanceModeForChoice(themeChoice),
-      proBrandColorChangesRemaining: proBrandColorChangesRemaining(orgMeta || {}),
+      proBrandColorChangesRemaining: proBrandColorChangesRemaining(orgMetaRow || {}),
       proBrandColorChangesMonthlyLimit: PRO_BRAND_COLOR_CHANGES_PER_MONTH,
     },
+    verifiedFanHostname,
   })
 }
 

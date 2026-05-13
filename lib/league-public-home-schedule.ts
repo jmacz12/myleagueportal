@@ -15,6 +15,10 @@ export type PublicJoinScheduleItem = {
   fee_amount?: number | null
   is_user_playing?: boolean
   is_recurring?: boolean
+  /** Season games only (from public sessions API). */
+  game_status?: string | null
+  home_score?: number | null
+  away_score?: number | null
 }
 
 export type LeagueFeaturedGamePayload = {
@@ -27,7 +31,11 @@ export type LeagueFeaturedGamePayload = {
   is_user_playing: boolean
   is_recurring: boolean
   /** Why this row was chosen (analytics / future CMS override). */
-  selection: 'first_upcoming_season_game' | 'first_upcoming_drop_in'
+  selection: 'first_upcoming_season_game' | 'first_upcoming_drop_in' | 'most_recent_final'
+  /** Season games only: scheduled | live | final */
+  game_status?: string | null
+  home_score?: number | null
+  away_score?: number | null
 }
 
 export function pickFeaturedPublicScheduleItem(
@@ -41,7 +49,7 @@ export function pickFeaturedPublicScheduleItem(
   const pick = firstSeason ?? sorted[0]
   if (!pick) return null
 
-  return {
+  const base: LeagueFeaturedGamePayload = {
     type: pick.type,
     source_id: pick.source_id,
     name: pick.name,
@@ -52,4 +60,10 @@ export function pickFeaturedPublicScheduleItem(
     is_recurring: !!pick.is_recurring,
     selection: firstSeason ? 'first_upcoming_season_game' : 'first_upcoming_drop_in',
   }
+  if (pick.type === 'season_game') {
+    base.game_status = pick.game_status ?? null
+    base.home_score = typeof pick.home_score === 'number' ? pick.home_score : null
+    base.away_score = typeof pick.away_score === 'number' ? pick.away_score : null
+  }
+  return base
 }

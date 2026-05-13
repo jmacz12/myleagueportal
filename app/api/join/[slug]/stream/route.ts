@@ -31,7 +31,7 @@ export async function GET(
 
   const { data: demoLive } = await supabaseAdmin
     .from('games')
-    .select('id, home_team_id, away_team_id')
+    .select('id, home_team_id, away_team_id, home_score, away_score, status, period, game_clock, location')
     .eq('organization_id', orgHub.id)
     .eq('status', 'live')
     .eq('location', DEMO_LIVE_LOCATION)
@@ -41,7 +41,7 @@ export async function GET(
   if (!live?.id) {
     const { data: anyLive } = await supabaseAdmin
       .from('games')
-      .select('id, home_team_id, away_team_id')
+      .select('id, home_team_id, away_team_id, home_score, away_score, status, period, game_clock, location')
       .eq('organization_id', orgHub.id)
       .eq('status', 'live')
       .order('scheduled_at', { ascending: true, nullsFirst: false })
@@ -56,7 +56,21 @@ export async function GET(
 
   const pair = [live.home_team_id, live.away_team_id].filter(Boolean) as string[]
   if (pair.length === 0) {
-    return NextResponse.json({ live: { gameId: live.id, streamPageUrl: null, homeName: null, awayName: null } })
+    const g0 = live as { home_score?: unknown; away_score?: unknown; status?: unknown; period?: unknown; game_clock?: unknown; location?: unknown }
+    return NextResponse.json({
+      live: {
+        gameId: live.id,
+        streamPageUrl: null,
+        homeName: null,
+        awayName: null,
+        homeScore: typeof g0.home_score === 'number' ? g0.home_score : null,
+        awayScore: typeof g0.away_score === 'number' ? g0.away_score : null,
+        status: typeof g0.status === 'string' ? g0.status : null,
+        period: typeof g0.period === 'number' ? g0.period : null,
+        gameClock: typeof g0.game_clock === 'string' ? g0.game_clock : null,
+        location: typeof g0.location === 'string' && String(g0.location).trim() ? String(g0.location).trim() : null,
+      },
+    })
   }
 
   type TeamRow = { id: string; name: string; stream_url?: string | null }
@@ -88,12 +102,27 @@ export async function GET(
     || orgDefault
     || null
 
+  const g = live as {
+    home_score?: number | null
+    away_score?: number | null
+    status?: string | null
+    period?: number | null
+    game_clock?: string | null
+    location?: string | null
+  }
+
   return NextResponse.json({
     live: {
       gameId: live.id,
       streamPageUrl: streamRaw,
       homeName: home?.name ?? null,
       awayName: away?.name ?? null,
+      homeScore: typeof g.home_score === 'number' ? g.home_score : null,
+      awayScore: typeof g.away_score === 'number' ? g.away_score : null,
+      status: typeof g.status === 'string' ? g.status : null,
+      period: typeof g.period === 'number' ? g.period : null,
+      gameClock: typeof g.game_clock === 'string' ? g.game_clock : null,
+      location: typeof g.location === 'string' && g.location.trim() ? g.location.trim() : null,
     },
   })
 }

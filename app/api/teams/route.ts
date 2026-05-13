@@ -16,11 +16,36 @@ export async function GET() {
   const access = await getOrgAccessForClerkUser(userId)
   if (!access) return NextResponse.json({ error: 'No organization found' }, { status: 404 })
 
-  const { data: org } = await supabaseAdmin
+  const wide = await supabaseAdmin
     .from('organizations')
-    .select('id, slug, plan')
+    .select('id, slug, plan, custom_domain, custom_domain_verified_at')
     .eq('id', access.organization.id)
     .maybeSingle()
+
+  type OrgRow = {
+    id: string
+    slug: string
+    plan: string | null
+    custom_domain?: string | null
+    custom_domain_verified_at?: string | null
+  }
+
+  let org: OrgRow | null = null
+  let verifiedFanHostname: string | null = null
+
+  if (!wide.error && wide.data) {
+    org = wide.data as OrgRow
+    if (org.custom_domain && org.custom_domain_verified_at) {
+      verifiedFanHostname = String(org.custom_domain).trim().toLowerCase()
+    }
+  } else {
+    const narrow = await supabaseAdmin
+      .from('organizations')
+      .select('id, slug, plan')
+      .eq('id', access.organization.id)
+      .maybeSingle()
+    org = narrow.data as OrgRow | null
+  }
 
   if (!org) return NextResponse.json({ error: 'No organization found' }, { status: 404 })
 
@@ -48,6 +73,7 @@ export async function GET() {
     org_slug: org.slug,
     org_plan: normalizeOrgPlan(org.plan),
     org_role: access.role,
+    verified_fan_hostname: verifiedFanHostname,
   })
 }
 

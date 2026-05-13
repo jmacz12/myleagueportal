@@ -62,6 +62,7 @@ import {
   resolvePublicLeagueFontStack,
 } from '@/lib/public-league-fonts'
 import { StreamWithOverlay } from '@/components/public-stream/StreamWithOverlay'
+import { PublicStreamBoxScore } from '@/components/public-stream/PublicStreamBoxScore'
 import { createClient } from '@supabase/supabase-js'
 import { type LeagueFeaturedGamePayload } from '@/lib/league-public-home-schedule'
 
@@ -124,6 +125,10 @@ interface LeagueScheduleItem {
   is_user_playing?: boolean
   /** Same flag as dashboard; used to group recurring series on the public schedule. */
   is_recurring?: boolean
+  /** Season games only — from public sessions API. */
+  game_status?: string | null
+  home_score?: number | null
+  away_score?: number | null
   /** Drop-in roster size (non-guest); from join sessions API. */
   roster_count?: number
   waitlist_count?: number
@@ -143,6 +148,69 @@ interface LeagueLeaderRow {
   player_name: string
   stat: string
   total: number
+}
+
+interface LeagueGameResultRow {
+  game_id: string
+  scheduled_at: string
+  home_team_id: string | null
+  away_team_id: string | null
+  home_team_name: string
+  away_team_name: string
+  home_score: number | null
+  away_score: number | null
+}
+
+type LeagueStandingsInnerTab = 'overview' | 'history'
+
+function normalizeLeagueGameResults(raw: unknown): LeagueGameResultRow[] {
+  if (!Array.isArray(raw)) return []
+  const out: LeagueGameResultRow[] = []
+  for (const r of raw) {
+    if (!r || typeof r !== 'object') continue
+    const o = r as Record<string, unknown>
+    if (typeof o.game_id !== 'string' || typeof o.scheduled_at !== 'string') continue
+    out.push({
+      game_id: o.game_id,
+      scheduled_at: o.scheduled_at,
+      home_team_id: typeof o.home_team_id === 'string' ? o.home_team_id : null,
+      away_team_id: typeof o.away_team_id === 'string' ? o.away_team_id : null,
+      home_team_name: typeof o.home_team_name === 'string' ? o.home_team_name : 'Home',
+      away_team_name: typeof o.away_team_name === 'string' ? o.away_team_name : 'Away',
+      home_score: typeof o.home_score === 'number' ? o.home_score : null,
+      away_score: typeof o.away_score === 'number' ? o.away_score : null,
+    })
+  }
+  return out
+}
+
+type LeagueJoinStreamLive = {
+  gameId: string
+  streamPageUrl: string | null
+  homeName: string | null
+  awayName: string | null
+  homeScore: number | null
+  awayScore: number | null
+  period: number | null
+  gameClock: string | null
+  location: string | null
+}
+
+function parseJoinStreamLive(live: unknown): LeagueJoinStreamLive | null {
+  if (!live || typeof live !== 'object') return null
+  const o = live as Record<string, unknown>
+  if (typeof o.gameId !== 'string') return null
+  return {
+    gameId: o.gameId,
+    streamPageUrl: typeof o.streamPageUrl === 'string' ? o.streamPageUrl : null,
+    homeName: typeof o.homeName === 'string' ? o.homeName : null,
+    awayName: typeof o.awayName === 'string' ? o.awayName : null,
+    homeScore: typeof o.homeScore === 'number' ? o.homeScore : null,
+    awayScore: typeof o.awayScore === 'number' ? o.awayScore : null,
+    period: typeof o.period === 'number' ? o.period : null,
+    gameClock: typeof o.gameClock === 'string' ? o.gameClock : null,
+    location: typeof o.location === 'string' && o.location.trim() ? o.location.trim() : null,
+  }
 }
 
 function LeagueSiteSections({
@@ -693,17 +761,22 @@ function dropinSignupSummary(item: LeagueScheduleItem): string {
   return wl > 0 ? `${core} · ${wl} on waitlist` : core
 }
 
+function compareSchedulePlayingPriority(a: LeagueScheduleItem, b: LeagueScheduleItem) {
+  const aPlaying = a.is_user_playing ? 1 : 0
+  const bPlaying = b.is_user_playing ? 1 : 0
+  if (aPlaying !== bPlaying) return bPlaying - aPlaying
+  if (aPlaying === 1 && bPlaying === 1 && a.type !== b.type) {
+    return a.type === 'season_game' ? -1 : 1
+  }
+  return 0
+}
+
+/** Upcoming / live games: signed-in playing priority, then soonest first. */
 function sortLeagueScheduleItems(items: LeagueScheduleItem[]): LeagueScheduleItem[] {
   return [...items].sort((a, b) => {
-    const aTs = new Date(a.scheduled_at).getTime()
-    const bTs = new Date(b.scheduled_at).getTime()
-    const aPlaying = a.is_user_playing ? 1 : 0
-    const bPlaying = b.is_user_playing ? 1 : 0
-    if (aPlaying !== bPlaying) return bPlaying - aPlaying
-    if (aPlaying === 1 && bPlaying === 1 && a.type !== b.type) {
-      return a.type === 'season_game' ? -1 : 1
-    }
-    return aTs - bTs
+    const p = compareSchedulePlayingPriority(a, b)
+    if (p !== 0) return p
+    return new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime()
   })
 }
 
@@ -746,31 +819,94 @@ function buildLeagueScheduleDisplayRows(sorted: LeagueScheduleItem[]): LeagueSch
   return out
 }
 
+function seasonGameScoreSummary(item: Pick<LeagueScheduleItem, 'home_score' | 'away_score'>) {
+  const hs = typeof item.home_score === 'number' ? item.home_score : null
+  const aw = typeof item.away_score === 'number' ? item.away_score : null
+  if (hs == null && aw == null) return null
+  return `${aw ?? '—'} — ${hs ?? '—'}`
+}
+
 function LeagueHomeFeaturedGameCard({
   slug,
   preset,
   leagueTimezone,
   featured,
+  lastFinal,
 }: {
   slug: string
   preset: ReturnType<typeof resolveThemePreset>
   leagueTimezone: string | null | undefined
   featured: LeagueFeaturedGamePayload | null
+  lastFinal: LeagueFeaturedGamePayload | null
 }) {
+  const showLastResult = !featured && !!lastFinal
+  const display = featured ?? (showLastResult ? lastFinal : null)
+
   const badgeFor = (f: LeagueFeaturedGamePayload) => {
     if (f.type === 'season_game') return 'League game'
     if (f.is_recurring) return 'Repeating drop-in'
     return 'Drop-in'
   }
+
+  const seasonStatusPill = (f: LeagueFeaturedGamePayload) => {
+    if (f.type !== 'season_game' || !f.game_status) return null
+    const st = String(f.game_status).toLowerCase()
+    if (st === 'live') {
+      return (
+        <span
+          style={{
+            fontSize: '10px',
+            fontWeight: 900,
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            padding: '4px 10px',
+            borderRadius: '999px',
+            border: '1px solid rgba(234,88,12,0.35)',
+            color: '#c2410c',
+            background: 'rgba(255,237,213,0.85)',
+            flexShrink: 0,
+          }}
+        >
+          Live
+        </span>
+      )
+    }
+    if (st === 'final') {
+      return (
+        <span
+          style={{
+            fontSize: '10px',
+            fontWeight: 900,
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            padding: '4px 10px',
+            borderRadius: '999px',
+            border: `1px solid ${preset.surfaceBorder}`,
+            color: preset.muted,
+            background: preset.pageBg,
+            flexShrink: 0,
+          }}
+        >
+          Final
+        </span>
+      )
+    }
+    return null
+  }
+
   const primaryHref =
-    featured?.type === 'season_game'
-      ? `/games/${featured.source_id}/scoreboard`
+    display?.type === 'season_game'
+      ? `/league/${encodeURIComponent(slug)}?tab=stream&game=${encodeURIComponent(display.source_id)}`
       : `/join/${slug}/dropins`
-  const primaryLabel = featured?.type === 'season_game' ? 'Scoreboard' : 'Reserve spot'
+  const primaryLabel = display?.type === 'season_game' ? 'Box score' : 'Reserve spot'
+
+  const eyebrow = showLastResult ? 'Latest result' : 'Featured next'
+  const scoreLine =
+    display && display.type === 'season_game' ? seasonGameScoreSummary(display) : null
 
   return (
     <section
-      aria-label="Featured game"
+      aria-label={showLastResult ? 'Latest game result' : 'Featured game'}
       style={{
         marginBottom: '16px',
         borderRadius: '16px',
@@ -794,7 +930,7 @@ function LeagueHomeFeaturedGameCard({
             justifyContent: 'space-between',
             gap: '10px',
             flexWrap: 'wrap',
-            marginBottom: featured ? '14px' : '0',
+            marginBottom: display ? '14px' : '0',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
@@ -810,36 +946,39 @@ function LeagueHomeFeaturedGameCard({
                   color: preset.muted,
                 }}
               >
-                Featured next
+                {eyebrow}
               </p>
-              {!featured ? (
+              {!display ? (
                 <p style={{ margin: '6px 0 0', fontSize: '17px', fontWeight: 900, color: preset.heading, letterSpacing: '-0.02em' }}>
                   Nothing scheduled yet
                 </p>
               ) : null}
             </div>
           </div>
-          {featured ? (
-            <span
-              style={{
-                fontSize: '10px',
-                fontWeight: 800,
-                letterSpacing: '0.06em',
-                textTransform: 'uppercase',
-                padding: '4px 10px',
-                borderRadius: '999px',
-                border: `1px solid ${preset.surfaceBorder}`,
-                color: preset.heading,
-                background: preset.accentSoftBg,
-                flexShrink: 0,
-              }}
-            >
-              {badgeFor(featured)}
-            </span>
+          {display ? (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'flex-end' }}>
+              <span
+                style={{
+                  fontSize: '10px',
+                  fontWeight: 800,
+                  letterSpacing: '0.06em',
+                  textTransform: 'uppercase',
+                  padding: '4px 10px',
+                  borderRadius: '999px',
+                  border: `1px solid ${preset.surfaceBorder}`,
+                  color: preset.heading,
+                  background: preset.accentSoftBg,
+                  flexShrink: 0,
+                }}
+              >
+                {badgeFor(display)}
+              </span>
+              {seasonStatusPill(display)}
+            </div>
           ) : null}
         </div>
 
-        {!featured ? (
+        {!display ? (
           <p style={{ margin: 0, fontSize: '14px', color: preset.muted, lineHeight: 1.55 }}>
             Add season games or open drop-ins to spotlight the next big date here—easy to share with players and fans.
           </p>
@@ -855,12 +994,17 @@ function LeagueHomeFeaturedGameCard({
                 lineHeight: 1.2,
               }}
             >
-              {featured.name}
+              {display.name}
             </p>
+            {scoreLine ? (
+              <p style={{ margin: '0 0 8px', fontSize: '15px', fontWeight: 800, color: preset.heading, letterSpacing: '-0.02em' }}>
+                {scoreLine}
+              </p>
+            ) : null}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '6px' }}>
               <p style={{ margin: 0, fontSize: '13px', color: preset.muted, fontWeight: 600 }}>
                 {(() => {
-                  const loc = formatDropInSessionLocal(featured.scheduled_at, leagueTimezone)
+                  const loc = formatDropInSessionLocal(display.scheduled_at, leagueTimezone)
                   return (
                     <>
                       {loc.day} · {loc.time}
@@ -869,11 +1013,11 @@ function LeagueHomeFeaturedGameCard({
                   )
                 })()}
               </p>
-              {featured.is_user_playing ? (
+              {display.is_user_playing ? (
                 <span style={{ fontSize: '10px', fontWeight: 800, color: preset.accent }}>You&apos;re in</span>
               ) : null}
             </div>
-            {featured.location_label ? (
+            {display.location_label ? (
               <p
                 style={{
                   margin: '0 0 14px',
@@ -885,7 +1029,7 @@ function LeagueHomeFeaturedGameCard({
                 }}
               >
                 <MapPin size={15} style={{ flexShrink: 0, marginTop: '2px', color: preset.accent }} aria-hidden />
-                <span>{featured.location_label}</span>
+                <span>{display.location_label}</span>
               </p>
             ) : (
               <div style={{ height: '2px' }} />
@@ -1053,6 +1197,14 @@ function LeagueHomeContent() {
     [searchParams]
   )
 
+  /** Deep-link a specific game’s box score on the Stream tab (`?tab=stream&game=<gameId>`). */
+  const streamGameIdParam = useMemo(() => {
+    const raw = searchParams.get('game')?.trim()
+    if (!raw || raw.length > 64) return null
+    if (!/^[\w-]+$/i.test(raw)) return null
+    return raw
+  }, [searchParams])
+
   const setLeagueTab = useCallback(
     (next: LeaguePublicTabId) => {
       const paramsNext = new URLSearchParams(searchParams.toString())
@@ -1095,15 +1247,34 @@ function LeagueHomeContent() {
   >([])
   const [scheduleItems, setScheduleItems] = useState<LeagueScheduleItem[]>([])
   const [featuredGame, setFeaturedGame] = useState<LeagueFeaturedGamePayload | null>(null)
+  const [lastFinalGame, setLastFinalGame] = useState<LeagueFeaturedGamePayload | null>(null)
   const [expandedScheduleCluster, setExpandedScheduleCluster] = useState<Record<string, boolean>>({})
   const [standingsRows, setStandingsRows] = useState<LeagueStandingRow[]>([])
+  const [gameResults, setGameResults] = useState<LeagueGameResultRow[]>([])
+  const [standingsInnerTab, setStandingsInnerTab] = useState<LeagueStandingsInnerTab>('overview')
   const [leadersRows, setLeadersRows] = useState<LeagueLeaderRow[]>([])
-  const [streamLive, setStreamLive] = useState<{
-    gameId: string
-    streamPageUrl: string | null
-    homeName: string | null
-    awayName: string | null
-  } | null>(null)
+  const [streamLive, setStreamLive] = useState<LeagueJoinStreamLive | null>(null)
+  const streamEffectiveBoxGameId = streamGameIdParam ?? streamLive?.gameId ?? null
+
+  const streamWatchUrlParsed = useMemo(() => {
+    const raw = streamLive?.streamPageUrl?.trim()
+    if (!raw) return null
+    try {
+      const u = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`)
+      if (u.protocol === 'http:' || u.protocol === 'https:') return u.href
+    } catch {
+      return null
+    }
+    return null
+  }, [streamLive?.streamPageUrl])
+
+  /** Live embed shows `/games/.../overlay` for this same game — hide duplicate score strip in `PublicStreamBoxScore`. */
+  const streamScoreOverlayCoversHeader =
+    !!streamWatchUrlParsed &&
+    !!streamLive &&
+    (!streamGameIdParam || streamGameIdParam === streamLive.gameId) &&
+    streamLive.gameId === streamEffectiveBoxGameId
+
   const [stickyVisible, setStickyVisible] = useState(false)
   const [canManageSite, setCanManageSite] = useState(false)
   const [siteAccessRole, setSiteAccessRole] = useState<'owner' | 'editor' | null>(null)
@@ -1167,7 +1338,9 @@ function LeagueHomeContent() {
           setTeams([])
           setScheduleItems([])
           setFeaturedGame(null)
+          setLastFinalGame(null)
           setStandingsRows([])
+          setGameResults([])
           setLeadersRows([])
           setStreamLive(null)
           return
@@ -1183,7 +1356,9 @@ function LeagueHomeContent() {
           setTeams([])
           setScheduleItems([])
           setFeaturedGame(null)
+          setLastFinalGame(null)
           setStandingsRows([])
+          setGameResults([])
           setLeadersRows([])
           setStreamLive(null)
         } else {
@@ -1237,19 +1412,19 @@ function LeagueHomeContent() {
               ? fg
               : null
           )
+          const lf = sesJson.lastFinalGame as LeagueFeaturedGamePayload | undefined
+          setLastFinalGame(
+            lf &&
+              lf.type === 'season_game' &&
+              typeof lf.source_id === 'string' &&
+              typeof lf.scheduled_at === 'string'
+              ? lf
+              : null
+          )
           setStandingsRows(Array.isArray(standingsJson.standings) ? standingsJson.standings : [])
+          setGameResults(normalizeLeagueGameResults(standingsJson.gameResults))
           setLeadersRows(Array.isArray(standingsJson.leaders) ? standingsJson.leaders : [])
-          const live = streamJson?.live
-          if (live && typeof live.gameId === 'string') {
-            setStreamLive({
-              gameId: live.gameId,
-              streamPageUrl: typeof live.streamPageUrl === 'string' ? live.streamPageUrl : null,
-              homeName: typeof live.homeName === 'string' ? live.homeName : null,
-              awayName: typeof live.awayName === 'string' ? live.awayName : null,
-            })
-          } else {
-            setStreamLive(null)
-          }
+          setStreamLive(parseJoinStreamLive(streamJson?.live))
         }
       } catch {
         if (!cancelled) {
@@ -1258,7 +1433,9 @@ function LeagueHomeContent() {
           setTeams([])
           setScheduleItems([])
           setFeaturedGame(null)
+          setLastFinalGame(null)
           setStandingsRows([])
+          setGameResults([])
           setLeadersRows([])
           setStreamLive(null)
         }
@@ -1272,22 +1449,16 @@ function LeagueHomeContent() {
     }
   }, [slug])
 
+  useEffect(() => {
+    setStandingsInnerTab('overview')
+  }, [slug])
+
   const refreshStreamLive = useCallback(async () => {
     try {
       const res = await fetch(`/api/join/${slug}/stream`)
       if (!res.ok) return
       const json = await res.json().catch(() => null)
-      const live = json?.live
-      if (live && typeof live.gameId === 'string') {
-        setStreamLive({
-          gameId: live.gameId,
-          streamPageUrl: typeof live.streamPageUrl === 'string' ? live.streamPageUrl : null,
-          homeName: typeof live.homeName === 'string' ? live.homeName : null,
-          awayName: typeof live.awayName === 'string' ? live.awayName : null,
-        })
-      } else {
-        setStreamLive(null)
-      }
+      setStreamLive(parseJoinStreamLive(json?.live))
     } catch {
       /* ignore */
     }
@@ -1341,6 +1512,14 @@ function LeagueHomeContent() {
       void supabase.removeChannel(channel)
     }
   }, [streamLive?.gameId, refreshStreamLive])
+
+  useEffect(() => {
+    if (activeTab !== 'stream' || !streamLive?.gameId) return
+    const id = window.setInterval(() => {
+      void refreshStreamLive()
+    }, 2000)
+    return () => window.clearInterval(id)
+  }, [activeTab, streamLive?.gameId, refreshStreamLive])
 
   useEffect(() => {
     let cancelled = false
@@ -1527,6 +1706,20 @@ function LeagueHomeContent() {
     }
     return resolveThemePreset(base.primaryColor, base.presetId, base.appearanceMode)
   }, [hub, shellPreset, editMode, siteAccessRole, appearancePreview])
+
+  const publicStreamBoxLeaguePreset = useMemo(
+    () => ({
+      surfaceBg: preset.surfaceBg,
+      surfaceBorder: preset.surfaceBorder,
+      heading: preset.heading,
+      body: preset.body,
+      muted: preset.muted,
+      accent: preset.accent,
+      accentSoftBg: preset.accentSoftBg,
+      pageBg: preset.pageBg,
+    }),
+    [preset]
+  )
 
   const heroTheme = useMemo(() => publicHeroThemeFromPreset(preset), [preset])
 
@@ -2190,6 +2383,7 @@ function LeagueHomeContent() {
                 preset={preset}
                 leagueTimezone={org.league_timezone}
                 featured={featuredGame}
+                lastFinal={lastFinalGame}
               />
 
               {latestNewsSection ? (
@@ -2325,9 +2519,30 @@ function LeagueHomeContent() {
               Live stream
             </h2>
             <p style={{ margin: '0 0 22px', fontSize: '14px', color: preset.muted, lineHeight: 1.55, width: '100%' }}>
-              When a season game is marked live and a team has published a YouTube or Twitch link, you can watch here with the scoreboard on top. Use Full screen to expand video and overlay together.
+              Live score and clock stay on the <strong style={{ color: preset.heading }}>video overlay</strong> while the game is in progress.{' '}
+              <strong style={{ color: preset.heading }}>Player stats</strong> below use the same rows as{' '}
+              <strong style={{ color: preset.heading }}>Dashboard → Games → scoring</strong> (threes, twos, assists, etc.) and refresh in real time. Schedule and standings links can open a specific game with{' '}
+              <strong style={{ color: preset.heading }}>?game=</strong> in the URL.
             </p>
-            {!streamLive ? (
+            {streamGameIdParam && streamLive && streamLive.gameId !== streamGameIdParam ? (
+              <div
+                style={{
+                  marginBottom: '16px',
+                  padding: '12px 14px',
+                  borderRadius: '12px',
+                  background: preset.accentSoftBg,
+                  border: `1px solid ${preset.surfaceBorder}`,
+                }}
+              >
+                <p style={{ margin: 0, fontSize: '13px', color: preset.body, lineHeight: 1.55 }}>
+                  <strong style={{ color: preset.heading }}>Another game is live</strong> for this league. The player stats section below is for the game you opened.{' '}
+                  <Link href={`/league/${encodeURIComponent(slug)}?tab=stream`} style={{ fontWeight: 800, color: preset.accent }}>
+                    Switch to the current live broadcast →
+                  </Link>
+                </p>
+              </div>
+            ) : null}
+            {!streamEffectiveBoxGameId ? (
               <div
                 style={{
                   padding: '28px 20px',
@@ -2343,42 +2558,99 @@ function LeagueHomeContent() {
                 No game is live right now. Check the <strong style={{ color: preset.heading }}>Schedule</strong> tab, or open a team&apos;s{' '}
                 <strong style={{ color: preset.heading }}>Stream</strong> tab if they&apos;ve posted a broadcast link.
               </div>
-            ) : !streamLive.streamPageUrl?.trim() ? (
-              <div
-                style={{
-                  padding: '28px 20px',
-                  textAlign: 'center',
-                  background: preset.surfaceBg,
-                  border: `1px solid ${preset.surfaceBorder}`,
-                  borderRadius: '16px',
-                  color: preset.body,
-                  fontSize: '14px',
-                  lineHeight: 1.55,
-                }}
-              >
-                <strong style={{ color: preset.heading }}>
-                  {streamLive.homeName || 'Home'} vs {streamLive.awayName || 'Away'}
-                </strong>{' '}
-                is live, but neither team has added a stream URL yet. Add a <strong style={{ color: preset.heading }}>league default</strong> or team links in{' '}
-                <strong style={{ color: preset.heading }}>Dashboard → League website → Access & streams</strong>, or under{' '}
-                <strong style={{ color: preset.heading }}>Manage team → Page & links</strong> on a team page.
-              </div>
             ) : (
-              (() => {
-                const raw = streamLive.streamPageUrl!.trim()
-                let watchUrl: string | null = null
-                try {
-                  const u = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`)
-                  if (u.protocol === 'http:' || u.protocol === 'https:') watchUrl = u.href
-                } catch {
-                  watchUrl = null
-                }
-                return watchUrl ? (
-                  <StreamWithOverlay watchUrl={watchUrl} liveGameId={streamLive.gameId} accentColor={preset.accent} />
-                ) : (
-                  <p style={{ color: preset.muted }}>Could not read stream URL.</p>
-                )
-              })()
+              <>
+                {(() => {
+                  const showLiveBroadcastUi =
+                    !!streamLive && (!streamGameIdParam || streamGameIdParam === streamLive.gameId)
+                  if (!showLiveBroadcastUi) {
+                    return streamEffectiveBoxGameId ? (
+                      <PublicStreamBoxScore
+                        gameId={streamEffectiveBoxGameId}
+                        leaguePreset={publicStreamBoxLeaguePreset}
+                        hideLiveGameHeader={false}
+                      />
+                    ) : null
+                  }
+
+                  const raw = streamLive.streamPageUrl?.trim() || ''
+                  let watchUrl: string | null = null
+                  if (raw) {
+                    try {
+                      const u = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`)
+                      if (u.protocol === 'http:' || u.protocol === 'https:') watchUrl = u.href
+                    } catch {
+                      watchUrl = null
+                    }
+                  }
+
+                  if (!raw) {
+                    return (
+                      <>
+                        <div
+                          style={{
+                            padding: '28px 20px',
+                            textAlign: 'center',
+                            background: preset.surfaceBg,
+                            border: `1px solid ${preset.surfaceBorder}`,
+                            borderRadius: '16px',
+                            color: preset.body,
+                            fontSize: '14px',
+                            lineHeight: 1.55,
+                          }}
+                        >
+                          <strong style={{ color: preset.heading }}>
+                            {streamLive.homeName || 'Home'} vs {streamLive.awayName || 'Away'}
+                          </strong>{' '}
+                          is live, but neither team has added a stream URL yet. Add a <strong style={{ color: preset.heading }}>league default</strong> or team links in{' '}
+                          <strong style={{ color: preset.heading }}>Dashboard → League website → Access & streams</strong>, or under{' '}
+                          <strong style={{ color: preset.heading }}>Manage team → Page & links</strong> on a team page.
+                        </div>
+                        {streamEffectiveBoxGameId ? (
+                          <PublicStreamBoxScore
+                            gameId={streamEffectiveBoxGameId}
+                            leaguePreset={publicStreamBoxLeaguePreset}
+                            hideLiveGameHeader={false}
+                            marginTopPx={18}
+                          />
+                        ) : null}
+                      </>
+                    )
+                  }
+                  if (!watchUrl) {
+                    return (
+                      <>
+                        <p style={{ color: preset.muted }}>Could not read stream URL.</p>
+                        {streamEffectiveBoxGameId ? (
+                          <PublicStreamBoxScore
+                            gameId={streamEffectiveBoxGameId}
+                            leaguePreset={publicStreamBoxLeaguePreset}
+                            hideLiveGameHeader={false}
+                            marginTopPx={18}
+                          />
+                        ) : null}
+                      </>
+                    )
+                  }
+                  return (
+                    <>
+                      <StreamWithOverlay
+                        watchUrl={watchUrl}
+                        liveGameId={streamLive.gameId}
+                        accentColor={preset.accent}
+                      />
+                      {streamEffectiveBoxGameId ? (
+                        <PublicStreamBoxScore
+                          gameId={streamEffectiveBoxGameId}
+                          leaguePreset={publicStreamBoxLeaguePreset}
+                          hideLiveGameHeader={streamScoreOverlayCoversHeader}
+                          marginTopPx={18}
+                        />
+                      ) : null}
+                    </>
+                  )
+                })()}
+              </>
             )}
           </div>
         ) : null}
@@ -2450,7 +2722,9 @@ function LeagueHomeContent() {
                     const label =
                       item.type === 'drop_in' && item.is_recurring ? dropinSeriesBaseName(item.name) : item.name
                     const rowHref =
-                      item.type === 'drop_in' ? `/join/${slug}/dropins` : `/games/${item.source_id}/scoreboard`
+                      item.type === 'drop_in'
+                        ? `/join/${slug}/dropins`
+                        : `/league/${encodeURIComponent(slug)}?tab=stream&game=${encodeURIComponent(item.source_id)}`
                     return (
                       <div
                         key={`personal-${item.id}`}
@@ -2492,8 +2766,10 @@ function LeagueHomeContent() {
                 }}
               >
                 <CalendarDays size={36} strokeWidth={1.25} style={{ color: preset.accent, marginBottom: '12px' }} aria-hidden />
-                <p style={{ color: preset.heading, fontWeight: 800, margin: 0 }}>No upcoming schedule items</p>
-                <p style={{ color: preset.muted, fontSize: '14px', margin: '8px 0 0' }}>Check back soon or ask your organizer for dates.</p>
+                <p style={{ color: preset.heading, fontWeight: 800, margin: 0 }}>Nothing on the calendar yet</p>
+                <p style={{ color: preset.muted, fontSize: '14px', margin: '8px 0 0' }}>
+                  Upcoming games, drop-ins, and recent results appear here once your organizer publishes them.
+                </p>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
@@ -2503,7 +2779,11 @@ function LeagueHomeContent() {
                     const local = formatDropInSessionLocal(item.scheduled_at, org.league_timezone)
                     const isDropin = item.type === 'drop_in'
                     const loc = item.location_label
-                    const cardHref = isDropin ? `/join/${slug}/dropins` : `/games/${item.source_id}/scoreboard`
+                    const cardHref = isDropin
+                      ? `/join/${slug}/dropins`
+                      : `/league/${encodeURIComponent(slug)}?tab=stream&game=${encodeURIComponent(item.source_id)}`
+                    const seasonStatus = !isDropin ? String(item.game_status || '').toLowerCase() : ''
+                    const seasonScoreLine = !isDropin ? seasonGameScoreSummary(item) : null
                     return (
                       <div
                         key={item.id}
@@ -2572,7 +2852,32 @@ function LeagueHomeContent() {
                               You&apos;re playing
                             </span>
                           ) : null}
+                          {!isDropin && seasonStatus === 'live' ? (
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                fontSize: '10px',
+                                fontWeight: 900,
+                                letterSpacing: '0.04em',
+                                textTransform: 'uppercase',
+                                color: '#c2410c',
+                                background: 'rgba(255,237,213,0.9)',
+                                border: '1px solid rgba(234,88,12,0.35)',
+                                borderRadius: '999px',
+                                padding: '3px 8px',
+                                marginLeft: '8px',
+                                marginBottom: '8px',
+                              }}
+                            >
+                              Live
+                            </span>
+                          ) : null}
                           <p style={{ margin: 0, fontSize: '16px', fontWeight: 900, color: preset.heading }}>{item.name || 'Schedule item'}</p>
+                          {seasonScoreLine ? (
+                            <p style={{ margin: '6px 0 0', fontSize: '14px', fontWeight: 800, color: preset.heading }}>{seasonScoreLine}</p>
+                          ) : null}
                           <p style={{ margin: '6px 0 0', fontSize: '13px', color: preset.muted }}>
                             {local.day} · {local.time}
                             {local.zone ? ` ${local.zone}` : ''}
@@ -2853,87 +3158,210 @@ function LeagueHomeContent() {
                     fontSize: 'clamp(20px, 2.5vw, 24px)',
                     fontWeight: 900,
                     color: preset.heading,
-                    margin: '0 0 8px',
+                    margin: '0 0 12px',
                     letterSpacing: '-0.02em',
                     fontFamily: portalOriginalLayout ? publicHeadingFontStack : undefined,
                   }}
                 >
-                  Standings & leaders
+                  Standings
                 </h2>
-                <p style={{ margin: '0 0 20px', fontSize: '14px', color: preset.muted, lineHeight: 1.55, maxWidth: '560px' }}>
-                  When games are recorded, league standings and stat leaders can be highlighted here for fans and players.
-                </p>
-                {standingsRows.length > 0 ? (
-                  <div
+                <div
+                  role="tablist"
+                  aria-label="Standings sections"
+                  style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '8px',
+                    marginBottom: '18px',
+                  }}
+                >
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={standingsInnerTab === 'overview'}
+                    onClick={() => setStandingsInnerTab('overview')}
                     style={{
-                      background: preset.surfaceBg,
-                      border: `1px solid ${preset.surfaceBorder}`,
-                      borderRadius: '16px',
-                      overflow: 'hidden',
+                      padding: '10px 16px',
+                      borderRadius: '10px',
+                      fontSize: '13px',
+                      fontWeight: 800,
+                      fontFamily: 'inherit',
+                      cursor: 'pointer',
+                      border: `1px solid ${standingsInnerTab === 'overview' ? preset.accent : preset.surfaceBorder}`,
+                      background: standingsInnerTab === 'overview' ? preset.accentSoftBg : preset.surfaceBg,
+                      color: preset.heading,
+                      minHeight: '44px',
+                      boxSizing: 'border-box',
                     }}
                   >
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
-                      <thead>
-                        <tr style={{ background: preset.accentSoftBg, color: preset.body, textAlign: 'left' }}>
-                          <th style={{ padding: '10px 12px', fontWeight: 800 }}>#</th>
-                          <th style={{ padding: '10px 12px', fontWeight: 800 }}>Team</th>
-                          <th style={{ padding: '10px 12px', fontWeight: 800, textAlign: 'center' }}>W</th>
-                          <th style={{ padding: '10px 12px', fontWeight: 800, textAlign: 'center' }}>L</th>
-                          <th style={{ padding: '10px 12px', fontWeight: 800, textAlign: 'center' }}>PCT</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {standingsRows.map((row, idx) => (
-                          <tr key={row.team_id} style={{ borderTop: `1px solid ${preset.surfaceBorder}` }}>
-                            <td style={{ padding: '10px 12px', color: preset.muted }}>{idx + 1}</td>
-                            <td style={{ padding: '10px 12px', color: preset.heading, fontWeight: 700 }}>{row.team_name}</td>
-                            <td style={{ padding: '10px 12px', textAlign: 'center', color: preset.body }}>{row.wins}</td>
-                            <td style={{ padding: '10px 12px', textAlign: 'center', color: preset.body }}>{row.losses}</td>
-                            <td style={{ padding: '10px 12px', textAlign: 'center', color: preset.body }}>{row.pct.toFixed(3)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                    Overview
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={standingsInnerTab === 'history'}
+                    onClick={() => setStandingsInnerTab('history')}
+                    style={{
+                      padding: '10px 16px',
+                      borderRadius: '10px',
+                      fontSize: '13px',
+                      fontWeight: 800,
+                      fontFamily: 'inherit',
+                      cursor: 'pointer',
+                      border: `1px solid ${standingsInnerTab === 'history' ? preset.accent : preset.surfaceBorder}`,
+                      background: standingsInnerTab === 'history' ? preset.accentSoftBg : preset.surfaceBg,
+                      color: preset.heading,
+                      minHeight: '44px',
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    History
+                  </button>
+                </div>
+
+                {standingsInnerTab === 'overview' ? (
+                  <>
+                    <p style={{ margin: '0 0 20px', fontSize: '14px', color: preset.muted, lineHeight: 1.55, maxWidth: '560px' }}>
+                      When games are recorded, league standings and stat leaders can be highlighted here for fans and players.
+                    </p>
+                    {standingsRows.length > 0 ? (
+                      <div
+                        style={{
+                          background: preset.surfaceBg,
+                          border: `1px solid ${preset.surfaceBorder}`,
+                          borderRadius: '16px',
+                          overflow: 'hidden',
+                        }}
+                      >
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+                          <thead>
+                            <tr style={{ background: preset.accentSoftBg, color: preset.body, textAlign: 'left' }}>
+                              <th style={{ padding: '10px 12px', fontWeight: 800 }}>#</th>
+                              <th style={{ padding: '10px 12px', fontWeight: 800 }}>Team</th>
+                              <th style={{ padding: '10px 12px', fontWeight: 800, textAlign: 'center' }}>W</th>
+                              <th style={{ padding: '10px 12px', fontWeight: 800, textAlign: 'center' }}>L</th>
+                              <th style={{ padding: '10px 12px', fontWeight: 800, textAlign: 'center' }}>PCT</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {standingsRows.map((row, idx) => (
+                              <tr key={row.team_id} style={{ borderTop: `1px solid ${preset.surfaceBorder}` }}>
+                                <td style={{ padding: '10px 12px', color: preset.muted }}>{idx + 1}</td>
+                                <td style={{ padding: '10px 12px', fontWeight: 700 }}>
+                                  <Link
+                                    href={`/league/${slug}/teams/${row.team_id}`}
+                                    style={{ color: preset.heading, textDecoration: 'none', fontWeight: 700 }}
+                                  >
+                                    {row.team_name}
+                                  </Link>
+                                </td>
+                                <td style={{ padding: '10px 12px', textAlign: 'center', color: preset.body }}>{row.wins}</td>
+                                <td style={{ padding: '10px 12px', textAlign: 'center', color: preset.body }}>{row.losses}</td>
+                                <td style={{ padding: '10px 12px', textAlign: 'center', color: preset.body }}>{row.pct.toFixed(3)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div
+                        style={{
+                          background: preset.surfaceBg,
+                          border: `1px solid ${preset.surfaceBorder}`,
+                          borderRadius: '16px',
+                          padding: '28px 24px',
+                          textAlign: 'center',
+                        }}
+                      >
+                        <BarChart3 size={32} strokeWidth={1.5} style={{ color: preset.accent, margin: '0 auto 12px' }} aria-hidden />
+                        <p style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: preset.heading }}>Standings go live with game results</p>
+                        <p style={{ margin: '10px 0 0', fontSize: '14px', color: preset.muted, lineHeight: 1.55, maxWidth: '420px', marginLeft: 'auto', marginRight: 'auto' }}>
+                          Your organizer records scores from the dashboard; this hub will fill in as that data rolls out.
+                        </p>
+                      </div>
+                    )}
+                    {leadersRows.length > 0 ? (
+                      <div
+                        style={{
+                          marginTop: '14px',
+                          background: preset.surfaceBg,
+                          border: `1px solid ${preset.surfaceBorder}`,
+                          borderRadius: '14px',
+                          padding: '12px 14px',
+                        }}
+                      >
+                        <p style={{ margin: '0 0 8px', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: preset.muted }}>
+                          Current leaders
+                        </p>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                          {leadersRows.map((row) => (
+                            <span key={`${row.stat}-${row.player_name}`} style={{ fontSize: '13px', color: preset.body }}>
+                              <strong style={{ color: preset.heading }}>{row.stat}</strong>: {row.player_name} ({Math.round(row.total)})
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                  </>
                 ) : (
-                  <div
-                    style={{
-                      background: preset.surfaceBg,
-                      border: `1px solid ${preset.surfaceBorder}`,
-                      borderRadius: '16px',
-                      padding: '28px 24px',
-                      textAlign: 'center',
-                    }}
-                  >
-                    <BarChart3 size={32} strokeWidth={1.5} style={{ color: preset.accent, margin: '0 auto 12px' }} aria-hidden />
-                    <p style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: preset.heading }}>Standings go live with game results</p>
-                    <p style={{ margin: '10px 0 0', fontSize: '14px', color: preset.muted, lineHeight: 1.55, maxWidth: '420px', marginLeft: 'auto', marginRight: 'auto' }}>
-                      Your organizer records scores from the dashboard; this hub will fill in as that data rolls out.
+                  <>
+                    <p style={{ margin: '0 0 20px', fontSize: '14px', color: preset.muted, lineHeight: 1.55, maxWidth: '560px' }}>
+                      Final scores from this season&apos;s league games (newest first). Tap a row for the full box score on the Stream tab.
                     </p>
-                  </div>
+                    {gameResults.length === 0 ? (
+                      <div
+                        style={{
+                          background: preset.surfaceBg,
+                          border: `1px solid ${preset.surfaceBorder}`,
+                          borderRadius: '16px',
+                          padding: '28px 24px',
+                          textAlign: 'center',
+                        }}
+                      >
+                        <CalendarDays size={32} strokeWidth={1.5} style={{ color: preset.accent, margin: '0 auto 12px' }} aria-hidden />
+                        <p style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: preset.heading }}>No completed games yet</p>
+                        <p style={{ margin: '10px 0 0', fontSize: '14px', color: preset.muted, lineHeight: 1.55, maxWidth: '420px', marginLeft: 'auto', marginRight: 'auto' }}>
+                          When organizers mark games final, results appear here automatically.
+                        </p>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        {gameResults.map((g) => {
+                          const local = formatDropInSessionLocal(g.scheduled_at, org.league_timezone)
+                          const hasScore =
+                            typeof g.away_score === 'number' && typeof g.home_score === 'number'
+                          const scoreLine = hasScore ? `${g.away_score}–${g.home_score}` : 'Final — see box score'
+                          return (
+                            <Link
+                              key={g.game_id}
+                              href={`/league/${encodeURIComponent(slug)}?tab=stream&game=${encodeURIComponent(g.game_id)}`}
+                              style={{
+                                display: 'block',
+                                textDecoration: 'none',
+                                background: preset.surfaceBg,
+                                border: `1px solid ${preset.surfaceBorder}`,
+                                borderRadius: '14px',
+                                padding: '16px 18px',
+                                color: preset.body,
+                                boxShadow: '0 8px 24px -18px rgba(0,0,0,0.12)',
+                              }}
+                            >
+                              <p style={{ margin: 0, fontSize: '12px', fontWeight: 700, color: preset.muted }}>
+                                {local.day} · {local.time}
+                                {local.zone ? ` ${local.zone}` : ''}
+                              </p>
+                              <p style={{ margin: '8px 0 4px', fontSize: '16px', fontWeight: 900, color: preset.heading, letterSpacing: '-0.02em' }}>
+                                {g.away_team_name} @ {g.home_team_name}
+                              </p>
+                              <p style={{ margin: 0, fontSize: '18px', fontWeight: 900, color: preset.heading }}>{scoreLine}</p>
+                              <p style={{ margin: '10px 0 0', fontSize: '12px', fontWeight: 800, color: preset.accent }}>Box score →</p>
+                            </Link>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </>
                 )}
-                {leadersRows.length > 0 ? (
-                  <div
-                    style={{
-                      marginTop: '14px',
-                      background: preset.surfaceBg,
-                      border: `1px solid ${preset.surfaceBorder}`,
-                      borderRadius: '14px',
-                      padding: '12px 14px',
-                    }}
-                  >
-                    <p style={{ margin: '0 0 8px', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: preset.muted }}>
-                      Current leaders
-                    </p>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                      {leadersRows.map((row) => (
-                        <span key={`${row.stat}-${row.player_name}`} style={{ fontSize: '13px', color: preset.body }}>
-                          <strong style={{ color: preset.heading }}>{row.stat}</strong>: {row.player_name} ({Math.round(row.total)})
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
               </>
             ) : (
               <>

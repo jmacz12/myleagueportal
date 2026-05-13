@@ -204,7 +204,7 @@ export async function POST(req: Request) {
       leagueStreamTab: `${origin}/league/${slug}?tab=stream`,
       homeTeamStreamTab: `${origin}/league/${slug}/teams/${home.id}?tab=stream`,
       overlayOnly: `${origin}/games/${gameId}/overlay`,
-      publicScoreboard: `${origin}/games/${gameId}/scoreboard`,
+      publicStreamTab: `${origin}/league/${slug}?tab=stream&game=${gameId}`,
       streamPreview: `${origin}/games/${gameId}/stream-preview`,
       dashboardScoring: `${origin}/dashboard/games/${gameId}/scoring`,
     },

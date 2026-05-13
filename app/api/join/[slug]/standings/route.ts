@@ -26,8 +26,10 @@ export async function GET(
   const teamIds = teamRows.map((t) => t.id)
   const seasonIds = Array.from(new Set(teamRows.map((t) => t.season_id).filter(Boolean)))
   if (teamIds.length === 0 || seasonIds.length === 0) {
-    return NextResponse.json({ standings: [], leaders: [] })
+    return NextResponse.json({ standings: [], leaders: [], gameResults: [] })
   }
+
+  const teamNameById = new Map(teamRows.map((t) => [t.id as string, String(t.name || 'Team')]))
 
   const { data: games } = await supabaseAdmin
     .from('games')
@@ -54,31 +56,56 @@ export async function GET(
     const [{ data: stats }, { data: players }] = await Promise.all([
       supabaseAdmin
         .from('player_game_stats')
-        .select('player_id, pts, reb, ast')
+        .select('player_id, pts, reb, ast, stl, blk')
         .in('game_id', finalGameIds),
       supabaseAdmin.from('players').select('id, full_name').eq('organization_id', org.id),
     ])
     const nameById = new Map((players || []).map((p) => [String(p.id), String(p.full_name || 'Player')]))
-    const totals = new Map<string, { pts: number; reb: number; ast: number }>()
+    const totals = new Map<string, { pts: number; reb: number; ast: number; stl: number; blk: number }>()
     for (const row of stats || []) {
       const pid = String(row.player_id || '')
       if (!pid) continue
-      const cur = totals.get(pid) || { pts: 0, reb: 0, ast: 0 }
+      const cur = totals.get(pid) || { pts: 0, reb: 0, ast: 0, stl: 0, blk: 0 }
       cur.pts += Number(row.pts || 0)
       cur.reb += Number(row.reb || 0)
       cur.ast += Number(row.ast || 0)
+      cur.stl += Number(row.stl || 0)
+      cur.blk += Number(row.blk || 0)
       totals.set(pid, cur)
     }
-    const top = (key: 'pts' | 'reb' | 'ast', label: string) =>
+    const top = (key: 'pts' | 'reb' | 'ast' | 'stl' | 'blk', label: string) =>
       [...totals.entries()]
         .map(([pid, t]) => ({ player_name: nameById.get(pid) || 'Player', stat: label, total: t[key] }))
         .sort((a, b) => b.total - a.total)[0]
     const pts = top('pts', 'PTS')
     const reb = top('reb', 'REB')
     const ast = top('ast', 'AST')
-    leaders = [pts, reb, ast].filter((v): v is { player_name: string; stat: string; total: number } => !!v && v.total > 0)
+    const stl = top('stl', 'STL')
+    const blk = top('blk', 'BLK')
+    leaders = [pts, reb, ast, stl, blk].filter(
+      (v): v is { player_name: string; stat: string; total: number } => !!v && v.total > 0,
+    )
   }
 
-  return NextResponse.json({ standings: rows, leaders })
+  const gameResults = (games || [])
+    .filter((g) => g.status === 'final' && g.scheduled_at)
+    .sort((a, b) => new Date(b.scheduled_at as string).getTime() - new Date(a.scheduled_at as string).getTime())
+    .slice(0, 150)
+    .map((g) => {
+      const hid = typeof g.home_team_id === 'string' ? g.home_team_id : null
+      const aid = typeof g.away_team_id === 'string' ? g.away_team_id : null
+      return {
+        game_id: g.id as string,
+        scheduled_at: g.scheduled_at as string,
+        home_team_id: hid,
+        away_team_id: aid,
+        home_team_name: hid ? teamNameById.get(hid) || 'Home' : 'Home',
+        away_team_name: aid ? teamNameById.get(aid) || 'Away' : 'Away',
+        home_score: typeof g.home_score === 'number' ? g.home_score : null,
+        away_score: typeof g.away_score === 'number' ? g.away_score : null,
+      }
+    })
+
+  return NextResponse.json({ standings: rows, leaders, gameResults })
 }
 

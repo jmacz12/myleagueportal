@@ -275,7 +275,8 @@ const PORTAL_LANDING_CREAM = '#f2ead6'
 const PORTAL_LANDING_INK = '#1a1a0a'
 const PORTAL_LANDING_BORDER = '#d4c9a8'
 
-function getMyLeaguePortalOriginalPreset(_brandColor: string | null | undefined): ThemePreset {
+function getMyLeaguePortalOriginalPreset(brandColor: string | null | undefined): ThemePreset {
+  void brandColor
   const accent = PORTAL_ORIGINAL_ARMY_ACCENT_HEX
   const pageBg = PORTAL_LANDING_CREAM
   const surfaceBg = '#faf8f0'

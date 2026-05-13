@@ -6,7 +6,7 @@ import { createClient } from '@supabase/supabase-js'
 import { Link2, Trophy } from 'lucide-react'
 import GameHighlights from '../../GameHighlights'
 import { contrastTextOnColor } from '@/lib/contrast-text-on-color'
-import { getPublicSiteOrigin } from '@/lib/public-site-origin'
+import { publicFanSiteOrigin } from '@/lib/public-site-origin'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -137,6 +137,7 @@ export default function ScoringPage() {
   const [pendingSub, setPendingSub] = useState<{ side: 'home' | 'away'; benchId: string } | null>(null)
   /** From `/api/teams` — used for the fan-facing league URL (stream + overlay on site). */
   const [orgSlug, setOrgSlug] = useState<string | null>(null)
+  const [verifiedFanHostname, setVerifiedFanHostname] = useState<string | null>(null)
   const skipClockPersistRef = useRef(true)
   const clockLiveRef = useRef(clock)
   const periodLiveRef = useRef(period)
@@ -185,6 +186,11 @@ export default function ScoringPage() {
     setGame(gameData.game)
     setTeams(teamsData.teams || [])
     setOrgSlug(typeof teamsData.org_slug === 'string' ? teamsData.org_slug : null)
+    setVerifiedFanHostname(
+      typeof teamsData.verified_fan_hostname === 'string' && teamsData.verified_fan_hostname.trim()
+        ? teamsData.verified_fan_hostname.trim().toLowerCase()
+        : null
+    )
     setPlayers(playersData.players || [])
     skipClockPersistRef.current = true
     setClock(gameData.game?.game_clock || '10:00')
@@ -365,9 +371,9 @@ export default function ScoringPage() {
       }
     : { background: 'var(--btn-primary-bg)', color: 'var(--btn-primary-text)' }
 
-  const shareOrigin = getPublicSiteOrigin()
+  const shareOrigin = publicFanSiteOrigin(verifiedFanHostname)
   const publicWatchUrl = orgSlug?.trim()
-    ? `${shareOrigin}/league/${encodeURIComponent(orgSlug.trim())}`
+    ? `${shareOrigin}/league/${encodeURIComponent(orgSlug.trim())}?tab=stream&game=${encodeURIComponent(gameId)}`
     : `${shareOrigin}/games/${encodeURIComponent(gameId)}/scoreboard`
 
   const homeSlots = parseStarterSlots(game.home_starter_slot_ids)
@@ -1218,8 +1224,8 @@ export default function ScoringPage() {
           <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)' }}>Public watch link</div>
           <div style={{ fontSize: '11px', color: 'var(--text-muted)', maxWidth: '520px', lineHeight: 1.45, marginBottom: '8px' }}>
             {orgSlug
-              ? 'Your league homepage — fans open this to watch the stream with live score and clock (same overlay as on your site).'
-              : 'Public scoreboard link until your league slug is set; then this uses your homepage where stream and scores appear together.'}
+              ? 'League Stream tab with this game’s full box score (and optional video when a stream URL is set). Fans see dashboard scoring updates here in real time.'
+              : 'Legacy link to this game’s box score until your league slug is set (then use the league URL below).'}
           </div>
           <a
             href={publicWatchUrl}

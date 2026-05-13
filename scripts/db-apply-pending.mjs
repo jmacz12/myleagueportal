@@ -48,6 +48,8 @@ const FILES = [
   '20260511220000_organizations_default_stream_url.sql',
   '20260513120000_organizations_sport_template.sql',
   '20260514140000_organization_fk_on_delete_cascade.sql',
+  /* Pro custom domain — organizations.custom_domain* columns */
+  '20260515120000_organizations_custom_domain.sql',
 ]
 
 async function main() {

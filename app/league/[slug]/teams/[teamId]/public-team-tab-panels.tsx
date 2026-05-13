@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { SignInButton, useUser } from '@clerk/nextjs'
 import {
   BarChart3,
@@ -54,6 +54,7 @@ function JerseyPollOverviewCard({
   preset: ThemePreset
   onSaved?: () => void
 }) {
+  void pollId
   const afterAuthUrl = `/league/${slug}/teams/${teamId}?tab=overview`
 
   const myId = self.player_id

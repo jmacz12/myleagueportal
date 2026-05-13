@@ -18,6 +18,7 @@ import {
 } from '@/lib/league-site'
 import { countGalleryImages } from '@/lib/league-site-limits'
 import { subscribeLeagueAppearanceUpdated } from '@/lib/league-appearance-sync'
+import { publicFanSiteOrigin } from '@/lib/public-site-origin'
 
 type EditorRow = {
   id: string
@@ -39,6 +40,7 @@ function LeagueSitePageClient() {
   const searchParams = useSearchParams()
   const [loading, setLoading] = useState(true)
   const [slug, setSlug] = useState('')
+  const [verifiedFanHostname, setVerifiedFanHostname] = useState<string | null>(null)
   const [role, setRole] = useState<'owner' | 'editor' | ''>('')
   const [draft, setDraft] = useState<LeagueSitePayload>(EMPTY_LEAGUE_SITE)
   const [published, setPublished] = useState<LeagueSitePayload>(EMPTY_LEAGUE_SITE)
@@ -53,6 +55,7 @@ function LeagueSitePageClient() {
 
   const [dashCreativeSurface, setDashCreativeSurface] = useState<LeagueSiteContentSurface>('about')
   const dashboardSiteEditorPreset = useMemo(() => resolveThemePreset(null, null, 'light'), [])
+  const fanSiteOrigin = useMemo(() => publicFanSiteOrigin(verifiedFanHostname), [verifiedFanHostname])
   const [maxGalleryImages, setMaxGalleryImages] = useState(100)
   const [orgPlan, setOrgPlan] = useState('basic')
   const [heroUploading, setHeroUploading] = useState(false)
@@ -70,6 +73,11 @@ function LeagueSitePageClient() {
       setDraft(data.draft ?? EMPTY_LEAGUE_SITE)
       setPublished(data.published ?? EMPTY_LEAGUE_SITE)
       setSlug(data.slug ?? '')
+      setVerifiedFanHostname(
+        typeof data.verifiedFanHostname === 'string' && data.verifiedFanHostname.trim()
+          ? data.verifiedFanHostname.trim().toLowerCase()
+          : null
+      )
       setRole(data.role ?? '')
       setMaxGalleryImages(typeof data.maxGalleryImages === 'number' ? data.maxGalleryImages : 100)
       setOrgPlan(typeof data.plan === 'string' ? data.plan : 'basic')
@@ -829,6 +837,7 @@ function LeagueSitePageClient() {
       ) : (
         <LeagueSiteAccessPanel
           slug={slug}
+          fanSiteOrigin={fanSiteOrigin}
           editors={editors}
           editorEmail={editorEmail}
           setEditorEmail={setEditorEmail}

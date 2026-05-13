@@ -7,7 +7,6 @@ import {
   useState,
   type ChangeEvent,
   type PointerEvent as ReactPointerEvent,
-  type WheelEvent as ReactWheelEvent,
 } from 'react'
 import Link from 'next/link'
 import {
@@ -37,10 +36,6 @@ import type {
   LeagueSiteSection,
   LeagueSiteSectionMediaPlacement,
 } from '@/lib/league-site'
-import {
-  leagueSiteCreativeBodyTypography,
-  leagueSiteCreativeHeadingTypography,
-} from '@/lib/league-site-creative-typography'
 import { PUBLIC_LEAGUE_FONT_OPTIONS } from '@/lib/public-league-fonts'
 import {
   LEAGUE_SITE_MEDIA_PLACEMENT_LABELS,
@@ -124,7 +119,7 @@ export function LeagueSiteContentSectionFields({
   const piecesForUi = useMemo(() => {
     if (sec.textPieces.length > 0) return sec.textPieces
     return migrateLegacy(sec)
-  }, [sec.id, sec.textPieces, sec.title, sec.body])
+  }, [sec])
 
   function currentPieces(s: Extract<LeagueSiteSection, { type: 'content' }>): LeagueSiteContentTextPiece[] {
     return s.textPieces.length > 0 ? s.textPieces : migrateLegacy(s)
@@ -494,7 +489,8 @@ export function LeagueSiteContentSectionFields({
               updateSection(sec.id, (s) => {
                 if (s.type !== 'content') return s
                 if (!v) {
-                  const { textColor: _t, ...rest } = s
+                  const { textColor, ...rest } = s
+                  void textColor
                   return rest as typeof s
                 }
                 return { ...s, textColor: v }
@@ -507,7 +503,8 @@ export function LeagueSiteContentSectionFields({
             onClick={() =>
               updateSection(sec.id, (s) => {
                 if (s.type !== 'content') return s
-                const { textColor: _t, ...rest } = s
+                const { textColor, ...rest } = s
+                void textColor
                 return rest as typeof s
               })
             }

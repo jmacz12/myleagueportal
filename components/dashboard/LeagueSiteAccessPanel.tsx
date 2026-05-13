@@ -16,6 +16,8 @@ type TeamStreamRow = { id: string; name: string; stream_url: string | null }
 
 type Props = {
   slug: string
+  /** When set (verified custom domain), fan links use this origin instead of the default public portal URL. */
+  fanSiteOrigin?: string
   editors: EditorRow[]
   editorEmail: string
   setEditorEmail: (v: string) => void
@@ -26,6 +28,7 @@ type Props = {
 
 export function LeagueSiteAccessPanel({
   slug,
+  fanSiteOrigin,
   editors,
   editorEmail,
   setEditorEmail,
@@ -102,10 +105,9 @@ export function LeagueSiteAccessPanel({
   }
 
   const selectedTeam = teamRows.find((t) => t.id === selectedTeamId)
+  const origin = (fanSiteOrigin || getPublicSiteOrigin()).replace(/\/$/, '')
   /** Same canonical origin as game scoring “public watch” — avoids opening /league/… on the dashboard host when public fans use www (or NEXT_PUBLIC_PUBLIC_SITE_URL). */
-  const watchOnlyUrl = slug
-    ? `${getPublicSiteOrigin()}/league/${encodeURIComponent(slug)}/stream`
-    : ''
+  const watchOnlyUrl = slug ? `${origin}/league/${encodeURIComponent(slug)}/stream` : ''
 
   return (
     <div style={{ display: 'grid', gap: '18px' }}>

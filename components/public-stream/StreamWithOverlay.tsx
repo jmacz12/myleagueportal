@@ -60,6 +60,11 @@ type Props = {
   /** When set, iframe loads /games/[id]/overlay for live scores */
   liveGameId: string | null
   accentColor?: string
+  /**
+   * When false, skip the narrow score iframe on the video (e.g. full box score is shown elsewhere on the page).
+   * Default true.
+   */
+  embedLiveScoreOnVideo?: boolean
 }
 
 /** Brand-accent diagonal into deep slate — works everywhere (no color-mix). */
@@ -100,7 +105,12 @@ async function exitFullscreenBestEffort(): Promise<void> {
   }
 }
 
-export function StreamWithOverlay({ watchUrl, liveGameId, accentColor = '#5a7a2a' }: Props) {
+export function StreamWithOverlay({
+  watchUrl,
+  liveGameId,
+  accentColor = '#5a7a2a',
+  embedLiveScoreOnVideo = true,
+}: Props) {
   const shellRef = useRef<HTMLDivElement>(null)
   const hadNativeFsRef = useRef(false)
   const [embedSrc, setEmbedSrc] = useState<string | null>(null)
@@ -176,6 +186,7 @@ export function StreamWithOverlay({ watchUrl, liveGameId, accentColor = '#5a7a2a
   }, [immersive])
 
   const overlaySrc = useMemo(() => {
+    if (embedLiveScoreOnVideo === false) return null
     if (!liveGameId) return null
     const q = new URLSearchParams({ embed: '1' })
     if (isNarrow) {
@@ -183,7 +194,7 @@ export function StreamWithOverlay({ watchUrl, liveGameId, accentColor = '#5a7a2a
       q.set('mini', '1')
     }
     return `/games/${liveGameId}/overlay?${q}`
-  }, [liveGameId, isNarrow])
+  }, [liveGameId, isNarrow, embedLiveScoreOnVideo])
 
   const overlayBandHeight = isNarrow ? STREAM_OVERLAY_BAND_HEIGHT_MOBILE : STREAM_OVERLAY_BAND_HEIGHT
 
@@ -409,10 +420,19 @@ export function StreamWithOverlay({ watchUrl, liveGameId, accentColor = '#5a7a2a
 
       {!immersive ? (
         <p style={{ margin: '12px 0 0', fontSize: '13px', color: 'rgba(15,23,42,0.72)', lineHeight: 1.5 }}>
-          Play/pause in the video.{' '}
-          <strong style={{ color: 'rgba(15,23,42,0.88)' }}>Full screen with overlay</strong> keeps scores with the stream — best on{' '}
-          <strong style={{ color: 'rgba(15,23,42,0.88)' }}>desktop</strong>; phones are limited.{' '}
-          <strong style={{ color: 'rgba(15,23,42,0.88)' }}>Player fullscreen</strong> is true OS fullscreen without the score strip.
+          {embedLiveScoreOnVideo ? (
+            <>
+              Play/pause in the video.{' '}
+              <strong style={{ color: 'rgba(15,23,42,0.88)' }}>Full screen with overlay</strong> keeps scores with the stream — best on{' '}
+              <strong style={{ color: 'rgba(15,23,42,0.88)' }}>desktop</strong>; phones are limited.{' '}
+              <strong style={{ color: 'rgba(15,23,42,0.88)' }}>Player fullscreen</strong> is true OS fullscreen without the score strip.
+            </>
+          ) : (
+            <>
+              Play/pause in the video when you want to watch. <strong style={{ color: 'rgba(15,23,42,0.88)' }}>Full screen</strong> expands the
+              stream; live scores stay in the box score above this player.
+            </>
+          )}
         </p>
       ) : null}
 

@@ -21,6 +21,8 @@ import {
 } from '@/lib/pro-brand-color-limits'
 import { DELETE_LEAGUE_ACCOUNT_CONFIRM_PHRASE } from '@/lib/delete-league-account-constants'
 import { MLP_PREF_SPORT_STORAGE_KEY } from '@/lib/sport-templates'
+import { CustomDomainPanel } from '@/components/dashboard/CustomDomainPanel'
+import { publicFanSiteOrigin } from '@/lib/public-site-origin'
 
 interface OrgSettings {
   name: string
@@ -67,6 +69,7 @@ export default function SettingsPage() {
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
+  const [verifiedFanHostname, setVerifiedFanHostname] = useState<string | null>(null)
   const [upgrading, setUpgrading] = useState(false)
   const [form, setForm] = useState({ 
     name: '', 
@@ -166,8 +169,23 @@ export default function SettingsPage() {
   }, [])
 
   async function fetchSettings() {
-    const res = await fetch('/api/settings')
+    const [res, domRes] = await Promise.all([
+      fetch('/api/settings'),
+      fetch('/api/settings/custom-domain'),
+    ])
     const data = await res.json()
+    let vh: string | null = null
+    if (domRes.ok) {
+      try {
+        const d = await domRes.json()
+        if (typeof d.verifiedHostname === 'string' && d.verifiedHostname.trim()) {
+          vh = d.verifiedHostname.trim().toLowerCase()
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    setVerifiedFanHostname(vh)
     setSettings(data.org)
     const themeChoice = normalizeLeagueThemePresetId(
       data.org?.league_theme_preset,
@@ -434,7 +452,7 @@ export default function SettingsPage() {
 
   const planFeatures: Record<string, string[]> = {
     basic: ['50 players max', '1 active season', 'Standard branding', 'Basic roster management'],
-    pro: ['150 players max', '3 concurrent seasons', 'Custom logo & colors', 'Waitlist automation', 'Live scoring table'],
+    pro: ['150 players max', '3 concurrent seasons', 'Custom logo & colors', 'Custom fan domain (DNS)', 'Waitlist automation', 'Live scoring table'],
     enterprise: ['Unlimited players & seasons', 'Full white-label', 'Multi-admin access', 'Native live streaming', 'AI Co-Pilot (Beta)'],
   }
 
@@ -564,6 +582,11 @@ export default function SettingsPage() {
       </div>
     )
   }
+
+  const { fanOrigin, displayHost } = useMemo(() => {
+    const o = publicFanSiteOrigin(verifiedFanHostname)
+    return { fanOrigin: o, displayHost: o.replace(/^https:\/\//, '').replace(/^http:\/\//, '') }
+  }, [verifiedFanHostname])
 
   if (loading) return (
     <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>Loading settings...</div>
@@ -734,15 +757,15 @@ export default function SettingsPage() {
                 style={{ flex: 1, padding: '9px 12px', fontSize: '13px', color: 'var(--text-primary)', background: 'transparent', border: 'none', outline: 'none', fontFamily: 'inherit' }} />
               {(settings?.plan === 'basic' || !identityUi.canEditSlug) && <span style={{ padding: '0 12px', color: 'var(--text-muted)', fontSize: '11px', fontWeight: '700' }}>Locked</span>}
             </div>
-            <button type="button" onClick={() => { navigator.clipboard.writeText(`myleagueportal.com/join/${form.slug}`); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
+            <button type="button" onClick={() => { navigator.clipboard.writeText(`${fanOrigin}/join/${form.slug}`); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
               style={{ marginTop: '6px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', color: 'var(--accent)', fontWeight: '600', padding: 0, display: 'flex', alignItems: 'center', gap: '4px' }}>
               {copied ? 'Copied' : 'Copy registration link'}
             </button>
             <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', lineHeight: 1.45 }}>
-              {settings?.plan === 'basic' ? 'Pro and up: pick your own short link for sign-up.' : `Sign-up and drop-ins: myleagueportal.com/join/${form.slug}`}
+              {settings?.plan === 'basic' ? 'Pro and up: pick your own short link for sign-up.' : `Sign-up and drop-ins: ${displayHost}/join/${form.slug}`}
               <br />
               Public league page (teams, news):{' '}
-              <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>myleagueportal.com/league/{form.slug}</span>
+              <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{displayHost}/league/{form.slug}</span>
             </p>
           </div>
           <div>
@@ -923,6 +946,12 @@ export default function SettingsPage() {
           </button>
         </form>
       </div>
+
+      <CustomDomainPanel
+        plan={settings?.plan || 'basic'}
+        slug={form.slug}
+        onVerifiedHostname={setVerifiedFanHostname}
+      />
 
       {/* Theme */}
       <div className="card" style={{ marginBottom: '16px' }}>
