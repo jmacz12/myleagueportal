@@ -114,7 +114,7 @@ function JerseyPollOverviewCard({
         Jersey number poll
       </div>
       <p style={{ fontSize: '13px', color: preset.body, margin: '8px 0 12px', lineHeight: 1.5 }}>
-        Your coach is collecting <strong>preferred</strong> numbers before ordering jerseys. Find your name—only your row can be edited, and you must be signed in with the same email you used to register for this team.
+        Pick your jersey number while the poll is open. <strong>First save wins</strong>—if someone already took a number, you&apos;ll need another. Use the same email you used to register for this team if you sign in.
       </p>
 
       {!isLoaded ? (
@@ -143,12 +143,7 @@ function JerseyPollOverviewCard({
         </div>
       ) : self.authenticated && !myId ? (
         <p style={{ fontSize: '13px', color: preset.body, margin: '0 0 12px', lineHeight: 1.5 }}>
-          We could not match your account to this roster. Use the <strong>same email</strong> you used for season registration, or ask your organizer to
-          update your player email. You can still use the{' '}
-          <Link href={`/join/${slug}/jersey-poll/${pollId}`} style={{ color: preset.accent, fontWeight: 700 }}>
-            backup form
-          </Link>{' '}
-          with your email.
+          We could not match your signed-in account to this roster. Use the <strong>same email</strong> you used for season registration, or ask your organizer to update your player email so it matches your account.
         </p>
       ) : null}
 
@@ -221,7 +216,9 @@ function JerseyPollOverviewCard({
                     }}
                   />
                 ) : (
-                  <span style={{ fontSize: '13px', color: preset.muted, fontWeight: 600 }}>—</span>
+                  <span style={{ fontSize: '13px', color: preset.muted, fontWeight: 600 }}>
+                    {r.jersey_number != null ? r.jersey_number : '—'}
+                  </span>
                 )}
               </div>
             </div>
@@ -253,17 +250,11 @@ function JerseyPollOverviewCard({
           {err ? (
             <span style={{ fontSize: '12px', color: '#b91c1c', fontWeight: 600 }}>{err}</span>
           ) : (
-            <span style={{ fontSize: '11px', color: preset.muted }}>Final roster numbers are still set by your organizer.</span>
+            <span style={{ fontSize: '11px', color: preset.muted }}>Numbers update the team roster as soon as they save.</span>
           )}
         </div>
       ) : null}
 
-      <p style={{ fontSize: '11px', color: preset.muted, margin: '12px 0 0', lineHeight: 1.45 }}>
-        Backup link (email entry):{' '}
-        <Link href={`/join/${slug}/jersey-poll/${pollId}`} style={{ color: preset.accent, fontWeight: 700 }}>
-          Open form
-        </Link>
-      </p>
     </div>
   )
 }

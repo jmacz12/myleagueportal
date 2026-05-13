@@ -3,7 +3,12 @@
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import { Shirt, Users } from 'lucide-react'
+import { JerseyPollResponsesTable } from '@/components/jersey-poll-responses-table'
 import { JERSEY_POLL_PRO_REQUIRED_MESSAGE } from '@/lib/jersey-poll-tier'
+import {
+  requestCloseJerseyPoll,
+  requestOpenJerseyPoll,
+} from '@/lib/jersey-poll-dashboard-client'
 
 interface Team {
   id: string
@@ -14,20 +19,11 @@ interface Team {
   player_count?: number
 }
 
-interface JerseyPollResponseRow {
-  id: string
-  player_id: string
-  preferred_number: number
-  submitted_at?: string
-  conflict?: boolean
-  player: { full_name: string; email: string | null; team_id?: string | null }
-}
-
 interface JerseyPollRow {
   id: string
   team_id: string
   status: string
-  responses?: JerseyPollResponseRow[]
+  submissions?: Array<{ player_id: string; full_name: string; preferred_number: number | null }>
 }
 
 interface Season {
@@ -167,14 +163,9 @@ export default function TeamsPage() {
     setJerseyActionError('')
     setOpeningJerseyTeamId(teamId)
     try {
-      const res = await fetch('/api/jersey-polls', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ team_id: teamId }),
-      })
-      const j = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        setJerseyActionError(typeof j.error === 'string' ? j.error : 'Could not open poll.')
+      const { ok, json } = await requestOpenJerseyPoll(teamId)
+      if (!ok) {
+        setJerseyActionError(typeof json.error === 'string' ? json.error : 'Could not open poll.')
         return
       }
       await fetchData()
@@ -186,14 +177,9 @@ export default function TeamsPage() {
 
   async function closeJerseyPollFromDashboard(pollId: string) {
     if (!confirm('Close this jersey poll? Players will not be able to submit new picks.')) return
-    const res = await fetch(`/api/jersey-polls/${pollId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'close' }),
-    })
-    const j = await res.json().catch(() => ({}))
-    if (!res.ok) {
-      alert(typeof j.error === 'string' ? j.error : 'Could not close poll.')
+    const { ok, json } = await requestCloseJerseyPoll(pollId)
+    if (!ok) {
+      alert(typeof json.error === 'string' ? json.error : 'Could not close poll.')
       return
     }
     void fetchData()
@@ -560,8 +546,8 @@ export default function TeamsPage() {
                 <div style={{ fontWeight: 800, fontSize: '15px', color: 'var(--text-primary)' }}>Jersey number polls</div>
               </div>
               <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 12px', lineHeight: 1.5 }}>
-                Expand a team to see each player&apos;s preferred number. Open polls from <strong>Start a poll</strong> or the public team page →{' '}
-                <strong>Manage team</strong> → <strong>Logo &amp; poll</strong>.
+                See every roster player, who has picked a number, and who has not. Open polls from <strong>Start a poll</strong> or the public team page →{' '}
+                <strong>Manage team</strong> → <strong>Logo &amp; poll</strong>. First save wins on each number.
               </p>
               {seasonFilterPills ? (
                 <div style={{ marginBottom: '4px' }}>
@@ -712,9 +698,8 @@ export default function TeamsPage() {
                     <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                       {openJerseyPollsInView.map((poll) => {
                         const t = teams.find((x) => x.id === poll.team_id)
-                        const rows = [...(poll.responses || [])].sort((a, b) =>
-                          (a.player?.full_name || '').localeCompare(b.player?.full_name || '', undefined, { sensitivity: 'base' })
-                        )
+                        const rows = poll.submissions || []
+                        const picked = rows.filter((r) => r.preferred_number != null).length
                         return (
                           <li key={poll.id} style={{ listStyle: 'none' }}>
                             <details
@@ -747,7 +732,7 @@ export default function TeamsPage() {
                                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{t?.name || 'Team'}</span>
                                 </span>
                                 <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', flexShrink: 0 }}>
-                                  {rows.length} response{rows.length === 1 ? '' : 's'} · expand for numbers
+                                  {rows.length === 0 ? 'No players on roster' : `${picked}/${rows.length} picked`}
                                 </span>
                               </summary>
                               <div style={{ padding: '0 14px 14px' }}>
@@ -757,25 +742,8 @@ export default function TeamsPage() {
                                       href={`/league/${orgSlug}/teams/${poll.team_id}?manage=1&panel=jersey`}
                                       style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent)' }}
                                     >
-                                      Copy link &amp; tools
+                                      Open team tools
                                     </Link>
-                                  ) : null}
-                                  {orgSlug ? (
-                                    <button
-                                      type="button"
-                                      onClick={async () => {
-                                        const url = `${window.location.origin}/join/${orgSlug}/jersey-poll/${poll.id}`
-                                        try {
-                                          await navigator.clipboard.writeText(url)
-                                        } catch {
-                                          alert(url)
-                                        }
-                                      }}
-                                      className="btn-secondary"
-                                      style={{ fontSize: '11px', padding: '6px 10px' }}
-                                    >
-                                      Copy player link
-                                    </button>
                                   ) : null}
                                   <button
                                     type="button"
@@ -786,60 +754,7 @@ export default function TeamsPage() {
                                     Close poll
                                   </button>
                                 </div>
-                                {rows.length === 0 ? (
-                                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0 }}>No responses yet.</p>
-                                ) : (
-                                  <div style={{ overflowX: 'auto', borderRadius: '8px', border: '0.5px solid var(--border-light)' }}>
-                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-                                      <thead>
-                                        <tr style={{ background: 'var(--bg-surface)', textAlign: 'left', color: 'var(--text-muted)' }}>
-                                          <th style={{ padding: '8px 10px', fontWeight: 700 }}>Player</th>
-                                          <th style={{ padding: '8px 10px', fontWeight: 700 }}>Email</th>
-                                          <th style={{ padding: '8px 10px', fontWeight: 700, textAlign: 'center' }}>#</th>
-                                          <th style={{ padding: '8px 10px', fontWeight: 700 }}>Note</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {rows.map((r) => (
-                                          <tr key={r.id} style={{ borderTop: '0.5px solid var(--border-light)' }}>
-                                            <td style={{ padding: '8px 10px', fontWeight: 600, color: 'var(--text-primary)' }}>
-                                              {r.player?.full_name || '—'}
-                                            </td>
-                                            <td
-                                              style={{
-                                                padding: '8px 10px',
-                                                color: 'var(--text-muted)',
-                                                maxWidth: '200px',
-                                                overflow: 'hidden',
-                                                textOverflow: 'ellipsis',
-                                              }}
-                                              title={r.player?.email || ''}
-                                            >
-                                              {r.player?.email || '—'}
-                                            </td>
-                                            <td
-                                              style={{
-                                                padding: '8px 10px',
-                                                textAlign: 'center',
-                                                fontVariantNumeric: 'tabular-nums',
-                                                fontWeight: 700,
-                                              }}
-                                            >
-                                              {r.preferred_number}
-                                            </td>
-                                            <td style={{ padding: '8px 10px' }}>
-                                              {r.conflict ? (
-                                                <span style={{ color: '#b45309', fontWeight: 700 }}>Conflict</span>
-                                              ) : (
-                                                <span style={{ color: 'var(--text-muted)' }}>—</span>
-                                              )}
-                                            </td>
-                                          </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
-                                  </div>
-                                )}
+                                <JerseyPollResponsesTable variant="dashboard" rows={rows} />
                               </div>
                             </details>
                           </li>

@@ -10,22 +10,10 @@ const supabaseAdmin = createClient(
 )
 
 type PollResponse = {
-  id: string
   player_id: string
   preferred_number: number
   submitted_at: string
-  player: { full_name: string; email: string | null; team_id: string | null }
-}
-
-function markConflicts(responses: PollResponse[]) {
-  const byNum = new Map<number, number>()
-  for (const r of responses) {
-    byNum.set(r.preferred_number, (byNum.get(r.preferred_number) || 0) + 1)
-  }
-  return responses.map((r) => ({
-    ...r,
-    conflict: (byNum.get(r.preferred_number) || 0) > 1,
-  }))
+  player: { full_name: string; team_id: string | null }
 }
 
 export async function GET() {
@@ -62,35 +50,58 @@ export async function GET() {
 
   const { data: rawResponses } = await supabaseAdmin
     .from('jersey_poll_responses')
-    .select(
-      'id, poll_id, player_id, preferred_number, submitted_at, players(full_name, email, team_id)'
-    )
+    .select('poll_id, player_id, preferred_number, submitted_at, players(full_name, team_id)')
     .in('poll_id', pollIds)
 
   const byPoll = new Map<string, PollResponse[]>()
   for (const row of rawResponses || []) {
     const rawPl = row.players as unknown
     const plRow = Array.isArray(rawPl) ? rawPl[0] : rawPl
-    const pl = plRow as { full_name: string; email: string | null; team_id: string | null } | null | undefined
+    const pl = plRow as { full_name: string; team_id: string | null } | null | undefined
     const entry: PollResponse = {
-      id: row.id,
       player_id: row.player_id,
       preferred_number: row.preferred_number,
       submitted_at: row.submitted_at,
-      player: pl ?? { full_name: 'Unknown', email: null, team_id: null },
+      player: pl ?? { full_name: 'Unknown', team_id: null },
     }
     const list = byPoll.get(row.poll_id) || []
     list.push(entry)
     byPoll.set(row.poll_id, list)
   }
 
+  const teamIds = [...new Set((polls || []).map((p) => p.team_id as string))]
+  const playersByTeam = new Map<string, { id: string; full_name: string }[]>()
+
+  if (teamIds.length > 0) {
+    const { data: allPlayers } = await supabaseAdmin
+      .from('players')
+      .select('id, full_name, team_id')
+      .in('team_id', teamIds)
+
+    for (const tp of allPlayers || []) {
+      const tid = tp.team_id as string
+      const row = { id: tp.id as string, full_name: String(tp.full_name || 'Player') }
+      const arr = playersByTeam.get(tid) || []
+      arr.push(row)
+      playersByTeam.set(tid, arr)
+    }
+    for (const arr of playersByTeam.values()) {
+      arr.sort((a, b) => a.full_name.localeCompare(b.full_name, undefined, { sensitivity: 'base' }))
+    }
+  }
+
   const enriched = (polls || []).map((p) => {
-    const list = (byPoll.get(p.id) || []).filter((r) => {
-      return r.player.team_id === p.team_id
-    })
+    const list = (byPoll.get(p.id) || []).filter((r) => r.player.team_id === p.team_id)
+    const prefByPlayer = new Map(list.map((r) => [r.player_id, r.preferred_number]))
+    const teamPlayers = playersByTeam.get(p.team_id as string) || []
+    const submissions = teamPlayers.map((tp) => ({
+      player_id: tp.id,
+      full_name: tp.full_name,
+      preferred_number: prefByPlayer.has(tp.id) ? Number(prefByPlayer.get(tp.id)) : null,
+    }))
     return {
       ...p,
-      responses: markConflicts(list),
+      submissions,
     }
   })
 

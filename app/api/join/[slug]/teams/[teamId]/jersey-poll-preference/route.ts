@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 import { fetchOrganizationForPublicJoin, normalizeJoinSlugParam } from '@/lib/join-public-org'
 import { jerseyPollsEnabledForOrgPlan, JERSEY_POLL_PRO_REQUIRED_MESSAGE } from '@/lib/jersey-poll-tier'
 import { getJerseyPollSelfPayload } from '@/lib/jersey-poll-self'
-import { upsertJerseyPollPlayerResponse } from '@/lib/jersey-poll-response'
+import { submitJerseyPollPreference } from '@/lib/jersey-poll-response'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -89,7 +89,7 @@ export async function POST(
     )
   }
 
-  const result = await upsertJerseyPollPlayerResponse(supabaseAdmin, {
+  const result = await submitJerseyPollPreference(supabaseAdmin, {
     pollId: poll.id,
     playerId: self.player_id,
     preferredNumber: parsed,

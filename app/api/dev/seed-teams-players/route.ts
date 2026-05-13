@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { seedSeasonGamesWithStats } from '@/lib/dev-seed-season-games'
+import { everydayLeagueSiteDemoPayload } from '@/lib/everyday-league-site-demo'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -8,74 +9,6 @@ const supabaseAdmin = createClient(
 )
 
 const SEED_PREFIX = '[SEED]'
-
-/** Rich TEXT / NEWS / media demo — reads like an established Vancouver league. */
-function richDemoLeagueSiteJson() {
-  return {
-    heroBackgroundUrl:
-      'https://images.unsplash.com/photo-1546519638-68e109498ffc?auto=format&fit=crop&w=1920&q=80',
-    heroTagline:
-      'Compete weekly on Vancouver hardwood—rosters, rivalries, and pickup runs in one league home.',
-    heroInitials: 'VV',
-    sections: [
-      {
-        id: 'demo-text-heritage',
-        type: 'text',
-        title: 'Twelve years on the hardwood',
-        body:
-          'Since 2014, Vancouvarites has been the after-work home for players who still hear sneakers squeak in their sleep. We grew from a Tuesday night run at a community gym to a full divisional league with certified officials, digital stats for organizers, and a crowd that knows when to foul tactically and when to let the rookie shoot.\n\nOur mission never changed: competitive basketball that respects jobs, families, and knees. Every season we rebalance divisions, run captains’ meetings, and keep a standing sportsmanship rule — play hard, argue the call once, then sprint back on defense.',
-      },
-      {
-        id: 'demo-news-winter',
-        type: 'news',
-        title: 'Winter 2026 — Power rankings & playoff picture',
-        body:
-          'Power rankings update every Tuesday after scores are locked. Playoff seeds freeze on March 1 — tiebreakers are head-to-head, then point differential within the division. The championship weekend is booked for April 4–5; higher seeds get choice of bench side.\n\nJersey compliance: single-colour tops must match your roster photo by Week 6. Spirit wear is welcome on Fan Night (Feb 14) where we also collect donations for local youth clinics.',
-      },
-      {
-        id: 'demo-text-culture',
-        type: 'text',
-        title: 'How we run game night',
-        body:
-          'Doors open 30 minutes before tip. Captains exchange lineup cards at the scorer’s table; clocks start on the jump regardless of late arrivals. We run 12-minute stop-clock halves with team fouls resetting each half.\n\nSubstitutions are horn-request on dead balls. Overtime is 3 minutes sudden death until a winner is declared — we’ve had triple-OT classics twice in league history, both decided by a corner three you’ll pretend you meant to take.',
-      },
-      {
-        id: 'demo-news-alumni',
-        type: 'news',
-        title: 'Alumni weekend & hall-of-fame banners',
-        body:
-          'Mark your calendar: Alumni Weekend returns March 21–22 with Saturday pickup drafts and a Sunday brunch awards brunch at the east-side courtside cafe. We’ll unveil two new rafter banners — long-time scorer Jamie Okonkwo and organizer-volunteer Priya Nandakumar — plus a surprise highlight reel pulled from years of cell-phone clips.\n\nIf you played in our 2017–2019 era, we still have your grainy footage. Email the league inbox if you want it buried forever.',
-      },
-      {
-        id: 'demo-sec-media',
-        type: 'media',
-        title: 'Around the league',
-        items: [
-          {
-            url: 'https://images.unsplash.com/photo-1519861537823-943991f648fd?auto=format&fit=crop&w=800&q=80',
-            kind: 'image',
-            caption: 'Tip-off energy — Winter ’24 finals',
-          },
-          {
-            url: 'https://images.unsplash.com/photo-1546519638-68e109498ffc?auto=format&fit=crop&w=800&q=80',
-            kind: 'image',
-            caption: 'Packed gym on rivalry night',
-          },
-          {
-            url: 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=800&q=80',
-            kind: 'image',
-            caption: 'Baseline attack vs zone',
-          },
-          {
-            url: 'https://images.unsplash.com/photo-1515523110820-721ae40296e9?auto=format&fit=crop&w=800&q=80',
-            kind: 'image',
-            caption: 'Team huddle — overtime prep',
-          },
-        ],
-      },
-    ],
-  }
-}
 
 const PORTAL_TEAM_NAMES = [
   `${SEED_PREFIX} Kitsilano Knights`,
@@ -102,15 +35,16 @@ const POSITION_SETS = [
   ['Guard', 'Center'],
 ]
 
+/** Stable abstract marks per franchise (256²) — reads clean next to rostered players. */
 const TEAM_LOGO_URLS = [
-  'https://images.unsplash.com/photo-1546519638-68e109498ffc?auto=format&fit=crop&w=256&h=256&q=80',
-  'https://images.unsplash.com/photo-1519861537823-943991f648fd?auto=format&fit=crop&w=256&h=256&q=80',
-  'https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=256&h=256&q=80',
-  'https://images.unsplash.com/photo-1515523110820-721ae40296e9?auto=format&fit=crop&w=256&h=256&q=80',
-  'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&w=256&h=256&q=80',
-  'https://images.unsplash.com/photo-1518091043644-c1d4457512c6?auto=format&fit=crop&w=256&h=256&q=80',
-  'https://images.unsplash.com/photo-1504450758481-7338eba7524a?auto=format&fit=crop&w=256&h=256&q=80',
-  'https://images.unsplash.com/photo-1552667466-07770ae110d0?auto=format&fit=crop&w=256&h=256&q=80',
+  'https://picsum.photos/seed/vvbrand-knights/256/256',
+  'https://picsum.photos/seed/vvbrand-motion/256/256',
+  'https://picsum.photos/seed/vvbrand-forge/256/256',
+  'https://picsum.photos/seed/vvbrand-drive/256/256',
+  'https://picsum.photos/seed/vvbrand-rebels/256/256',
+  'https://picsum.photos/seed/vvbrand-tempo/256/256',
+  'https://picsum.photos/seed/vvbrand-crossover/256/256',
+  'https://picsum.photos/seed/vvbrand-flight/256/256',
 ]
 
 const FIRST_NAMES = [
@@ -317,7 +251,7 @@ export async function POST(req: Request) {
           phone: null,
           jersey_number: 3 + i,
           positions: POSITION_SETS[i % POSITION_SETS.length],
-          avatar_url: `https://api.dicebear.com/8.x/thumbs/svg?seed=${encodeURIComponent(full)}`,
+          avatar_url: `https://i.pravatar.cc/256?u=${encodeURIComponent(full)}`,
           organization_id: org.id,
           season_id: team.season_id,
           team_id: team.id,
@@ -574,9 +508,9 @@ export async function POST(req: Request) {
           name: PORTAL_TEAM_NAMES[t],
           color: PORTAL_TEAM_COLORS[t % PORTAL_TEAM_COLORS.length],
           logo_url: TEAM_LOGO_URLS[t % TEAM_LOGO_URLS.length],
-          stream_url: `https://www.youtube.com/watch?v=dQw4w9WgXcQ&team=${streamSlug}`,
+          stream_url: `https://www.youtube.com/watch?v=M7lc1UVf-VE&team=${streamSlug}`,
           house_rules:
-            'Arrive 20 minutes early for warmup and scorer check-in.\nWear matching tops and reversible backup.\nCall fouls once, then play on.\nBring dark/light jerseys and water every game night.',
+            'Be on time when you can. Bring two jersey colours. Subs on whistles. Help drag out the garbage cans if you’re last game — the staff are cool to us.',
           season_id: seasonId,
           organization_id: org.id,
         })
@@ -603,7 +537,7 @@ export async function POST(req: Request) {
           phone: null,
           jersey_number: 10 + ((playerIdx * 3) % 55),
           positions,
-          avatar_url: `https://api.dicebear.com/8.x/thumbs/svg?seed=${encodeURIComponent(full_name)}`,
+          avatar_url: `https://i.pravatar.cc/256?u=${encodeURIComponent(full_name)}`,
           organization_id: org.id,
           season_id: seasonId,
           team_id: teamsOut[ti].id,
@@ -659,16 +593,16 @@ export async function POST(req: Request) {
           organization_id: org.id,
           team_id: team.id,
           season_id: seasonId,
-          title: `${baseTitle} announce leadership group`,
-          body: `Captains confirmed for ${baseTitle}. Team standards this season: fast transition defense, organized substitutions, and strong bench communication.`,
+          title: `${baseTitle} — practice this week?`,
+          body: `Hey ${baseTitle} folks — we’re trying to grab the small gym **Thursday ~8pm** for a light shootaround. Reply in the thread if you can make it (no pressure). Bring a reversible if you have one.`,
           pinned: true,
         },
         {
           organization_id: org.id,
           team_id: team.id,
           season_id: seasonId,
-          title: `${baseTitle} weekly film review`,
-          body: `Film review runs every Tuesday night after the final game. Focus this month is spacing on half-court sets and late-clock shot selection.`,
+          title: `${baseTitle} — carpool from the SkyTrain?`,
+          body: `Posting this for the people who always ask last minute: two of us drive from **Commercial** most game nights. DM if you want a seat — gas money optional but snacks appreciated.`,
           pinned: false,
         }
       )
@@ -686,7 +620,7 @@ export async function POST(req: Request) {
           ends_at: ends.toISOString(),
           location: 'Vancouver Community Court',
           notes:
-            'Bring both jersey colors. First 20 minutes: mobility + warmup. Last 15 minutes: special situations.',
+            'Optional — bring water. If the side door is locked, text the captain.',
           source: 'manual',
         })
       }
@@ -872,7 +806,7 @@ export async function POST(req: Request) {
 
   let leagueSiteDemo = false
   if (withLeagueSiteDemo) {
-    const payload = richDemoLeagueSiteJson()
+    const payload = everydayLeagueSiteDemoPayload()
     const { error: siteErr } = await supabaseAdmin.from('league_site_content').upsert(
       {
         organization_id: org.id,

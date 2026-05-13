@@ -396,9 +396,7 @@ export default function PlayersPage() {
               Jersey number polls
             </h2>
             <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '0 0 14px', lineHeight: 1.5 }}>
-              <strong>Pro and Enterprise.</strong> A poll lets roster players submit a <strong>preferred jersey number</strong> using the email they
-              registered with. You set the official number on this Players page (only one player per team can have each number). The poll helps you
-              collect preferences before you order jerseys; duplicate picks show as conflicts in <strong>Manage team → Logo &amp; poll</strong>.
+              <strong>Pro and Enterprise.</strong> Open a poll from <strong>Dashboard → Teams</strong>. Players pick on the public team page while signed in; <strong>first save wins</strong> on each number. You see the full roster with who has not picked yet.
             </p>
             {orgPlan === 'basic' ? (
               <p style={{ fontSize: '12px', color: 'var(--text-primary)', margin: '0 0 14px', lineHeight: 1.5, padding: '10px 12px', borderRadius: '8px', background: 'var(--bg-elevated)', border: '0.5px solid var(--border)' }}>

@@ -56,10 +56,11 @@ export async function getJerseyPollSelfPayload(
       .maybeSingle()
 
     const pref = resp?.preferred_number
+    const n = pref != null ? Number(pref) : NaN
     return {
       authenticated: true,
       player_id: player.id,
-      preferred_number: pref != null && pref !== '' ? Number(pref) : null,
+      preferred_number: !Number.isNaN(n) ? n : null,
     }
   } catch {
     return { authenticated: true, player_id: null, preferred_number: null }

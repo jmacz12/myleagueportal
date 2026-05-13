@@ -3,6 +3,11 @@
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ImagePlus, X } from 'lucide-react'
+import { JerseyPollResponsesTable } from '@/components/jersey-poll-responses-table'
+import {
+  requestCloseJerseyPoll,
+  requestOpenJerseyPoll,
+} from '@/lib/jersey-poll-dashboard-client'
 
 interface TeamRow {
   id: string
@@ -23,12 +28,7 @@ interface PollRow {
   id: string
   team_id: string
   status: string
-  responses?: Array<{
-    id: string
-    preferred_number: number
-    conflict?: boolean
-    player: { full_name: string; email: string | null }
-  }>
+  submissions?: Array<{ player_id: string; full_name: string; preferred_number: number | null }>
 }
 
 interface TeamNewsPost {
@@ -295,13 +295,8 @@ export function LeagueTeamManagePanel({
     setBusy(true)
     setError('')
     try {
-      const res = await fetch('/api/jersey-polls', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ team_id: teamId }),
-      })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok) {
+      const { ok, json } = await requestOpenJerseyPoll(teamId)
+      if (!ok) {
         setError(typeof json.error === 'string' ? json.error : 'Could not open poll.')
         return
       }
@@ -339,13 +334,8 @@ export function LeagueTeamManagePanel({
     setBusy(true)
     setError('')
     try {
-      const res = await fetch(`/api/jersey-polls/${pollId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'close' }),
-      })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok) {
+      const { ok, json } = await requestCloseJerseyPoll(pollId)
+      if (!ok) {
         setError(typeof json.error === 'string' ? json.error : 'Could not close poll.')
         return
       }
@@ -742,8 +732,7 @@ export function LeagueTeamManagePanel({
               <strong style={{ display: 'block', marginBottom: '6px', fontSize: '11px', letterSpacing: '0.05em', textTransform: 'uppercase', color: shell.muted }}>
                 How it works
               </strong>
-              Open a poll from <strong>Dashboard → Teams</strong> (this team → <strong>Logo &amp; poll</strong>). Players who are signed in enter a preferred number on the public team page <strong>Overview</strong> tab next to their name (email must match season registration). You review responses here—duplicate picks show as{' '}
-              <strong>Conflict</strong>. When you order jerseys, set each player&apos;s final number under <strong>Dashboard → Players</strong>; only one player per team can wear each number on the roster.
+              Open a poll from <strong>Dashboard → Teams</strong> or here. Players pick a number on this team&apos;s public <strong>Overview</strong> while signed in. <strong>First save wins</strong>—if a number is taken, they pick another.
             </div>
             {!canManageJerseyPoll ? (
               <p style={{ marginTop: '12px', fontSize: '13px', color: shell.muted, lineHeight: 1.5 }}>
@@ -755,31 +744,18 @@ export function LeagueTeamManagePanel({
               </p>
             ) : openPoll ? (
               <div style={{ marginTop: '12px' }}>
-                <div style={{ fontSize: '13px', marginBottom: '10px' }}>
-                  Poll is open. Responses: {openPoll.responses?.length || 0}
+                <div style={{ fontSize: '13px', marginBottom: '10px', fontWeight: 700 }}>
+                  Poll is open
+                  {openPoll.submissions && openPoll.submissions.length > 0
+                    ? ` · ${openPoll.submissions.filter((s) => s.preferred_number != null).length}/${openPoll.submissions.length} picked`
+                    : null}
                 </div>
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  <button
-                    type="button"
-                    disabled={busy || !orgSlug}
-                    style={{
-                      fontSize: '12px',
-                      padding: '7px 12px',
-                      borderRadius: '8px',
-                      border: 'none',
-                      background: variant === 'public' ? '#5a7a2a' : 'var(--btn-primary-bg)',
-                      color: variant === 'public' ? '#fff' : 'var(--btn-primary-text)',
-                      fontWeight: 700,
-                      cursor: busy ? 'wait' : 'pointer',
-                      fontFamily: 'inherit',
-                    }}
-                    onClick={async () => {
-                      const url = `${window.location.origin}/join/${orgSlug}/jersey-poll/${openPoll.id}`
-                      await navigator.clipboard.writeText(url)
-                    }}
-                  >
-                    Copy player poll link
-                  </button>
+                <JerseyPollResponsesTable
+                  variant="managePanel"
+                  shell={{ text: shell.text, muted: shell.muted, border: shell.cardBorder, surface: variant === 'public' ? 'rgba(15,23,42,0.04)' : 'var(--bg-elevated)' }}
+                  rows={openPoll.submissions || []}
+                />
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '12px' }}>
                   <button
                     type="button"
                     disabled={busy}
