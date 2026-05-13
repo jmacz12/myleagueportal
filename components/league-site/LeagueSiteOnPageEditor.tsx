@@ -20,7 +20,6 @@ import {
   Save,
   Send,
   Trash2,
-  X,
 } from 'lucide-react'
 import type { LeagueAppearanceMode, ThemePreset } from '@/lib/leagueTheme'
 import { sanitizeLeagueAppearanceMode } from '@/lib/public-league-branding'
@@ -38,6 +37,10 @@ import type {
   LeagueSiteSection,
   LeagueSiteSectionMediaPlacement,
 } from '@/lib/league-site'
+import {
+  leagueSiteCreativeBodyTypography,
+  leagueSiteCreativeHeadingTypography,
+} from '@/lib/league-site-creative-typography'
 import { PUBLIC_LEAGUE_FONT_OPTIONS } from '@/lib/public-league-fonts'
 import {
   LEAGUE_SITE_MEDIA_PLACEMENT_LABELS,
@@ -48,14 +51,19 @@ import {
   isLeagueSiteHomeSurfaceSection,
   isLeagueSiteNewsSurfaceSection,
   newLeagueSiteContentTextPieceId,
+  sanitizeLeagueSiteHexColor,
   syncContentDerivedFields,
 } from '@/lib/league-site'
 import { countGalleryImages } from '@/lib/league-site-limits'
+import {
+  leagueSiteCreativeStageMinHeightCss,
+  LEAGUE_SITE_CREATIVE_STAGE_MAX_PX,
+  LEAGUE_SITE_CREATIVE_STAGE_MIN_PX,
+} from '@/lib/league-site-creative-canvas'
 import { broadcastLeagueAppearanceUpdated } from '@/lib/league-appearance-sync'
 import { PRO_BRAND_COLOR_CHANGES_PER_MONTH, PRO_BRAND_COLOR_COUNTER_HELPER } from '@/lib/pro-brand-color-limits'
 import { InlineCircularProgress } from '@/components/league-site/InlineCircularProgress'
 import {
-  LEAGUE_SITE_CREATIVE_CANVAS_MIN_HEIGHT,
   LeagueSiteCreativeBlockCanvas,
 } from '@/components/league-site/LeagueSiteCreativeBlockCanvas'
 
@@ -82,6 +90,8 @@ export function LeagueSiteContentSectionFields({
   organizationId,
   updateSection,
   onNavigateToCreativeSurface,
+  posterLayout = false,
+  headingFontFamily,
 }: {
   sec: Extract<LeagueSiteSection, { type: 'content' }>
   value: LeagueSitePayload
@@ -91,6 +101,8 @@ export function LeagueSiteContentSectionFields({
   updateSection: (id: string, fn: (s: LeagueSiteSection) => LeagueSiteSection) => void
   /** When set, choosing Home / News / About also switches the editor to that tab (public league page) or aligns add-block context (dashboard). */
   onNavigateToCreativeSurface?: (surface: LeagueSiteContentSurface) => void
+  posterLayout?: boolean
+  headingFontFamily?: string
 }) {
   const MAX_TEXT_PIECES_LOCAL = 24
 
@@ -118,6 +130,17 @@ export function LeagueSiteContentSectionFields({
     return s.textPieces.length > 0 ? s.textPieces : migrateLegacy(s)
   }
 
+  function hexForColorWell(stored: string | null | undefined, fallback: string): string {
+    const s = sanitizeLeagueSiteHexColor(stored) ?? sanitizeLeagueSiteHexColor(fallback)
+    if (!s) return '#333333'
+    if (s.length === 9 && s.startsWith('#')) return s.slice(0, 7).toLowerCase()
+    if (s.length === 4 && s.startsWith('#')) {
+      const [, r, g, b] = s
+      return `#${r}${r}${g}${g}${b}${b}`.toLowerCase()
+    }
+    return s.toLowerCase()
+  }
+
   function addPiece(role: 'heading' | 'paragraph') {
     updateSection(sec.id, (s) => {
       if (s.type !== 'content') return s
@@ -136,6 +159,54 @@ export function LeagueSiteContentSectionFields({
   const remainingSlots = Math.max(0, maxGalleryImages - galleryTotal)
   const canAddImage = !!sec.image || remainingSlots > 0
   const img = sec.image
+
+  const stageMinHeightCss = useMemo(
+    () => leagueSiteCreativeStageMinHeightCss(sec.creativeStageMinPx, !!img),
+    [sec.creativeStageMinPx, img]
+  )
+
+  const creativeStageInnerRef = useRef<HTMLDivElement>(null)
+
+  function beginCreativeStageHeightDrag(e: ReactPointerEvent<HTMLButtonElement>) {
+    if (!img) return
+    e.preventDefault()
+    e.stopPropagation()
+    const rect = creativeStageInnerRef.current?.getBoundingClientRect()
+    const measured = rect && rect.height > 0 ? Math.round(rect.height) : 420
+    const startPx = typeof sec.creativeStageMinPx === 'number' ? sec.creativeStageMinPx : measured
+    const startY = e.clientY
+    const pid = e.pointerId
+    const captureEl = e.currentTarget
+
+    function onMove(ev: PointerEvent) {
+      if (ev.pointerId !== pid) return
+      const dy = ev.clientY - startY
+      const raw = startPx + dy
+      const next = Math.round(
+        Math.max(LEAGUE_SITE_CREATIVE_STAGE_MIN_PX, Math.min(LEAGUE_SITE_CREATIVE_STAGE_MAX_PX, raw))
+      )
+      updateSection(sec.id, (s) => (s.type === 'content' ? { ...s, creativeStageMinPx: next } : s))
+    }
+    function onUp(ev: PointerEvent) {
+      if (ev.pointerId !== pid) return
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onUp)
+      try {
+        captureEl.releasePointerCapture(pid)
+      } catch {
+        /* ignore */
+      }
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onUp)
+    try {
+      captureEl.setPointerCapture(pid)
+    } catch {
+      /* ignore */
+    }
+  }
 
   async function onImageFile(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -263,67 +334,197 @@ export function LeagueSiteContentSectionFields({
       <p style={{ fontSize: '11px', color: preset.muted, margin: '0 0 10px', lineHeight: 1.45 }}>
         Build the block visually: image behind (layer 1), text in front (layer 2). Drag the photo to pan, use edge handles to
         resize, corner to rotate, scroll to zoom. Drag text to position; it snaps to center and edges (green guides). Click
-        text to type; click away to finish. Add header or body with the buttons below.
+        text to type; click away to finish. Add header or body with the buttons above.
       </p>
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
+        <button
+          type="button"
+          onClick={() => addPiece('heading')}
+          disabled={piecesForUi.length >= MAX_TEXT_PIECES_LOCAL}
+          style={{
+            fontSize: '12px',
+            fontWeight: 800,
+            padding: '8px 12px',
+            borderRadius: '10px',
+            border: `1px solid ${preset.accent}`,
+            background: preset.accentSoftBg,
+            color: preset.heading,
+            cursor: piecesForUi.length >= MAX_TEXT_PIECES_LOCAL ? 'not-allowed' : 'pointer',
+            opacity: piecesForUi.length >= MAX_TEXT_PIECES_LOCAL ? 0.55 : 1,
+          }}
+        >
+          Add header
+        </button>
+        <button
+          type="button"
+          onClick={() => addPiece('paragraph')}
+          disabled={piecesForUi.length >= MAX_TEXT_PIECES_LOCAL}
+          style={{
+            fontSize: '12px',
+            fontWeight: 800,
+            padding: '8px 12px',
+            borderRadius: '10px',
+            border: `1px solid ${preset.surfaceBorder}`,
+            background: preset.pageBg,
+            color: preset.heading,
+            cursor: piecesForUi.length >= MAX_TEXT_PIECES_LOCAL ? 'not-allowed' : 'pointer',
+            opacity: piecesForUi.length >= MAX_TEXT_PIECES_LOCAL ? 0.55 : 1,
+          }}
+        >
+          Add text
+        </button>
+      </div>
+      {piecesForUi.length === 0 ? (
+        <p style={{ fontSize: '13px', color: preset.muted, margin: '0 0 12px', lineHeight: 1.5 }}>
+          Add a header or text block, then drag it on the canvas.
+        </p>
+      ) : null}
 
       <div
         style={{
           position: 'relative',
-          overflow: 'hidden',
-          borderRadius: '18px',
+          overflow: 'visible',
+          borderRadius: posterLayout ? '16px' : '18px',
           border: `2px dashed ${preset.accentMutedBg}`,
           background: preset.surfaceBg,
           boxShadow: '0 10px 32px -20px rgba(0,0,0,0.35)',
-          padding: '24px',
-          minHeight: img
-            ? `calc(120px + ${LEAGUE_SITE_CREATIVE_CANVAS_MIN_HEIGHT})`
-            : '240px',
+          /* Match public `LeagueSiteSectionBlock` content padding so % positions match the live block. */
+          padding: posterLayout ? '20px 22px 22px' : '24px 24px 26px',
         }}
       >
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '16px' }}>
+        <div ref={creativeStageInnerRef} style={{ position: 'relative', overflow: 'hidden', borderRadius: '14px' }}>
+          <LeagueSiteCreativeBlockCanvas
+            sec={sec}
+            preset={preset}
+            updateSection={updateSection}
+            pieces={piecesForUi}
+            posterLayout={posterLayout}
+            headingFontFamily={headingFontFamily}
+            stageMinHeightCss={stageMinHeightCss}
+          />
+        </div>
+        {img ? (
           <button
             type="button"
-            onClick={() => addPiece('heading')}
-            disabled={piecesForUi.length >= MAX_TEXT_PIECES_LOCAL}
+            aria-label="Drag up or down to make the creative canvas shorter or taller"
+            title="Resize canvas height"
+            onPointerDown={beginCreativeStageHeightDrag}
             style={{
-              fontSize: '12px',
-              fontWeight: 800,
-              padding: '8px 12px',
-              borderRadius: '10px',
-              border: `1px solid ${preset.accent}`,
-              background: preset.accentSoftBg,
-              color: preset.heading,
-              cursor: piecesForUi.length >= MAX_TEXT_PIECES_LOCAL ? 'not-allowed' : 'pointer',
-              opacity: piecesForUi.length >= MAX_TEXT_PIECES_LOCAL ? 0.55 : 1,
-            }}
-          >
-            Add header
-          </button>
-          <button
-            type="button"
-            onClick={() => addPiece('paragraph')}
-            disabled={piecesForUi.length >= MAX_TEXT_PIECES_LOCAL}
-            style={{
-              fontSize: '12px',
-              fontWeight: 800,
-              padding: '8px 12px',
-              borderRadius: '10px',
+              position: 'absolute',
+              left: '50%',
+              bottom: -14,
+              transform: 'translateX(-50%)',
+              width: 44,
+              height: 22,
+              borderRadius: '999px',
               border: `1px solid ${preset.surfaceBorder}`,
               background: preset.pageBg,
+              boxShadow: '0 4px 12px -4px rgba(0,0,0,0.25)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 0,
+              cursor: 'ns-resize',
               color: preset.heading,
-              cursor: piecesForUi.length >= MAX_TEXT_PIECES_LOCAL ? 'not-allowed' : 'pointer',
-              opacity: piecesForUi.length >= MAX_TEXT_PIECES_LOCAL ? 0.55 : 1,
+              zIndex: 20,
+              touchAction: 'none',
             }}
           >
-            Add text
+            <ChevronDown size={15} aria-hidden />
+          </button>
+        ) : null}
+      </div>
+      {img ? (
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '8px',
+            marginTop: '18px',
+          }}
+        >
+          <p style={{ fontSize: '11px', color: preset.muted, margin: 0, lineHeight: 1.45, maxWidth: '420px' }}>
+            Drag the pill handle on the bottom edge of the dashed frame to change canvas height. This matches the live block
+            and is saved when you save the draft or publish.
+          </p>
+          {typeof sec.creativeStageMinPx === 'number' ? (
+            <button
+              type="button"
+              onClick={() =>
+                updateSection(sec.id, (s) => {
+                  if (s.type !== 'content') return s
+                  const next = { ...s }
+                  delete next.creativeStageMinPx
+                  return next
+                })
+              }
+              style={{
+                fontSize: '12px',
+                fontWeight: 700,
+                padding: '6px 10px',
+                borderRadius: '8px',
+                border: `1px solid ${preset.surfaceBorder}`,
+                background: preset.pageBg,
+                color: preset.heading,
+                cursor: 'pointer',
+              }}
+            >
+              Reset canvas height (auto)
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div style={{ marginTop: '18px' }}>
+        <p style={{ fontSize: '12px', fontWeight: 800, margin: '0 0 6px', color: preset.heading }}>Text color</p>
+        <p style={{ fontSize: '11px', color: preset.muted, margin: '0 0 10px', lineHeight: 1.45 }}>
+          One color for every heading and paragraph in this block—helpful on a dark photo. Leave unset to use the league
+          theme (headings and body text can still use different theme colors).
+        </p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
+          <input
+            type="color"
+            aria-label="Text color for this block"
+            value={hexForColorWell(sec.textColor ?? null, preset.heading)}
+            onChange={(e) => {
+              const v = sanitizeLeagueSiteHexColor(e.target.value)
+              updateSection(sec.id, (s) => {
+                if (s.type !== 'content') return s
+                if (!v) {
+                  const { textColor: _t, ...rest } = s
+                  return rest as typeof s
+                }
+                return { ...s, textColor: v }
+              })
+            }}
+            style={{ width: 44, height: 36, padding: 0, border: 'none', cursor: 'pointer', background: 'transparent' }}
+          />
+          <button
+            type="button"
+            onClick={() =>
+              updateSection(sec.id, (s) => {
+                if (s.type !== 'content') return s
+                const { textColor: _t, ...rest } = s
+                return rest as typeof s
+              })
+            }
+            style={{
+              fontSize: '12px',
+              fontWeight: 700,
+              border: `1px solid ${preset.surfaceBorder}`,
+              background: preset.pageBg,
+              borderRadius: '8px',
+              padding: '8px 12px',
+              cursor: 'pointer',
+              color: preset.heading,
+            }}
+          >
+            Use league theme
           </button>
         </div>
-        {piecesForUi.length === 0 ? (
-          <p style={{ fontSize: '13px', color: preset.muted, margin: '0 0 12px', lineHeight: 1.5 }}>
-            Add a header or text block, then drag it on the canvas.
-          </p>
-        ) : null}
-        <LeagueSiteCreativeBlockCanvas sec={sec} preset={preset} updateSection={updateSection} pieces={piecesForUi} />
       </div>
     </>
   )
@@ -388,7 +589,6 @@ export function LeagueSiteStickyEditBar({
   publishing,
   onSaveDraft,
   onPublish,
-  doneHref,
   statusMessage,
   errorMessage,
   websiteLockedForPlan,
@@ -399,7 +599,6 @@ export function LeagueSiteStickyEditBar({
   publishing: boolean
   onSaveDraft: () => void
   onPublish: () => void
-  doneHref: string
   statusMessage: string
   errorMessage: string
   /** Basic plan: draft/publish disabled — league website is a Pro+ feature */
@@ -480,23 +679,6 @@ export function LeagueSiteStickyEditBar({
             {publishing ? <Loader2 size={16} className="animate-spin" aria-hidden /> : <Send size={16} aria-hidden />}{' '}
             {publishing ? 'Publishing…' : 'Publish'}
           </button>
-          <Link
-            href={doneHref}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '4px',
-              padding: '8px 12px',
-              borderRadius: '10px',
-              fontWeight: 700,
-              fontSize: '13px',
-              color: preset.body,
-              textDecoration: 'none',
-              border: `1px solid ${preset.surfaceBorder}`,
-            }}
-          >
-            <X size={16} /> Done
-          </Link>
         </div>
       </div>
       {statusMessage ? (
@@ -1112,6 +1294,8 @@ export function LeagueSiteSectionsEditor({
   subsetMode = 'all',
   onSectionAdded,
   onNavigateToCreativeSurface,
+  posterLayout = false,
+  headingFontFamily,
 }: {
   value: LeagueSitePayload
   onChange: (next: LeagueSitePayload) => void
@@ -1127,6 +1311,8 @@ export function LeagueSiteSectionsEditor({
   onSectionAdded?: (info: { id: string; surface: LeagueSiteContentSurface }) => void
   /** Sync editor tab when changing a block's Home / News / About placement (see `LeagueSiteContentSectionFields`). */
   onNavigateToCreativeSurface?: (surface: LeagueSiteContentSurface) => void
+  posterLayout?: boolean
+  headingFontFamily?: string
 }) {
   const [nextCreativeSurface, setNextCreativeSurface] = useState<LeagueSiteContentSurface>('about')
   const subsetIndices =
@@ -1366,6 +1552,8 @@ export function LeagueSiteSectionsEditor({
               organizationId={organizationId}
               updateSection={updateSection}
               onNavigateToCreativeSurface={onNavigateToCreativeSurface}
+              posterLayout={posterLayout}
+              headingFontFamily={headingFontFamily}
             />
           ) : sec.type === 'media' ? (
             <>

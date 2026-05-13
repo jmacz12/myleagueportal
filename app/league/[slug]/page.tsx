@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 import NewsBanner from '@/components/NewsBanner'
 import { MediaGalleryPublic } from '@/components/league-site/MediaGalleryPublic'
+import { leagueSiteCreativeStageMinHeightCss } from '@/lib/league-site-creative-canvas'
 import { LeagueNotFoundOrganizerHint } from '@/components/LeagueNotFoundOrganizerHint'
 import { PublicLeagueHeroBand } from '@/components/league-site/PublicLeagueHeroBand'
 import type { LeagueAppearanceMode } from '@/lib/leagueTheme'
@@ -48,7 +49,12 @@ import {
   isLeagueSiteAboutTabSection,
   isLeagueSiteHomeSurfaceSection,
   isLeagueSiteNewsSurfaceSection,
+  resolveLeagueSiteContentBlockTextColor,
 } from '@/lib/league-site'
+import {
+  leagueSiteCreativeBodyTypography,
+  leagueSiteCreativeHeadingTypography,
+} from '@/lib/league-site-creative-typography'
 import { subscribeLeagueAppearanceUpdated } from '@/lib/league-appearance-sync'
 import {
   googleFontStylesheetHref,
@@ -311,10 +317,35 @@ function LeagueSiteSectionBlock({
   if (section.type === 'content') {
     const img = section.image
     const sidePad = posterLayout ? '20px 22px 22px' : '24px 24px 26px'
-    const minH =
-      img != null
-        ? `min(${Math.min(Math.round(img.maxHeightPx * Math.min(img.scale, 2.5) + 56), 680)}px, 92vw)`
-        : undefined
+    const creativeStageMinH = leagueSiteCreativeStageMinHeightCss(section.creativeStageMinPx, !!img)
+
+    const textPiecesUi =
+      section.textPieces.length > 0
+        ? section.textPieces
+        : [
+            ...(section.title.trim()
+              ? [
+                  {
+                    id: `${section.id}-fallback-h`,
+                    role: 'heading' as const,
+                    text: section.title,
+                    xPct: 50,
+                    yPct: 22,
+                  },
+                ]
+              : []),
+            ...(section.body.trim()
+              ? [
+                  {
+                    id: `${section.id}-fallback-p`,
+                    role: 'paragraph' as const,
+                    text: section.body,
+                    xPct: 50,
+                    yPct: 46,
+                  },
+                ]
+              : []),
+          ]
 
     return (
       <section
@@ -332,90 +363,61 @@ function LeagueSiteSectionBlock({
         }}
       >
         {rail}
-        <div
-          style={{
-            position: 'relative',
-            padding: sidePad,
-            overflow: 'hidden',
-            minHeight: minH,
-          }}
-        >
-          {img ? (
-            <div
-              aria-hidden
-              style={{
-                position: 'absolute',
-                left: `calc(50% + ${img.offsetX}%)`,
-                top: `calc(45% + ${img.offsetY}%)`,
-                width: `${img.widthPct}%`,
-                maxWidth: '130%',
-                transform: `translate(-50%, -50%) rotate(${img.rotateDeg}deg) scale(${img.scale})`,
-                transformOrigin: 'center center',
-                zIndex: 1,
-                pointerEvents: 'none',
-              }}
-            >
-              <div
-                style={{
-                  width: '100%',
-                  height: img.maxHeightPx,
-                  overflow: 'hidden',
-                  borderRadius: img.borderRadiusPx,
-                  margin: '0 auto',
-                }}
-              >
-                <img
-                  src={img.url}
-                  alt=""
-                  style={{
-                    display: 'block',
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'cover',
-                    objectPosition: `${img.objectPositionX}% ${img.objectPositionY}%`,
-                  }}
-                />
-              </div>
-            </div>
-          ) : null}
+        <div style={{ padding: sidePad }}>
           <div
             style={{
               position: 'relative',
-              zIndex: 2,
-              minHeight: img ? 'min(200px, 40vw)' : undefined,
+              overflow: 'hidden',
+              borderRadius: '14px',
+              minHeight: creativeStageMinH,
             }}
           >
-            {(section.textPieces.length > 0
-              ? section.textPieces
-              : [
-                  ...(section.title.trim()
-                    ? [
-                        {
-                          id: `${section.id}-fallback-h`,
-                          role: 'heading' as const,
-                          text: section.title,
-                          xPct: 50,
-                          yPct: 22,
-                        },
-                      ]
-                    : []),
-                  ...(section.body.trim()
-                    ? [
-                        {
-                          id: `${section.id}-fallback-p`,
-                          role: 'paragraph' as const,
-                          text: section.body,
-                          xPct: 50,
-                          yPct: 46,
-                        },
-                      ]
-                    : []),
-                ]
-            )
+            {img ? (
+              <div
+                aria-hidden
+                style={{
+                  position: 'absolute',
+                  left: `calc(50% + ${img.offsetX}%)`,
+                  top: `calc(45% + ${img.offsetY}%)`,
+                  width: `${img.widthPct}%`,
+                  maxWidth: '130%',
+                  transform: `translate(-50%, -50%) rotate(${img.rotateDeg}deg) scale(${img.scale})`,
+                  transformOrigin: 'center center',
+                  zIndex: 1,
+                  pointerEvents: 'none',
+                }}
+              >
+                <div
+                  style={{
+                    width: '100%',
+                    height: img.maxHeightPx,
+                    overflow: 'hidden',
+                    borderRadius: img.borderRadiusPx,
+                    margin: '0 auto',
+                  }}
+                >
+                  <img
+                    src={img.url}
+                    alt=""
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      objectPosition: `${img.objectPositionX}% ${img.objectPositionY}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            ) : null}
+            {textPiecesUi
               .filter((p) => p.text.trim())
               .map((p, idx) => {
                 const xPct = 'xPct' in p && typeof p.xPct === 'number' ? p.xPct : 50
                 const yPct = 'yPct' in p && typeof p.yPct === 'number' ? p.yPct : 14 + idx * 18
+                const fg = resolveLeagueSiteContentBlockTextColor(section, preset, p.role)
+                const headTypo = leagueSiteCreativeHeadingTypography(!!posterLayout, headingFontFamily)
+                const bodyTypo = leagueSiteCreativeBodyTypography()
                 const wrapStyle: CSSProperties = {
                   position: 'absolute',
                   left: `${xPct}%`,
@@ -423,22 +425,24 @@ function LeagueSiteSectionBlock({
                   transform: 'translate(-50%, -50%)',
                   maxWidth: 'min(92%, 540px)',
                   width: 'max-content',
+                  zIndex: 2,
                 }
                 return p.role === 'heading' ? (
                   <h2
                     key={p.id}
                     style={{
-                      ...h2Style,
+                      ...headTypo,
                       ...wrapStyle,
                       margin: 0,
                       textAlign: 'left',
+                      color: fg,
                     }}
                   >
                     {p.text}
                   </h2>
                 ) : (
                   <div key={p.id} style={{ ...wrapStyle, margin: 0 }}>
-                    {bodyText(p.text)}
+                    <div style={{ ...bodyTypo, color: fg }}>{p.text}</div>
                   </div>
                 )
               })}
@@ -1060,6 +1064,20 @@ function LeagueHomeContent() {
     [pathname, router, searchParams]
   )
 
+  const exitEditMode = useCallback(() => {
+    const paramsNext = new URLSearchParams(searchParams.toString())
+    paramsNext.delete('edit')
+    const q = paramsNext.toString()
+    router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false })
+  }, [pathname, router, searchParams])
+
+  /** Preserve tab (and other query params) when opening edit mode or returning from sign-in. */
+  const leaguePathWithEditQuery = useMemo(() => {
+    const p = new URLSearchParams(searchParams.toString())
+    p.set('edit', '1')
+    return `/league/${slug}?${p.toString()}`
+  }, [slug, searchParams])
+
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
   const [hub, setHub] = useState<HubResponse | null>(null)
@@ -1627,6 +1645,8 @@ function LeagueHomeContent() {
       }
       setDraftSite(data.draft ?? draftSite)
       setEditorMessage('Draft saved.')
+      setEditorError('')
+      exitEditMode()
     } finally {
       setSaving(false)
     }
@@ -1652,6 +1672,8 @@ function LeagueHomeContent() {
       setDraftSite(data.draft ?? draftSite)
       setHub((h) => (h && data.published ? { ...h, leagueSite: data.published } : h))
       setEditorMessage('Published — visitors now see this version.')
+      setEditorError('')
+      exitEditMode()
     } finally {
       setPublishing(false)
     }
@@ -1674,7 +1696,7 @@ function LeagueHomeContent() {
         >
           Sign in as a league organizer or website editor to edit this page.{' '}
           <Link
-            href={`/sign-in?redirect_url=${encodeURIComponent(`/league/${slug}?edit=1`)}`}
+            href={`/sign-in?redirect_url=${encodeURIComponent(leaguePathWithEditQuery)}`}
             style={{ fontWeight: 800, color: preset.accent }}
           >
             Sign in
@@ -1719,7 +1741,7 @@ function LeagueHomeContent() {
           }}
         >
           Could not load your draft.{' '}
-          <Link href={`/sign-in?redirect_url=${encodeURIComponent(`/league/${slug}?edit=1`)}`} style={{ fontWeight: 800, color: preset.accent }}>
+          <Link href={`/sign-in?redirect_url=${encodeURIComponent(leaguePathWithEditQuery)}`} style={{ fontWeight: 800, color: preset.accent }}>
             Sign in
           </Link>{' '}
           or open{' '}
@@ -1738,7 +1760,6 @@ function LeagueHomeContent() {
             publishing={publishing}
             onSaveDraft={saveDraftOnPage}
             onPublish={publishOnPage}
-            doneHref={`/league/${slug}`}
             statusMessage={editorMessage}
             errorMessage={editorError}
             websiteLockedForPlan={websiteLockedForPlan}
@@ -2268,6 +2289,8 @@ function LeagueHomeContent() {
                 subsetMode="home"
                 onSectionAdded={handleDraftSectionCreated}
                 onNavigateToCreativeSurface={(surf) => setLeagueTab(leaguePublicTabForCreativeSurface(surf))}
+                posterLayout={portalOriginalLayout}
+                headingFontFamily={portalOriginalLayout ? publicHeadingFontStack : undefined}
               />
             ) : homeSections.length > 0 ? (
               <LeagueSiteSections
@@ -2791,6 +2814,8 @@ function LeagueHomeContent() {
                 subsetMode="news"
                 onSectionAdded={handleDraftSectionCreated}
                 onNavigateToCreativeSurface={(surf) => setLeagueTab(leaguePublicTabForCreativeSurface(surf))}
+                posterLayout={portalOriginalLayout}
+                headingFontFamily={portalOriginalLayout ? publicHeadingFontStack : undefined}
               />
             ) : newsSections.length > 0 ? (
               <LeagueSiteSections
@@ -3137,6 +3162,8 @@ function LeagueHomeContent() {
                 subsetMode="about"
                 onSectionAdded={handleDraftSectionCreated}
                 onNavigateToCreativeSurface={(surf) => setLeagueTab(leaguePublicTabForCreativeSurface(surf))}
+                posterLayout={portalOriginalLayout}
+                headingFontFamily={portalOriginalLayout ? publicHeadingFontStack : undefined}
               />
             ) : aboutSections.length > 0 ? (
               <LeagueSiteSections
@@ -3206,7 +3233,7 @@ function LeagueHomeContent() {
 
       {canManageSite && !editMode && accessResolved ? (
         <Link
-          href={`/league/${slug}?edit=1`}
+          href={leaguePathWithEditQuery}
           style={{
             position: 'fixed',
             bottom: '22px',

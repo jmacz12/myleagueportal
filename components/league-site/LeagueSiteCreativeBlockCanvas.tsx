@@ -24,17 +24,16 @@ import type {
 } from '@/lib/league-site'
 import {
   defaultLeagueSiteContentTextPieceLayout,
+  resolveLeagueSiteContentBlockTextColor,
   syncContentDerivedFields,
 } from '@/lib/league-site'
+import {
+  leagueSiteCreativeBodyTypography,
+  leagueSiteCreativeHeadingTypography,
+} from '@/lib/league-site-creative-typography'
 
 const SNAP_TOLERANCE_PX = 5
 const SNAP_GUIDE_GREEN = '#556b3f'
-
-/**
- * Editor canvas min height must NOT use `image.maxHeightPx` — that field is the photo crop cap and
- * changes when dragging the vertical edge handles; tying it to the container made the whole block jump.
- */
-export const LEAGUE_SITE_CREATIVE_CANVAS_MIN_HEIGHT = 'min(520px, max(300px, 40vh))' as const
 
 function clampNum(n: number, lo: number, hi: number): number {
   if (!Number.isFinite(n)) return lo
@@ -55,9 +54,23 @@ type Props = {
   preset: ThemePreset
   updateSection: (id: string, fn: (s: LeagueSiteSection) => LeagueSiteSection) => void
   pieces: LeagueSiteContentTextPiece[]
+  /** Match public `LeagueSiteSections` / `LeagueSiteSectionBlock` (portal poster vs default). */
+  posterLayout?: boolean
+  /** Optional heading stack (e.g. portal original) — must match public preview. */
+  headingFontFamily?: string
+  /** Resolved CSS `min-height` for the creative stage (must match public block). */
+  stageMinHeightCss: string
 }
 
-export function LeagueSiteCreativeBlockCanvas({ sec, preset, updateSection, pieces }: Props) {
+export function LeagueSiteCreativeBlockCanvas({
+  sec,
+  preset,
+  updateSection,
+  pieces,
+  posterLayout = false,
+  headingFontFamily,
+  stageMinHeightCss,
+}: Props) {
   const canvasRef = useRef<HTMLDivElement>(null)
   const photoFrameRef = useRef<HTMLDivElement>(null)
   const img = sec.image
@@ -115,7 +128,7 @@ export function LeagueSiteCreativeBlockCanvas({ sec, preset, updateSection, piec
       }
     : undefined
 
-  const canvasMinH = img ? LEAGUE_SITE_CREATIVE_CANVAS_MIN_HEIGHT : '260px'
+  const canvasMinH = img ? stageMinHeightCss : '260px'
 
   const patchImage = useCallback(
     (fn: (im: LeagueSiteContentImage) => LeagueSiteContentImage) => {
@@ -626,6 +639,9 @@ export function LeagueSiteCreativeBlockCanvas({ sec, preset, updateSection, piec
       {pieces.map((p) => {
         const isEditing = editingPieceId === p.id
         const isSel = selectedPieceId === p.id
+        const fg = resolveLeagueSiteContentBlockTextColor(sec, preset, p.role)
+        const headTypo = leagueSiteCreativeHeadingTypography(posterLayout, headingFontFamily)
+        const bodyTypo = leagueSiteCreativeBodyTypography()
         return (
           <div
             key={p.id}
@@ -635,7 +651,7 @@ export function LeagueSiteCreativeBlockCanvas({ sec, preset, updateSection, piec
               top: `${p.yPct}%`,
               transform: 'translate(-50%, -50%)',
               zIndex: 2,
-              maxWidth: 'min(92%, 520px)',
+              maxWidth: 'min(92%, 540px)',
               width: 'max-content',
               minWidth: 'min(92vw, 280px)',
               pointerEvents: 'none',
@@ -648,13 +664,12 @@ export function LeagueSiteCreativeBlockCanvas({ sec, preset, updateSection, piec
               onPointerCancel={onTextPointerUp}
               style={{
                 position: 'relative',
-                padding: '8px 10px',
-                borderRadius: '12px',
-                outline: isSel || isEditing ? `2px solid ${preset.accent}` : 'none',
-                background:
-                  isEditing || isSel ? `${preset.accentSoftBg}` : 'transparent',
+                padding: 0,
+                borderRadius: 0,
+                outline: 'none',
+                background: 'transparent',
+                boxShadow: 'none',
                 cursor: isEditing ? 'text' : photoDragging ? 'default' : 'grab',
-                boxShadow: isSel && !isEditing ? `0 0 0 1px ${preset.accentMutedBg}` : undefined,
                 pointerEvents: 'auto',
               }}
             >
@@ -673,10 +688,9 @@ export function LeagueSiteCreativeBlockCanvas({ sec, preset, updateSection, piec
                       border: 'none',
                       outline: 'none',
                       background: 'transparent',
-                      fontSize: 'clamp(18px, 2.2vw, 22px)',
-                      fontWeight: 900,
-                      color: preset.heading,
-                      fontFamily: 'inherit',
+                      ...headTypo,
+                      color: fg,
+                      margin: 0,
                     }}
                   />
                 ) : (
@@ -694,9 +708,8 @@ export function LeagueSiteCreativeBlockCanvas({ sec, preset, updateSection, piec
                       outline: 'none',
                       resize: 'vertical',
                       background: 'transparent',
-                      fontSize: '14px',
-                      color: preset.body,
-                      lineHeight: 1.65,
+                      ...bodyTypo,
+                      color: fg,
                       fontFamily: 'inherit',
                     }}
                   />
@@ -711,10 +724,8 @@ export function LeagueSiteCreativeBlockCanvas({ sec, preset, updateSection, piec
                   {p.role === 'heading' ? (
                     <div
                       style={{
-                        fontSize: 'clamp(18px, 2.2vw, 22px)',
-                        fontWeight: 900,
-                        color: preset.heading,
-                        letterSpacing: '-0.02em',
+                        ...headTypo,
+                        color: fg,
                       }}
                     >
                       {p.text || (
@@ -724,10 +735,8 @@ export function LeagueSiteCreativeBlockCanvas({ sec, preset, updateSection, piec
                   ) : (
                     <div
                       style={{
-                        fontSize: '14px',
-                        color: preset.body,
-                        lineHeight: 1.65,
-                        whiteSpace: 'pre-wrap',
+                        ...bodyTypo,
+                        color: fg,
                       }}
                     >
                       {p.text || (
@@ -740,7 +749,7 @@ export function LeagueSiteCreativeBlockCanvas({ sec, preset, updateSection, piec
               {!isEditing ? (
                 <button
                   type="button"
-                  aria-label="Remove block"
+                  aria-label="Remove text layer"
                   onPointerDown={(e) => e.stopPropagation()}
                   onClick={(e) => {
                     e.stopPropagation()
@@ -748,21 +757,22 @@ export function LeagueSiteCreativeBlockCanvas({ sec, preset, updateSection, piec
                   }}
                   style={{
                     position: 'absolute',
-                    top: -8,
-                    right: -8,
+                    top: -6,
+                    right: -6,
                     width: 26,
                     height: 26,
                     borderRadius: '999px',
-                    border: `1px solid ${preset.surfaceBorder}`,
-                    background: preset.pageBg,
+                    border: 'none',
+                    background: 'rgba(0,0,0,0.45)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     cursor: 'pointer',
                     padding: 0,
-                    color: '#b91c1c',
+                    color: '#fafafa',
                     pointerEvents: 'auto',
                     zIndex: 3,
+                    opacity: isSel ? 1 : 0.55,
                   }}
                 >
                   <Trash2 size={13} aria-hidden />

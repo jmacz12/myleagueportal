@@ -1,4 +1,8 @@
 import { sanitizePublicFontKey } from '@/lib/public-league-fonts'
+import {
+  LEAGUE_SITE_CREATIVE_STAGE_MAX_PX,
+  LEAGUE_SITE_CREATIVE_STAGE_MIN_PX,
+} from '@/lib/league-site-creative-canvas'
 
 export type LeagueSiteMediaItem = {
   url: string
@@ -75,6 +79,10 @@ export type LeagueSiteSection =
       body: string
       image: LeagueSiteContentImage | null
       textPieces: LeagueSiteContentTextPiece[]
+      /** One hex for all text in this block. Unset uses league theme (heading vs body tokens by layer). */
+      textColor?: string | null
+      /** Optional fixed min-height (px) for the photo+text % grid; unset uses responsive default. */
+      creativeStageMinPx?: number
     }
 
 /** Classic section kinds (legacy); creative blocks use `createLeagueSiteContentSection`. */
@@ -266,12 +274,24 @@ function sanitizeContentTextPieces(raw: unknown, fallbackTitle: string, fallback
   let mi = 0
   if (fallbackTitle.trim()) {
     const d = defaultLeagueSiteContentTextPieceLayout(mi, 'heading')
-    migrated.push({ id: newLeagueSiteContentTextPieceId(), role: 'heading', text: fallbackTitle, xPct: d.xPct, yPct: d.yPct })
+    migrated.push({
+      id: newLeagueSiteContentTextPieceId(),
+      role: 'heading',
+      text: fallbackTitle,
+      xPct: d.xPct,
+      yPct: d.yPct,
+    })
     mi++
   }
   if (fallbackBody.trim()) {
     const d = defaultLeagueSiteContentTextPieceLayout(mi, 'paragraph')
-    migrated.push({ id: newLeagueSiteContentTextPieceId(), role: 'paragraph', text: fallbackBody, xPct: d.xPct, yPct: d.yPct })
+    migrated.push({
+      id: newLeagueSiteContentTextPieceId(),
+      role: 'paragraph',
+      text: fallbackBody,
+      xPct: d.xPct,
+      yPct: d.yPct,
+    })
   }
   return migrated
 }
@@ -315,6 +335,24 @@ function sanitizeMediaLayout(raw: unknown): LeagueSiteSectionMediaPlacement {
 function clip(s: string, max: number): string {
   const t = typeof s === 'string' ? s.trim() : ''
   return t.length <= max ? t : t.slice(0, max)
+}
+
+/** Allow only `#rgb` / `#rrggbb` / `#rrggbbaa` for CMS text colors (avoids injecting non-color CSS). */
+export function sanitizeLeagueSiteHexColor(raw: unknown): string | null {
+  const s = clip(String(raw ?? ''), 9)
+  if (!/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(s)) return null
+  return s
+}
+
+/** Creative block text: one optional `textColor` for every layer; else theme by role (heading vs body). */
+export function resolveLeagueSiteContentBlockTextColor(
+  block: Pick<Extract<LeagueSiteSection, { type: 'content' }>, 'textColor'>,
+  preset: { heading: string; body: string },
+  role: 'heading' | 'paragraph'
+): string {
+  const t = sanitizeLeagueSiteHexColor(block.textColor)
+  if (t) return t
+  return role === 'heading' ? preset.heading : preset.body
 }
 
 function sanitizeMediaItem(raw: unknown): LeagueSiteMediaItem | null {
@@ -371,13 +409,54 @@ function sanitizeSection(raw: unknown): LeagueSiteSection | null {
   if (type === 'content') {
     const titleRaw = clip(String(o.title ?? ''), MAX_TITLE)
     const bodyRaw = clip(String(o.body ?? ''), MAX_BODY)
+
+    let legacyFromPieces: string | null = null
+    if (Array.isArray(o.textPieces)) {
+      for (const item of o.textPieces) {
+        if (!item || typeof item !== 'object') continue
+        const c = sanitizeLeagueSiteHexColor((item as Record<string, unknown>).color)
+        if (c) {
+          legacyFromPieces = c
+          break
+        }
+      }
+    }
+
+    const textColor =
+      sanitizeLeagueSiteHexColor(o.textColor) ??
+      sanitizeLeagueSiteHexColor(o.headingColor) ??
+      sanitizeLeagueSiteHexColor(o.bodyColor) ??
+      legacyFromPieces
+
     const textPieces = sanitizeContentTextPieces(o.textPieces, titleRaw, bodyRaw)
     const { title, body } = syncContentDerivedFields(textPieces)
     const surface = sanitizeContentSurface(o.surface)
     const imgRaw = o.image
     const image =
       imgRaw && typeof imgRaw === 'object' && Object.keys(imgRaw as object).length > 0 ? sanitizeContentImage(imgRaw) : null
-    return { id, type: 'content', surface, title, body, image, textPieces }
+
+    let creativeStageMinPx: number | undefined
+    const rawStage = (o as Record<string, unknown>).creativeStageMinPx
+    if (rawStage != null && rawStage !== '') {
+      const n = Number(rawStage)
+      if (Number.isFinite(n)) {
+        creativeStageMinPx = Math.round(
+          Math.max(LEAGUE_SITE_CREATIVE_STAGE_MIN_PX, Math.min(LEAGUE_SITE_CREATIVE_STAGE_MAX_PX, n))
+        )
+      }
+    }
+
+    return {
+      id,
+      type: 'content',
+      surface,
+      title,
+      body,
+      image,
+      textPieces,
+      ...(textColor ? { textColor } : {}),
+      ...(creativeStageMinPx != null ? { creativeStageMinPx } : {}),
+    }
   }
 
   return null
