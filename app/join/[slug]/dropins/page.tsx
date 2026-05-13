@@ -73,6 +73,7 @@ export default function DropinsPage() {
     news_banner: string | null
     news_banner_color: string | null
     league_timezone?: string | null
+    sport_template_id?: string | null
   } | null>(null)
   const [leagueSite, setLeagueSite] = useState<LeagueSitePayload>(EMPTY_LEAGUE_SITE)
   const [sessions, setSessions] = useState<JoinDropinSession[]>([])

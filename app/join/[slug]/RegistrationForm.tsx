@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { CheckCircle2, X } from 'lucide-react'
 import type { ThemePreset } from '@/lib/leagueTheme'
 import { contrastTextForAccent } from '@/lib/leagueTheme'
+import { DEFAULT_SPORT_TEMPLATE_ID, positionsForSportTemplate } from '@/lib/sport-templates'
 
 interface Props {
   organizationId: string
@@ -19,9 +20,9 @@ interface Props {
   waiverTitle?: string | null
   waiverText?: string | null
   waiverId?: string | null
+  /** Season registration position chips; defaults to basketball if omitted */
+  positionOptions?: string[]
 }
-
-const POSITIONS = ['PG', 'SG', 'SF', 'PF', 'C']
 
 const DEFAULT_WAIVER_TITLE = 'Liability Waiver'
 const DEFAULT_WAIVER_TEXT = 'I acknowledge that participation in sports activities involves risk of injury. I voluntarily assume all risks and release the organizer from liability for any injuries sustained during participation.'
@@ -37,7 +38,9 @@ export default function RegistrationForm({
   waiverTitle,
   waiverText,
   waiverId,
+  positionOptions,
 }: Props) {
+  const positionChipOptions = positionOptions ?? positionsForSportTemplate(DEFAULT_SPORT_TEMPLATE_ID)
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState('')
@@ -88,6 +91,10 @@ export default function RegistrationForm({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!waiverAccepted) { setError('You must accept the liability waiver to register.'); return }
+    if (positionChipOptions.length > 0 && form.positions.length === 0) {
+      setError('Pick at least one position you play.')
+      return
+    }
     if (showGuests) {
       if (guests.some(g => !g.waiver_accepted)) { setError('All guests must accept the waiver.'); return }
       if (guests.some(g => !g.full_name)) { setError('Please enter a name for all guests.'); return }
@@ -291,23 +298,25 @@ export default function RegistrationForm({
               style={inputStyle} />
           </div>
 
-          <div>
-            <label style={labelStyle}>Position(s)</label>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '2px' }}>
-              {POSITIONS.map(pos => (
-                <button key={pos} type="button" onClick={() => togglePosition(pos)}
-                  style={{
-                    padding: '5px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: '700',
-                    border: form.positions.includes(pos) ? `1.5px solid ${accent}` : `0.5px solid ${surfaceBorder}`,
-                    background: form.positions.includes(pos) ? accent : 'transparent',
-                    color: form.positions.includes(pos) ? contrastTextForAccent(accent) : bodyCol,
-                    cursor: 'pointer', fontFamily: 'inherit',
-                  }}>
-                  {pos}
-                </button>
-              ))}
+          {positionChipOptions.length > 0 ? (
+            <div>
+              <label style={labelStyle}>Position(s) *</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '2px' }}>
+                {positionChipOptions.map((pos) => (
+                  <button key={pos} type="button" onClick={() => togglePosition(pos)}
+                    style={{
+                      padding: '5px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: '700',
+                      border: form.positions.includes(pos) ? `1.5px solid ${accent}` : `0.5px solid ${surfaceBorder}`,
+                      background: form.positions.includes(pos) ? accent : 'transparent',
+                      color: form.positions.includes(pos) ? contrastTextForAccent(accent) : bodyCol,
+                      cursor: 'pointer', fontFamily: 'inherit',
+                    }}>
+                    {pos}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          ) : null}
 
           {/* Waiver */}
           {waiverLayout === 'modal' ? (

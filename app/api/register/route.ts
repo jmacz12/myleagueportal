@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { ensureDropinPlayerLinkedToReputation } from '@/lib/dropin-reputation'
+import {
+  normalizeSportTemplateId,
+  normalizeSubmittedPositions,
+  positionsForSportTemplate,
+} from '@/lib/sport-templates'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -23,23 +28,6 @@ export async function POST(req: Request) {
       guests,
     } = body
 
-    // Public registration UI uses PG/SG/SF/PF/C codes, while roster records
-    // are stored as Guard/Forward/Center in existing seed/admin flows.
-    function normalizePositions(raw: unknown): string[] {
-      if (!Array.isArray(raw)) return []
-      const mapped = raw
-        .map((p) => String(p).trim().toUpperCase())
-        .map((p) => {
-          if (p === 'PG' || p === 'SG') return 'Guard'
-          if (p === 'SF' || p === 'PF') return 'Forward'
-          if (p === 'C') return 'Center'
-          return p
-        })
-        .filter(Boolean)
-      return [...new Set(mapped)]
-    }
-
-    const normalizedPositions = normalizePositions(positions)
     const sanitizedPhone = typeof phone === 'string' ? phone.replace(/\D/g, '') : ''
 
     if (!full_name || !organization_id) {
@@ -48,6 +36,17 @@ export async function POST(req: Request) {
         { status: 400 }
       )
     }
+
+    const { data: orgSportRow, error: orgSportErr } = await supabaseAdmin
+      .from('organizations')
+      .select('sport_template_id')
+      .eq('id', organization_id)
+      .maybeSingle()
+
+    const sportTemplateId = normalizeSportTemplateId(
+      orgSportErr ? undefined : orgSportRow?.sport_template_id
+    )
+    const normalizedPositions = normalizeSubmittedPositions(positions, sportTemplateId)
 
     // Get IP address for waiver signature record
     const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
@@ -237,6 +236,14 @@ export async function POST(req: Request) {
     if (!season_id) {
       return NextResponse.json(
         { error: 'Missing season_id for player registration' },
+        { status: 400 }
+      )
+    }
+
+    const seasonPositionOptions = positionsForSportTemplate(sportTemplateId)
+    if (seasonPositionOptions.length > 0 && normalizedPositions.length === 0) {
+      return NextResponse.json(
+        { error: 'Pick at least one position you play.' },
         { status: 400 }
       )
     }

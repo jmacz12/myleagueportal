@@ -1,16 +1,32 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useUser } from '@clerk/nextjs'
 import { Lock } from 'lucide-react'
+import { DEFAULT_SPORT_TEMPLATE_ID, MLP_PREF_SPORT_STORAGE_KEY, normalizeSportTemplateId, type SportTemplateId } from '@/lib/sport-templates'
 
 export default function OnboardingPage() {
   const { isLoaded } = useUser()
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [form, setForm] = useState({ name: '' })
+  const [form, setForm] = useState<{ name: string; sport_template_id: SportTemplateId }>({
+    name: '',
+    sport_template_id: DEFAULT_SPORT_TEMPLATE_ID,
+  })
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(MLP_PREF_SPORT_STORAGE_KEY)
+      if (raw) {
+        setForm((f) => ({ ...f, sport_template_id: normalizeSportTemplateId(raw) }))
+        sessionStorage.removeItem(MLP_PREF_SPORT_STORAGE_KEY)
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [])
 
   if (!isLoaded) return (
     <div style={{
@@ -30,7 +46,7 @@ export default function OnboardingPage() {
       const res = await fetch('/api/onboarding', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: form.name }),
+        body: JSON.stringify({ name: form.name, sport_template_id: form.sport_template_id }),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error || 'Something went wrong'); setLoading(false); return }
@@ -108,9 +124,25 @@ export default function OnboardingPage() {
                 required
                 placeholder="e.g. Vancouver Pro-Am Basketball"
                 value={form.name}
-                onChange={(e) => setForm({ name: e.target.value })}
+                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                 className="input"
               />
+            </div>
+
+            <div
+              style={{
+                background: 'var(--bg-elevated)',
+                border: '0.5px solid var(--border)',
+                borderRadius: '10px',
+                padding: '12px 14px',
+                marginBottom: '4px',
+              }}
+            >
+              <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
+                <strong style={{ color: 'var(--text-primary)' }}>League sport</strong> was set in step 1 when you started sign-up (it controls
+                player position tags). It isn&apos;t shown in your dashboard after this. If you chose the wrong sport, delete your
+                MyLeaguePortal account and sign up again.
+              </p>
             </div>
 
             {/* URL preview */}

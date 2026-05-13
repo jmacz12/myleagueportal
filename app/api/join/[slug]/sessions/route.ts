@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { auth, clerkClient } from '@clerk/nextjs/server'
 import { EMPTY_LEAGUE_SITE, parseLeagueSitePayload } from '@/lib/league-site'
 import { pickFeaturedPublicScheduleItem } from '@/lib/league-public-home-schedule'
-import { normalizeOrgPlan } from '@/lib/org-plan-tier'
+import { fetchOrganizationForPublicJoin, normalizeJoinSlugParam } from '@/lib/join-public-org'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -87,39 +87,12 @@ export async function GET(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const { slug } = await params
-
-  // 1. Get Organization ID from Slug
-  const { data: orgWithTz, error: orgWithTzError } = await supabaseAdmin
-    .from('organizations')
-    .select(
-      'id, name, slug, primary_color, logo_url, news_banner, news_banner_color, league_timezone, league_theme_preset, league_appearance_mode, plan'
-    )
-    .eq('slug', slug)
-    .single()
-
-  const { data: orgWithoutTz } = orgWithTzError
-    ? await supabaseAdmin
-        .from('organizations')
-        .select('id, name, slug, primary_color, logo_url, news_banner, news_banner_color, plan')
-        .eq('slug', slug)
-        .single()
-    : { data: null as null }
-
-  const org =
-    orgWithTz ||
-    (orgWithoutTz
-      ? {
-          ...orgWithoutTz,
-          league_timezone: null,
-          league_theme_preset: 'classic',
-          league_appearance_mode: 'light',
-        }
-      : null)
-  const orgError = orgWithTzError && !orgWithoutTz ? orgWithTzError : null
-
-  if (orgError || !org) {
+  const slugNorm = normalizeJoinSlugParam(slug)
+  const orgHub = await fetchOrganizationForPublicJoin(supabaseAdmin, slugNorm)
+  if (!orgHub?.id) {
     return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
   }
+  const org = orgHub
 
   const { data: sessions, error: sessionError } = await supabaseAdmin
     .from('dropin_sessions')
@@ -300,7 +273,7 @@ export async function GET(
     sessions: sessionsWithSignups,
     scheduleItems,
     featuredGame,
-    organization: { ...org, plan: normalizeOrgPlan((org as { plan?: unknown }).plan) },
+    organization: orgHub,
     leagueSite,
   })
 }

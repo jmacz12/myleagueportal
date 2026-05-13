@@ -52,6 +52,7 @@ export async function GET(
     league_theme_preset: orgHub.league_theme_preset,
     league_appearance_mode: orgHub.league_appearance_mode,
     plan: orgHub.plan,
+    sport_template_id: orgHub.sport_template_id,
   }
 
   type TeamRow = {

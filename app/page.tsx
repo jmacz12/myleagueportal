@@ -19,6 +19,7 @@ import {
 
 import { LandingSignedInHeroActions, LandingSignedInNav } from '@/components/marketing/LandingSignedInChrome'
 import { LandingLeagueSearch } from '@/components/marketing/LandingLeagueSearch'
+import { SupportedSportsSection } from '@/components/marketing/SupportedSportsSection'
 import { getOrgAccessForClerkUser } from '@/lib/org-access'
 
 export default async function HomePage() {
@@ -190,16 +191,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Sports strip — unchanged */}
-      <section style={{ background: '#1a1a0a', padding: '12px 24px' }}>
-        <div style={{ maxWidth: '800px', margin: '0 auto', display: 'flex', justifyContent: 'center', gap: '28px', flexWrap: 'wrap' }}>
-          {['Soccer', 'Basketball', 'Football', 'Hockey', 'Tennis', 'Volleyball', 'More'].map((sport) => (
-            <span key={sport} style={{ fontSize: '12px', fontWeight: '700', color: '#d4c97a', letterSpacing: '0.03em' }}>
-              {sport}
-            </span>
-          ))}
-        </div>
-      </section>
+      <SupportedSportsSection />
 
       <LandingLeagueSearch />
 
@@ -295,7 +287,7 @@ export default async function HomePage() {
           <p style={{ fontSize: '15px', color: '#9a8c6a', marginBottom: '40px' }}>No setup fees. No training required.</p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px' }}>
             {[
-              { step: '01', title: 'Create your league', desc: 'Sign up and set up your organization in under 2 minutes.' },
+              { step: '01', title: 'Create your league', desc: 'Sign up, name your league, and pick your sport so registration shows the right positions.' },
               { step: '02', title: 'Add your season', desc: 'Create a season and share your registration link with players.' },
               { step: '03', title: 'Run your games', desc: 'Schedule games, track live scores, and manage stats in real time.' },
               { step: '04', title: 'Grow your league', desc: 'Use drop-ins, reputation tracking, and waivers to build a serious program.' },

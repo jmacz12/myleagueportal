@@ -46,6 +46,8 @@ const FILES = [
   '20260509130000_dropin_waitlist.sql',
   '20260511120000_team_stream_house_rules.sql',
   '20260511220000_organizations_default_stream_url.sql',
+  '20260513120000_organizations_sport_template.sql',
+  '20260514140000_organization_fk_on_delete_cascade.sql',
 ]
 
 async function main() {

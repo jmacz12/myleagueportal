@@ -19,6 +19,8 @@ import {
   PRO_BRAND_COLOR_COUNTER_HELPER,
   proBrandColorChangesRemaining,
 } from '@/lib/pro-brand-color-limits'
+import { DELETE_LEAGUE_ACCOUNT_CONFIRM_PHRASE } from '@/lib/delete-league-account-constants'
+import { MLP_PREF_SPORT_STORAGE_KEY } from '@/lib/sport-templates'
 
 interface OrgSettings {
   name: string
@@ -100,6 +102,10 @@ export default function SettingsPage() {
   const [waiverExporting, setWaiverExporting] = useState(false)
   const [waiverExportError, setWaiverExportError] = useState('')
   const [logoUploading, setLogoUploading] = useState(false)
+  const [deletePanelOpen, setDeletePanelOpen] = useState(false)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [deleteBusy, setDeleteBusy] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
 
   useEffect(() => {
     fetchSettings()
@@ -276,6 +282,33 @@ export default function SettingsPage() {
       setTimeout(() => setSuccess(false), 2500)
     } finally {
       setLogoUploading(false)
+    }
+  }
+
+  async function runDeleteLeagueAndAccount() {
+    setDeleteBusy(true)
+    setDeleteError('')
+    try {
+      const res = await fetch('/api/settings/delete-league-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirm: deleteConfirmText.trim() }),
+      })
+      const data = (await res.json().catch(() => ({}))) as { error?: string; success?: boolean }
+      if (!res.ok) {
+        setDeleteError(typeof data.error === 'string' ? data.error : 'Delete failed')
+        return
+      }
+      try {
+        sessionStorage.removeItem(MLP_PREF_SPORT_STORAGE_KEY)
+      } catch {
+        /* ignore */
+      }
+      window.location.replace('/sign-up')
+    } catch {
+      setDeleteError('Network error. Check your connection and try again.')
+    } finally {
+      setDeleteBusy(false)
     }
   }
 
@@ -997,11 +1030,79 @@ export default function SettingsPage() {
       {/* Danger Zone */}
       <div style={{ background: 'var(--bg-surface)', border: '0.5px solid #fecaca', borderRadius: '12px', padding: '20px 24px' }}>
         <div style={{ fontSize: '14px', fontWeight: '700', color: '#dc2626', marginBottom: '4px' }}>Danger Zone</div>
-        <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '14px' }}>These actions are permanent and cannot be undone.</p>
-        <button onClick={() => alert('Please contact support to delete your account.')}
-          className="btn-danger" style={{ fontSize: '12px', padding: '7px 14px' }}>
-          Delete League & Account
-        </button>
+        <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '0 0 12px', lineHeight: 1.5 }}>
+          Permanently deletes your league (players, seasons, games, waivers, website content, billing link) and your Horizon sign-in
+          account. You can register again afterward with the same email.
+        </p>
+        {!deletePanelOpen ? (
+          <button
+            type="button"
+            className="btn-danger"
+            style={{ fontSize: '12px', padding: '7px 14px' }}
+            onClick={() => {
+              setDeleteError('')
+              setDeleteConfirmText('')
+              setDeletePanelOpen(true)
+            }}
+          >
+            Delete league & account…
+          </button>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxWidth: '420px' }}>
+            <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-primary)' }}>
+              Type this phrase to confirm
+              <input
+                type="text"
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                autoComplete="off"
+                spellCheck={false}
+                placeholder={DELETE_LEAGUE_ACCOUNT_CONFIRM_PHRASE}
+                disabled={deleteBusy}
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  marginTop: '6px',
+                  padding: '8px 10px',
+                  borderRadius: '8px',
+                  border: '0.5px solid var(--border)',
+                  fontSize: '13px',
+                  background: 'var(--bg-elevated)',
+                  color: 'var(--text-primary)',
+                }}
+              />
+            </label>
+            {deleteError ? (
+              <p style={{ margin: 0, fontSize: '12px', color: '#dc2626', lineHeight: 1.45 }}>{deleteError}</p>
+            ) : null}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+              <button
+                type="button"
+                className="btn-danger"
+                style={{ fontSize: '12px', padding: '7px 14px' }}
+                disabled={
+                  deleteBusy || deleteConfirmText.trim() !== DELETE_LEAGUE_ACCOUNT_CONFIRM_PHRASE
+                }
+                onClick={() => void runDeleteLeagueAndAccount()}
+              >
+                {deleteBusy ? 'Deleting…' : 'Delete everything'}
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                style={{ fontSize: '12px', padding: '7px 14px' }}
+                disabled={deleteBusy}
+                onClick={() => {
+                  setDeletePanelOpen(false)
+                  setDeleteConfirmText('')
+                  setDeleteError('')
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
     </div>

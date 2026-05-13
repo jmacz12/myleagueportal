@@ -50,6 +50,8 @@ export default function TeamsPage() {
   const [jerseyActionError, setJerseyActionError] = useState('')
   const [jerseySectionTab, setJerseySectionTab] = useState<'responses' | 'start'>('responses')
   const [teamsMainTab, setTeamsMainTab] = useState<'overview' | 'jersey'>('overview')
+  const [autoTeamCount, setAutoTeamCount] = useState(4)
+  const [autoCreating, setAutoCreating] = useState(false)
 
   useEffect(() => { fetchData() }, [])
 
@@ -185,6 +187,38 @@ export default function TeamsPage() {
     void fetchData()
   }
 
+  async function handleAutoCreateTeams() {
+    if (!canManageTeams) return
+    if (selectedSeason === 'all') {
+      setError('Pick a specific season from the pills below (not “All seasons”).')
+      return
+    }
+    const seasonMeta = seasons.find((s) => s.id === selectedSeason)
+    if (!seasonMeta || seasonMeta.type !== 'season') {
+      setError('Choose a competitive season from the pills.')
+      return
+    }
+    const n = Math.min(12, Math.max(2, Math.round(autoTeamCount)))
+    if (!window.confirm(`Create Team 1…${n} for “${seasonMeta.name}” and split unassigned players across them? Only works if this season has no teams yet.`)) return
+    setAutoCreating(true)
+    setError('')
+    try {
+      const res = await fetch('/api/teams/auto-create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ season_id: selectedSeason, team_count: n }),
+      })
+      const data = (await res.json().catch(() => ({}))) as { error?: string; teams_created?: number; players_assigned?: number }
+      if (!res.ok) {
+        setError(typeof data.error === 'string' ? data.error : 'Could not auto-create teams.')
+        return
+      }
+      await fetchData()
+    } finally {
+      setAutoCreating(false)
+    }
+  }
+
   return (
     <div style={{ maxWidth: '760px' }}>
 
@@ -280,6 +314,75 @@ export default function TeamsPage() {
       )}
 
       {seasonFilterPills}
+
+      {error ? (
+        <div
+          style={{
+            marginBottom: '12px',
+            padding: '12px 14px',
+            borderRadius: '8px',
+            background: '#fef2f2',
+            border: '0.5px solid #fecaca',
+            fontSize: '13px',
+            color: '#dc2626',
+          }}
+        >
+          {error}
+        </div>
+      ) : null}
+
+          {(orgPlan === 'pro' || orgPlan === 'enterprise') && canManageTeams && seasons.length > 0 ? (
+            <div
+              className="card-sm"
+              style={{
+                marginBottom: '16px',
+                padding: '14px 16px',
+                display: 'flex',
+                flexWrap: 'wrap',
+                alignItems: 'center',
+                gap: '12px',
+                border: '0.5px solid var(--border)',
+                borderRadius: '10px',
+                background: 'var(--bg-elevated)',
+              }}
+            >
+              <div style={{ flex: '1 1 200px', minWidth: 0 }}>
+                <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '4px' }}>
+                  Auto-create teams
+                </div>
+                <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0, lineHeight: 1.45 }}>
+                  For the season selected in the pills above: creates <strong>Team 1…N</strong> (only if that season has{' '}
+                  <strong>zero</strong> teams), then assigns <strong>unassigned</strong> season players round-robin. You can rename
+                  teams and tweak assignments anytime.
+                </p>
+              </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--text-muted)' }}>
+                Teams
+                <input
+                  type="number"
+                  min={2}
+                  max={12}
+                  value={autoTeamCount}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value, 10)
+                    setAutoTeamCount(Number.isFinite(v) ? v : 2)
+                  }}
+                  className="input"
+                  style={{ width: '64px', padding: '6px 8px' }}
+                  disabled={autoCreating}
+                />
+              </label>
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={autoCreating || selectedSeason === 'all'}
+                onClick={() => void handleAutoCreateTeams()}
+                style={{ fontWeight: 700, fontSize: '12px', whiteSpace: 'nowrap' }}
+              >
+                {autoCreating ? 'Working…' : 'Run auto-create'}
+              </button>
+            </div>
+          ) : null}
 
           <div className="card" style={{ marginBottom: '16px' }}>
             <div style={{ fontWeight: 800, fontSize: '15px', color: 'var(--text-primary)', marginBottom: '6px' }}>
@@ -392,11 +495,6 @@ export default function TeamsPage() {
                 <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Click to pick a team color</span>
               </div>
             </div>
-            {error && (
-              <div style={{ background: '#fef2f2', border: '0.5px solid #fecaca', borderRadius: '8px', padding: '12px', fontSize: '13px', color: '#dc2626' }}>
-                {error}
-              </div>
-            )}
             <div style={{ display: 'flex', gap: '10px' }}>
               <button type="submit" disabled={submitting} className="btn-primary">
                 {submitting ? 'Creating...' : 'Create Team'}

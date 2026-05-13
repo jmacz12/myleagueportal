@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { ChevronLeft } from 'lucide-react'
@@ -13,6 +13,7 @@ import { getPublicThemeInputsForOrg } from '@/lib/public-league-branding'
 import type { LeagueSitePayload } from '@/lib/league-site'
 import { DEFAULT_LEAGUE_HERO_TAGLINE, EMPTY_LEAGUE_SITE, displayHeroInitials } from '@/lib/league-site'
 import { effectiveSignupOpensAtIso } from '@/lib/seasonSignup'
+import { normalizeSportTemplateId, positionsForSportTemplate } from '@/lib/sport-templates'
 
 interface HubPayload {
   organization: {
@@ -25,6 +26,7 @@ interface HubPayload {
     league_theme_preset?: string | null
     league_appearance_mode?: string | null
     plan?: string | null
+    sport_template_id?: string | null
   }
   competitiveSeason: {
     id: string
@@ -151,6 +153,11 @@ export default function SeasonRegisterPage() {
   }, [slug])
 
   const shellPreset = resolveThemePreset(null, null, 'light')
+
+  const registrationPositionOptions = useMemo(
+    () => positionsForSportTemplate(normalizeSportTemplateId(data?.organization?.sport_template_id)),
+    [data?.organization?.sport_template_id]
+  )
 
   if (loading) {
     return (
@@ -346,6 +353,7 @@ export default function SeasonRegisterPage() {
           waiverTitle={seasonWaiver?.title ?? null}
           waiverText={seasonWaiver?.content ?? null}
           waiverId={seasonWaiver?.id ?? null}
+          positionOptions={registrationPositionOptions}
         />
       </div>
     </div>

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { OrgPlanSlug } from '@/lib/org-plan-tier'
 import { normalizeOrgPlan } from '@/lib/org-plan-tier'
+import { normalizeSportTemplateId, type SportTemplateId } from '@/lib/sport-templates'
 
 /** Normalize dynamic route slug (Next may pass string | string[]). */
 export function normalizeJoinSlugParam(raw: unknown): string {
@@ -21,6 +22,7 @@ function isMissingColumnOrSchemaError(error: { message?: string; code?: string }
 }
 
 const ORG_SELECT_ATTEMPTS = [
+  'id, name, slug, primary_color, logo_url, news_banner, news_banner_color, league_timezone, league_theme_preset, league_appearance_mode, plan, sport_template_id',
   'id, name, slug, primary_color, logo_url, news_banner, news_banner_color, league_timezone, league_theme_preset, league_appearance_mode, plan',
   'id, name, slug, primary_color, logo_url, news_banner, news_banner_color, league_theme_preset, league_appearance_mode, plan',
   'id, name, slug, primary_color, logo_url, news_banner, news_banner_color, league_theme_preset, plan',
@@ -39,6 +41,7 @@ export type PublicHubOrganization = {
   league_theme_preset: string | null
   league_appearance_mode: string | null
   plan: OrgPlanSlug
+  sport_template_id: SportTemplateId
 }
 
 function coerceHubOrg(row: Record<string, unknown>): PublicHubOrganization {
@@ -54,6 +57,7 @@ function coerceHubOrg(row: Record<string, unknown>): PublicHubOrganization {
     league_theme_preset: row.league_theme_preset != null ? String(row.league_theme_preset) : 'classic',
     league_appearance_mode: row.league_appearance_mode != null ? String(row.league_appearance_mode) : 'light',
     plan: normalizeOrgPlan(row.plan),
+    sport_template_id: normalizeSportTemplateId(row.sport_template_id),
   }
 }
 
