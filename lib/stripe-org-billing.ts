@@ -1,12 +1,11 @@
 import type Stripe from 'stripe'
+import { normalizeOrgPlan } from '@/lib/org-plan-tier'
 
 export type PaidPlanSlug = 'pro' | 'enterprise'
 
 /** Normalize plan string from Stripe metadata or DB. */
 export function normalizeBillingPlan(plan: string | undefined | null): 'basic' | 'pro' | 'enterprise' {
-  const p = String(plan || 'basic').toLowerCase()
-  if (p === 'pro' || p === 'enterprise') return p
-  return 'basic'
+  return normalizeOrgPlan(plan)
 }
 
 /** Map Stripe Price id → plan (subscription updates when metadata is missing). */

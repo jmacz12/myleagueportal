@@ -7,6 +7,7 @@ import {
   evaluateLeagueIdentityChange,
   leagueIdentityFieldsChanged,
 } from '@/lib/league-identity-change-policy'
+import { isPro, isProOrEnterprise } from '@/lib/org-plan-tier'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -188,14 +189,14 @@ export async function PATCH(req: Request) {
   }
 
   // Only allow color / theme / appearance mode on pro/enterprise
-  if (org.plan !== 'basic') {
+  if (isProOrEnterprise(org.plan)) {
     updateData.primary_color = primary_color
     const tm = sanitizePresetAndMode(league_theme_preset, league_appearance_mode)
     updateData.league_theme_preset = tm.preset
     updateData.league_appearance_mode = tm.mode
   }
 
-  if (org.plan === 'pro') {
+  if (isPro(org.plan)) {
     const incomingColor = typeof primary_color === 'string' ? primary_color.trim().toLowerCase() : ''
     const existingColor = String(org.primary_color || '').trim().toLowerCase()
     const colorChanged = !!incomingColor && incomingColor !== existingColor

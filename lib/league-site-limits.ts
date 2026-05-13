@@ -1,8 +1,9 @@
 import type { LeagueSitePayload } from '@/lib/league-site'
+import { normalizeOrgPlan } from '@/lib/org-plan-tier'
 
 /** Total gallery images allowed across all media sections (photos only; video links do not count). */
 export function maxGalleryImagesForPlan(plan: string | null | undefined): number {
-  const p = String(plan ?? 'basic').toLowerCase()
+  const p = normalizeOrgPlan(plan)
   if (p === 'enterprise') return 100
   if (p === 'pro') return 30
   return 12

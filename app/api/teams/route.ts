@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { auth } from '@clerk/nextjs/server'
 import { getOrgAccessForClerkUser } from '@/lib/org-access'
+import { normalizeOrgPlan } from '@/lib/org-plan-tier'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -45,7 +46,7 @@ export async function GET() {
   return NextResponse.json({
     teams: list.map((t) => ({ ...t, player_count: counts[t.id] || 0 })),
     org_slug: org.slug,
-    org_plan: org.plan ?? 'basic',
+    org_plan: normalizeOrgPlan(org.plan),
     org_role: access.role,
   })
 }

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { createClient } from '@supabase/supabase-js'
 import { getOrgAccessForClerkUser, getOrgAccessForOrganization } from '@/lib/org-access'
+import { isBasic, isPro, normalizeOrgPlan } from '@/lib/org-plan-tier'
 import { appearanceModeForChoice, normalizeLeagueThemePresetId, type LeagueThemeChoiceId } from '@/lib/league-theme-choice'
 import { PRO_BRAND_COLOR_CHANGES_PER_MONTH, proBrandColorChangesRemaining } from '@/lib/pro-brand-color-limits'
 
@@ -269,9 +270,9 @@ export async function PATCH(req: Request) {
     modeIncoming = tm.mode
   }
 
-  const plan = typeof org.plan === 'string' ? org.plan : 'basic'
+  const plan = normalizeOrgPlan(org.plan)
 
-  if (plan === 'basic') {
+  if (isBasic(plan)) {
     return NextResponse.json(
       {
         error:
@@ -294,7 +295,7 @@ export async function PATCH(req: Request) {
     updateData.primary_color = colorNormalized
   }
 
-  if (plan === 'pro' && wantsColor && colorNormalized) {
+  if (isPro(plan) && wantsColor && colorNormalized) {
     const incomingLower = colorNormalized.trim().toLowerCase()
     const existingLower = String(org.primary_color || '').trim().toLowerCase()
     const colorChanged = incomingLower !== existingLower

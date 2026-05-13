@@ -1,5 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { getOrgAccessForClerkUser } from '@/lib/org-access'
+import type { OrgPlanSlug } from '@/lib/org-plan-tier'
+import { normalizeOrgPlan } from '@/lib/org-plan-tier'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -12,7 +14,7 @@ export async function getTeamManagerAccess(
 ): Promise<{
   organizationId: string
   teamId: string
-  plan: string
+  plan: OrgPlanSlug
   role: 'owner' | 'editor' | 'manager'
 } | null> {
   if (!userId || !teamId) return null
@@ -37,7 +39,7 @@ export async function getTeamManagerAccess(
   return {
     organizationId: access.organization.id,
     teamId: team.id,
-    plan: String(org.plan || 'basic').toLowerCase(),
+    plan: normalizeOrgPlan(org.plan),
     role: access.role === 'owner' || access.role === 'editor' ? access.role : 'manager',
   }
 }

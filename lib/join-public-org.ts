@@ -1,4 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { OrgPlanSlug } from '@/lib/org-plan-tier'
+import { normalizeOrgPlan } from '@/lib/org-plan-tier'
 
 /** Normalize dynamic route slug (Next may pass string | string[]). */
 export function normalizeJoinSlugParam(raw: unknown): string {
@@ -36,7 +38,7 @@ export type PublicHubOrganization = {
   league_timezone: string | null
   league_theme_preset: string | null
   league_appearance_mode: string | null
-  plan: string | null
+  plan: OrgPlanSlug
 }
 
 function coerceHubOrg(row: Record<string, unknown>): PublicHubOrganization {
@@ -51,7 +53,7 @@ function coerceHubOrg(row: Record<string, unknown>): PublicHubOrganization {
     league_timezone: row.league_timezone != null ? String(row.league_timezone) : null,
     league_theme_preset: row.league_theme_preset != null ? String(row.league_theme_preset) : 'classic',
     league_appearance_mode: row.league_appearance_mode != null ? String(row.league_appearance_mode) : 'light',
-    plan: row.plan != null ? String(row.plan) : 'basic',
+    plan: normalizeOrgPlan(row.plan),
   }
 }
 

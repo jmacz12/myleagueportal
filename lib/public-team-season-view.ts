@@ -3,13 +3,13 @@
  * Pro: five headline stats only in UI (PTS, REB, AST, STL, BLK).
  */
 
-export type PublicTeamPlanTier = 'basic' | 'pro' | 'enterprise'
+import type { OrgPlanSlug } from '@/lib/org-plan-tier'
+import { normalizeOrgPlan } from '@/lib/org-plan-tier'
+
+export type PublicTeamPlanTier = OrgPlanSlug
 
 export function normalizePublicTeamTier(plan: string | null | undefined): PublicTeamPlanTier {
-  const p = String(plan || 'basic').toLowerCase()
-  if (p === 'enterprise') return 'enterprise'
-  if (p === 'pro') return 'pro'
-  return 'basic'
+  return normalizeOrgPlan(plan)
 }
 
 /** Fixed platform-wide headline set for Pro public team page (roadmap: five stats). */

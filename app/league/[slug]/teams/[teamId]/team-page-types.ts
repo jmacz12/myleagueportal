@@ -68,6 +68,12 @@ export interface TeamPayload {
     avatar_url?: string | null
   }[]
   open_jersey_poll_id: string | null
+  /** When a poll is open (Pro+): signed-in viewer and optional matched roster player + saved pick. */
+  jersey_poll_self?: {
+    authenticated: boolean
+    player_id: string | null
+    preferred_number: number | null
+  } | null
   publicFontKey: string | null
   season_record?: { wins: number; losses: number }
   league_rank?: number | null

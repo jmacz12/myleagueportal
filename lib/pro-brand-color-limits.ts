@@ -1,3 +1,5 @@
+import { isPro } from '@/lib/org-plan-tier'
+
 export const PRO_BRAND_COLOR_CHANGES_PER_MONTH = 5
 
 /** Shown next to the Pro monthly brand-color counter (presets/fonts do not consume the cap). */
@@ -16,7 +18,7 @@ export function proBrandColorChangesRemaining(org: {
   brand_color_change_count?: number | null
   brand_color_change_period_start?: string | null
 }): number | null {
-  if (String(org.plan || '').toLowerCase() !== 'pro') return null
+  if (!isPro(org.plan)) return null
   const raw = Number(org.brand_color_change_count || 0)
   const periodStart = org.brand_color_change_period_start
     ? new Date(org.brand_color_change_period_start as string)

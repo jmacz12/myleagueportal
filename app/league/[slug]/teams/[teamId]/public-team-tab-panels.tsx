@@ -1,6 +1,8 @@
 'use client'
 
 import Link from 'next/link'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { SignInButton, useUser } from '@clerk/nextjs'
 import {
   BarChart3,
   CalendarDays,
@@ -28,6 +30,239 @@ type Props = {
   watchHref: string | null
   liveGameId: string | null
   nextGameMapsHref: string | null
+  /** Refetch team payload after saving jersey preference */
+  onJerseyPreferenceSaved?: () => void
+}
+
+function JerseyPollOverviewCard({
+  slug,
+  teamId,
+  pollId,
+  roster,
+  self,
+  preset,
+  onSaved,
+}: {
+  slug: string
+  teamId: string
+  pollId: string
+  roster: TeamPayload['roster']
+  self: NonNullable<TeamPayload['jersey_poll_self']>
+  preset: ThemePreset
+  onSaved?: () => void
+}) {
+  const afterAuthUrl = `/league/${slug}/teams/${teamId}?tab=overview`
+
+  const myId = self.player_id
+  const [draft, setDraft] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState('')
+
+  useEffect(() => {
+    if (myId && self.preferred_number != null && !Number.isNaN(self.preferred_number)) {
+      setDraft(String(self.preferred_number))
+    } else if (myId) {
+      setDraft('')
+    }
+  }, [myId, self.preferred_number])
+
+  const save = useCallback(async () => {
+    setErr('')
+    const n = parseInt(draft.trim(), 10)
+    if (draft.trim() === '' || Number.isNaN(n) || n < 0 || n > 99) {
+      setErr('Enter a whole number from 0 to 99.')
+      return
+    }
+    setSaving(true)
+    try {
+      const res = await fetch(
+        `/api/join/${encodeURIComponent(slug)}/teams/${encodeURIComponent(teamId)}/jersey-poll-preference`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ preferred_number: n }),
+        }
+      )
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setErr(typeof j.error === 'string' ? j.error : 'Could not save.')
+        return
+      }
+      onSaved?.()
+    } finally {
+      setSaving(false)
+    }
+  }, [draft, slug, teamId, onSaved])
+
+  const { isLoaded } = useUser()
+
+  return (
+    <div
+      style={{
+        marginBottom: '14px',
+        borderRadius: '14px',
+        padding: '16px 16px 14px',
+        background: preset.accentSoftBg,
+        border: `1px solid ${preset.accent}`,
+        boxShadow: '0 6px 18px -12px rgba(0,0,0,0.25)',
+      }}
+    >
+      <div style={{ fontSize: '12px', letterSpacing: '0.05em', textTransform: 'uppercase', fontWeight: 800, color: preset.accent }}>
+        Jersey number poll
+      </div>
+      <p style={{ fontSize: '13px', color: preset.body, margin: '8px 0 12px', lineHeight: 1.5 }}>
+        Your coach is collecting <strong>preferred</strong> numbers before ordering jerseys. Find your name—only your row can be edited, and you must be signed in with the same email you used to register for this team.
+      </p>
+
+      {!isLoaded ? (
+        <p style={{ fontSize: '13px', color: preset.muted }}>Loading…</p>
+      ) : !self.authenticated ? (
+        <div style={{ marginBottom: '12px' }}>
+          <p style={{ fontSize: '13px', color: preset.body, margin: '0 0 10px' }}>Sign in to enter your number next to your name.</p>
+          <SignInButton mode="modal" forceRedirectUrl={afterAuthUrl}>
+            <button
+              type="button"
+              style={{
+                fontSize: '13px',
+                fontWeight: 800,
+                padding: '10px 16px',
+                borderRadius: '10px',
+                border: 'none',
+                background: preset.accent,
+                color: '#fff',
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              Sign in
+            </button>
+          </SignInButton>
+        </div>
+      ) : self.authenticated && !myId ? (
+        <p style={{ fontSize: '13px', color: preset.body, margin: '0 0 12px', lineHeight: 1.5 }}>
+          We could not match your account to this roster. Use the <strong>same email</strong> you used for season registration, or ask your organizer to
+          update your player email. You can still use the{' '}
+          <Link href={`/join/${slug}/jersey-poll/${pollId}`} style={{ color: preset.accent, fontWeight: 700 }}>
+            backup form
+          </Link>{' '}
+          with your email.
+        </p>
+      ) : null}
+
+      <div
+        style={{
+          background: preset.surfaceBg,
+          border: `1px solid ${preset.surfaceBorder}`,
+          borderRadius: '12px',
+          overflow: 'hidden',
+        }}
+      >
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0, 1.4fr) 100px',
+            gap: '0',
+            padding: '10px 12px',
+            borderBottom: `1px solid ${preset.surfaceBorder}`,
+            fontSize: '11px',
+            fontWeight: 800,
+            letterSpacing: '0.05em',
+            textTransform: 'uppercase',
+            color: preset.muted,
+          }}
+        >
+          <span>Player</span>
+          <span style={{ textAlign: 'center' }}>Pick (0–99)</span>
+        </div>
+        {roster.map((r) => {
+          const mine = !!myId && r.id === myId
+          return (
+            <div
+              key={r.id}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'minmax(0, 1.4fr) 100px',
+                gap: '8px',
+                alignItems: 'center',
+                padding: '10px 12px',
+                borderTop: `1px solid ${preset.surfaceBorder}`,
+                fontSize: '14px',
+                color: preset.heading,
+              }}
+            >
+              <span style={{ fontWeight: mine ? 800 : 600 }}>
+                {r.full_name}
+                {mine ? <span style={{ fontWeight: 700, color: preset.accent, marginLeft: '6px', fontSize: '11px' }}>(you)</span> : null}
+              </span>
+              <div style={{ display: 'flex', justifyContent: 'center' }}>
+                {mine ? (
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    placeholder="—"
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value.replace(/[^\d]/g, '').slice(0, 2))}
+                    disabled={saving}
+                    style={{
+                      width: '56px',
+                      textAlign: 'center',
+                      padding: '8px 6px',
+                      borderRadius: '8px',
+                      border: `1px solid ${preset.surfaceBorder}`,
+                      fontSize: '15px',
+                      fontWeight: 700,
+                      fontFamily: 'inherit',
+                      background: '#fff',
+                      color: preset.heading,
+                    }}
+                  />
+                ) : (
+                  <span style={{ fontSize: '13px', color: preset.muted, fontWeight: 600 }}>—</span>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {myId ? (
+        <div style={{ marginTop: '12px', display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => void save()}
+            style={{
+              fontSize: '13px',
+              fontWeight: 800,
+              padding: '10px 18px',
+              borderRadius: '10px',
+              border: 'none',
+              background: preset.accent,
+              color: '#fff',
+              cursor: saving ? 'wait' : 'pointer',
+              fontFamily: 'inherit',
+              opacity: saving ? 0.85 : 1,
+            }}
+          >
+            {saving ? 'Saving…' : 'Save my pick'}
+          </button>
+          {err ? (
+            <span style={{ fontSize: '12px', color: '#b91c1c', fontWeight: 600 }}>{err}</span>
+          ) : (
+            <span style={{ fontSize: '11px', color: preset.muted }}>Final roster numbers are still set by your organizer.</span>
+          )}
+        </div>
+      ) : null}
+
+      <p style={{ fontSize: '11px', color: preset.muted, margin: '12px 0 0', lineHeight: 1.45 }}>
+        Backup link (email entry):{' '}
+        <Link href={`/join/${slug}/jersey-poll/${pollId}`} style={{ color: preset.accent, fontWeight: 700 }}>
+          Open form
+        </Link>
+      </p>
+    </div>
+  )
 }
 
 export function PublicTeamTabPanels({
@@ -39,11 +274,13 @@ export function PublicTeamTabPanels({
   watchHref,
   liveGameId,
   nextGameMapsHref,
+  onJerseyPreferenceSaved,
 }: Props) {
   const {
     team,
     roster,
     open_jersey_poll_id,
+    jersey_poll_self,
     player_totals,
     last_game,
     recent_games,
@@ -580,6 +817,17 @@ export function PublicTeamTabPanels({
 
       {publicTab === 'overview' ? (
         <>
+          {proLike && open_jersey_poll_id && jersey_poll_self ? (
+            <JerseyPollOverviewCard
+              slug={slug}
+              teamId={team.id}
+              pollId={open_jersey_poll_id}
+              roster={roster}
+              self={jersey_poll_self}
+              preset={preset}
+              onSaved={onJerseyPreferenceSaved}
+            />
+          ) : null}
           {watchHref ? (
             <a
               href={watchHref}
@@ -620,34 +868,6 @@ export function PublicTeamTabPanels({
               </div>
               <p style={{ margin: '10px 0 0', fontSize: '14px', color: preset.body, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{team.house_rules}</p>
             </div>
-          ) : null}
-          {open_jersey_poll_id ? (
-            <Link
-              href={`/join/${slug}/jersey-poll/${open_jersey_poll_id}`}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '10px',
-                borderRadius: '12px',
-                padding: '12px 14px',
-                marginBottom: '12px',
-                textDecoration: 'none',
-                background: preset.accentSoftBg,
-                border: `1px solid ${preset.surfaceBorder}`,
-                color: preset.heading,
-              }}
-            >
-              <div>
-                <div style={{ fontSize: '12px', letterSpacing: '0.05em', textTransform: 'uppercase', fontWeight: 800, color: preset.accent }}>
-                  Jersey selection in progress
-                </div>
-                <div style={{ fontSize: '13px', color: preset.body, marginTop: '2px' }}>
-                  Vote for your number for {team.name}.
-                </div>
-              </div>
-              <span style={{ fontSize: '12px', fontWeight: 700, color: preset.accent }}>Vote now →</span>
-            </Link>
           ) : null}
           {next_game ? (
             <div

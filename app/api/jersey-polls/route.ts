@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { auth } from '@clerk/nextjs/server'
 import { getOrgAccessForClerkUser } from '@/lib/org-access'
+import { jerseyPollsEnabledForOrgPlan, JERSEY_POLL_PRO_REQUIRED_MESSAGE } from '@/lib/jersey-poll-tier'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -36,11 +37,15 @@ export async function GET() {
 
   const { data: org } = await supabaseAdmin
     .from('organizations')
-    .select('id')
+    .select('id, plan')
     .eq('id', access.organization.id)
     .maybeSingle()
 
   if (!org) return NextResponse.json({ error: 'No organization found' }, { status: 404 })
+
+  if (!jerseyPollsEnabledForOrgPlan(org.plan)) {
+    return NextResponse.json({ polls: [], jersey_polls_tier: 'basic' as const })
+  }
 
   const { data: polls, error } = await supabaseAdmin
     .from('jersey_polls')
@@ -101,11 +106,15 @@ export async function POST(req: Request) {
 
   const { data: org } = await supabaseAdmin
     .from('organizations')
-    .select('id')
+    .select('id, plan')
     .eq('id', access.organization.id)
     .maybeSingle()
 
   if (!org) return NextResponse.json({ error: 'No organization found' }, { status: 404 })
+
+  if (!jerseyPollsEnabledForOrgPlan(org.plan)) {
+    return NextResponse.json({ error: JERSEY_POLL_PRO_REQUIRED_MESSAGE }, { status: 403 })
+  }
 
   const { team_id } = await req.json()
   if (!team_id) {

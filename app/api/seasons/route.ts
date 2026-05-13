@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { auth } from '@clerk/nextjs/server'
 import { getOrgAccessForClerkUser } from '@/lib/org-access'
+import { normalizeOrgPlan, seasonLimitForPlan } from '@/lib/org-plan-tier'
 import {
   type SeasonSignupMode,
   buildSeasonSignupRowFromMode,
@@ -11,12 +12,6 @@ const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
-
-const PLAN_LIMITS: Record<string, number> = {
-  basic: 1,
-  pro: 3,
-  enterprise: 99999,
-}
 
 /** PostgREST expects plain YYYY-MM-DD for date columns; clients may send ISO timestamps. */
 function parseDateOnlyInput(v: unknown): string | null {
@@ -56,11 +51,12 @@ export async function GET() {
     .eq('organization_id', org.id)
     .order('created_at', { ascending: false })
 
+  const planNorm = normalizeOrgPlan(org.plan)
   return NextResponse.json({
     seasons: seasons || [],
     orgInfo: {
-      plan: org.plan,
-      seasonLimit: PLAN_LIMITS[org.plan] ?? 1,
+      plan: planNorm,
+      seasonLimit: seasonLimitForPlan(org.plan),
     }
   })
 }
@@ -72,7 +68,7 @@ export async function POST(req: Request) {
   const org = await resolveSeasonsOrg(userId)
   if (!org) return NextResponse.json({ error: 'No organization found' }, { status: 404 })
 
-  const limit = PLAN_LIMITS[org.plan] ?? 1
+  const limit = seasonLimitForPlan(org.plan)
   const { count: seasonCount } = await supabaseAdmin
     .from('seasons')
     .select('*', { count: 'exact', head: true })
@@ -80,7 +76,7 @@ export async function POST(req: Request) {
 
   if ((seasonCount ?? 0) >= limit) {
     return NextResponse.json(
-      { error: `Your ${org.plan} plan allows a maximum of ${limit} season(s). Upgrade to create more.` },
+      { error: `Your ${normalizeOrgPlan(org.plan)} plan allows a maximum of ${limit} season(s). Upgrade to create more.` },
       { status: 403 }
     )
   }

@@ -90,6 +90,8 @@ export function LeagueTeamManagePanel({
   })
   const [csvImport, setCsvImport] = useState('')
 
+  const canManageJerseyPoll = orgPlan === 'pro' || orgPlan === 'enterprise'
+
   const load = useCallback(async () => {
     setLoading(true)
     setError('')
@@ -138,6 +140,14 @@ export function LeagueTeamManagePanel({
   useEffect(() => {
     void load()
   }, [load])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const q = new URLSearchParams(window.location.search)
+    if (q.get('panel') === 'jersey') {
+      setActiveTab('teamPage')
+    }
+  }, [])
 
   async function afterMutation() {
     await load()
@@ -717,8 +727,34 @@ export function LeagueTeamManagePanel({
             >
               Jersey number poll
             </div>
-            {openPoll ? (
-              <div style={{ marginTop: '8px' }}>
+            <div
+              style={{
+                marginTop: '10px',
+                padding: '12px 14px',
+                borderRadius: '10px',
+                border: shell.cardBorder,
+                background: variant === 'public' ? 'rgba(90,122,42,0.06)' : 'var(--bg-elevated)',
+                fontSize: '12px',
+                color: shell.text,
+                lineHeight: 1.55,
+              }}
+            >
+              <strong style={{ display: 'block', marginBottom: '6px', fontSize: '11px', letterSpacing: '0.05em', textTransform: 'uppercase', color: shell.muted }}>
+                How it works
+              </strong>
+              Open a poll from <strong>Dashboard → Teams</strong> (this team → <strong>Logo &amp; poll</strong>). Players who are signed in enter a preferred number on the public team page <strong>Overview</strong> tab next to their name (email must match season registration). You review responses here—duplicate picks show as{' '}
+              <strong>Conflict</strong>. When you order jerseys, set each player&apos;s final number under <strong>Dashboard → Players</strong>; only one player per team can wear each number on the roster.
+            </div>
+            {!canManageJerseyPoll ? (
+              <p style={{ marginTop: '12px', fontSize: '13px', color: shell.muted, lineHeight: 1.5 }}>
+                Jersey polls are available on <strong style={{ color: shell.text }}>Pro and Enterprise</strong>. Upgrade under{' '}
+                <Link href="/dashboard/settings" style={{ color: shell.text, fontWeight: 700 }}>
+                  Dashboard → Settings
+                </Link>
+                .
+              </p>
+            ) : openPoll ? (
+              <div style={{ marginTop: '12px' }}>
                 <div style={{ fontSize: '13px', marginBottom: '10px' }}>
                   Poll is open. Responses: {openPoll.responses?.length || 0}
                 </div>
@@ -765,10 +801,7 @@ export function LeagueTeamManagePanel({
                 </div>
               </div>
             ) : (
-              <div style={{ marginTop: '8px' }}>
-                <p style={{ fontSize: '13px', color: shell.muted, marginBottom: '10px', lineHeight: 1.45 }}>
-                  Players pick a number with the email they used to register. You set the final numbers under Players in the dashboard.
-                </p>
+              <div style={{ marginTop: '12px' }}>
                 <button
                   type="button"
                   disabled={busy}

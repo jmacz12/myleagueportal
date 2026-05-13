@@ -541,6 +541,7 @@ export default function LeaguePublicTeamPage() {
           watchHref={watchHref}
           liveGameId={data.live_game_id ?? null}
           nextGameMapsHref={nextGameMapsHref}
+          onJerseyPreferenceSaved={() => void refreshPayload()}
         />
       </div>
 

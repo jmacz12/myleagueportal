@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server'
+import { auth } from '@clerk/nextjs/server'
 import { createClient } from '@supabase/supabase-js'
 import { EMPTY_LEAGUE_SITE, parseLeagueSitePayload } from '@/lib/league-site'
 import { fetchOrganizationForPublicJoin, normalizeJoinSlugParam } from '@/lib/join-public-org'
+import { jerseyPollsEnabledForOrgPlan } from '@/lib/jersey-poll-tier'
+import { getJerseyPollSelfPayload } from '@/lib/jersey-poll-self'
+import { normalizeOrgPlan } from '@/lib/org-plan-tier'
 import { buildPublicTeamSeasonExtras } from '@/lib/public-team-page-payload'
 import { normalizePublicTeamTier } from '@/lib/public-team-season-view'
 
@@ -136,12 +140,26 @@ export async function GET(
     return NextResponse.json({ error: 'Failed to load roster' }, { status: 500 })
   }
 
-  const { data: openPoll } = await supabaseAdmin
-    .from('jersey_polls')
-    .select('id')
-    .eq('team_id', teamId)
-    .eq('status', 'open')
-    .maybeSingle()
+  let openJerseyPollId: string | null = null
+  if (jerseyPollsEnabledForOrgPlan(org.plan)) {
+    const { data: openPoll } = await supabaseAdmin
+      .from('jersey_polls')
+      .select('id')
+      .eq('team_id', teamId)
+      .eq('status', 'open')
+      .maybeSingle()
+    openJerseyPollId = openPoll?.id ?? null
+  }
+
+  const { userId } = await auth()
+  let jersey_poll_self: Awaited<ReturnType<typeof getJerseyPollSelfPayload>> | null = null
+  if (openJerseyPollId) {
+    jersey_poll_self = await getJerseyPollSelfPayload(supabaseAdmin, {
+      userId: userId ?? null,
+      teamId,
+      pollId: openJerseyPollId,
+    })
+  }
 
   let publicFontKey: string | null = EMPTY_LEAGUE_SITE.publicFontKey
   let leagueNews: Array<{ id: string; title: string; body: string; pinned: boolean; created_at: string }> = []
@@ -260,7 +278,7 @@ export async function GET(
       logo_url: org.logo_url,
       league_theme_preset: org.league_theme_preset ?? 'classic',
       league_appearance_mode: org.league_appearance_mode ?? 'light',
-      plan: org.plan ?? 'basic',
+      plan: normalizeOrgPlan(org.plan),
     },
     public_tier: tier,
     team: {
@@ -273,7 +291,8 @@ export async function GET(
       house_rules: team.house_rules ?? null,
     },
     roster,
-    open_jersey_poll_id: openPoll?.id ?? null,
+    open_jersey_poll_id: openJerseyPollId,
+    jersey_poll_self,
     publicFontKey,
     season_record: extras.season_record,
     league_rank: extras.league_rank,

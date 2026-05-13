@@ -1,14 +1,12 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { jerseyPollsEnabledForOrgPlan, JERSEY_POLL_PRO_REQUIRED_MESSAGE } from '@/lib/jersey-poll-tier'
+import { normJerseyPollEmail, upsertJerseyPollPlayerResponse } from '@/lib/jersey-poll-response'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
-
-function normEmail(s: string) {
-  return s.trim().toLowerCase()
-}
 
 export async function POST(
   req: Request,
@@ -28,19 +26,23 @@ export async function POST(
     return NextResponse.json({ error: 'Jersey number must be between 0 and 99.' }, { status: 400 })
   }
 
-  const email = normEmail(emailRaw)
+  const email = normJerseyPollEmail(emailRaw)
   if (!email) {
     return NextResponse.json({ error: 'A valid email is required.' }, { status: 400 })
   }
 
   const { data: org, error: orgError } = await supabaseAdmin
     .from('organizations')
-    .select('id')
+    .select('id, plan')
     .eq('slug', slug)
     .single()
 
   if (orgError || !org) {
     return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
+  }
+
+  if (!jerseyPollsEnabledForOrgPlan(org.plan)) {
+    return NextResponse.json({ error: JERSEY_POLL_PRO_REQUIRED_MESSAGE }, { status: 403 })
   }
 
   const { data: poll, error: pollError } = await supabaseAdmin
@@ -67,7 +69,7 @@ export async function POST(
   }
 
   const player = (candidates || []).find(
-    (p) => p.email && normEmail(p.email) === email
+    (p) => p.email && normJerseyPollEmail(String(p.email)) === email
   )
 
   if (!player) {
@@ -80,32 +82,13 @@ export async function POST(
     )
   }
 
-  const { data: existingRow } = await supabaseAdmin
-    .from('jersey_poll_responses')
-    .select('id')
-    .eq('poll_id', poll.id)
-    .eq('player_id', player.id)
-    .maybeSingle()
-
-  const now = new Date().toISOString()
-  if (existingRow) {
-    const { error: upd } = await supabaseAdmin
-      .from('jersey_poll_responses')
-      .update({ preferred_number: parsed, submitted_at: now })
-      .eq('id', existingRow.id)
-    if (upd) {
-      return NextResponse.json({ error: 'Could not save your response. Try again.' }, { status: 500 })
-    }
-  } else {
-    const { error: ins } = await supabaseAdmin.from('jersey_poll_responses').insert({
-      poll_id: poll.id,
-      player_id: player.id,
-      preferred_number: parsed,
-      submitted_at: now,
-    })
-    if (ins) {
-      return NextResponse.json({ error: 'Could not save your response. Try again.' }, { status: 500 })
-    }
+  const result = await upsertJerseyPollPlayerResponse(supabaseAdmin, {
+    pollId: poll.id,
+    playerId: player.id,
+    preferredNumber: parsed,
+  })
+  if (!result.ok) {
+    return NextResponse.json({ error: result.message }, { status: result.status })
   }
 
   return NextResponse.json({ success: true })

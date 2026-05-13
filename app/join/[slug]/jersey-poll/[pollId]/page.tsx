@@ -24,6 +24,7 @@ export default function JerseyPollPage() {
 
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
+  const [planBlocked, setPlanBlocked] = useState(false)
   const [loadErrorDetail, setLoadErrorDetail] = useState<string | null>(null)
   const [data, setData] = useState<HubPayload | null>(null)
   const [email, setEmail] = useState('')
@@ -37,10 +38,14 @@ export default function JerseyPollPage() {
     async function load() {
       setLoading(true)
       setNotFound(false)
+      setPlanBlocked(false)
       setLoadErrorDetail(null)
       const res = await fetch(`/api/join/${slug}/jersey-poll/${pollId}`)
       if (cancelled) return
       const json = await res.json().catch(() => null)
+      const blocked = res.status === 403
+      if (cancelled) return
+      setPlanBlocked(blocked)
       if (!res.ok || !json?.poll || !json?.organization) {
         setNotFound(true)
         setData(null)
@@ -134,7 +139,9 @@ export default function JerseyPollPage() {
       <div style={shell}>
         <div style={{ maxWidth: '440px', margin: '0 auto', padding: '48px 20px', textAlign: 'center' }}>
           <p style={{ fontSize: '15px', color: '#57534e', marginBottom: loadErrorDetail ? '12px' : 0 }}>
-            This jersey poll link is invalid or no longer available.
+            {planBlocked
+              ? 'Jersey number polls are not available for this league on its current plan.'
+              : 'This jersey poll link is invalid or no longer available.'}
           </p>
           {loadErrorDetail && (
             <p
@@ -152,7 +159,9 @@ export default function JerseyPollPage() {
             </p>
           )}
           <p style={{ fontSize: '12px', color: '#a8a29e', marginTop: '16px', lineHeight: 1.45 }}>
-            Use the link from your organizer (Dashboard → Teams → Copy link). The URL must include your league slug and the poll id from an open poll.
+            {planBlocked
+              ? 'Ask your organizer if you were expecting to pick a number. They may need to upgrade the league or reopen a poll after upgrading.'
+              : 'Use the link from your organizer (Dashboard → Teams → Copy link). The URL must include your league slug and the poll id from an open poll.'}
           </p>
         </div>
       </div>

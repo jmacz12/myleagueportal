@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { createClient } from '@supabase/supabase-js'
+import { getOrgAccessForClerkUser } from '@/lib/org-access'
+import { isBasic } from '@/lib/org-plan-tier'
 import * as pdfParseModule from 'pdf-parse'
 
 type PdfParseFn = (data: Buffer) => Promise<{ text: string }>
@@ -18,15 +20,18 @@ export async function POST(req: Request) {
   const { userId } = await auth()
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const access = await getOrgAccessForClerkUser(userId)
+  if (!access) return NextResponse.json({ error: 'No organization found' }, { status: 404 })
+
   const { data: org } = await supabaseAdmin
     .from('organizations')
     .select('id, plan')
-    .eq('clerk_user_id', userId)
-    .single()
+    .eq('id', access.organization.id)
+    .maybeSingle()
 
   if (!org) return NextResponse.json({ error: 'No organization found' }, { status: 404 })
 
-  if (org.plan === 'basic') {
+  if (isBasic(org.plan)) {
     return NextResponse.json({ error: 'PDF extraction is a Pro/Enterprise feature' }, { status: 403 })
   }
 

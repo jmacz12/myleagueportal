@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js'
 import { getOrgAccessForClerkUser, getOrgAccessForOrganization } from '@/lib/org-access'
 import { EMPTY_LEAGUE_SITE, parseLeagueSitePayload } from '@/lib/league-site'
 import { countGalleryImages, maxGalleryImagesForPlan } from '@/lib/league-site-limits'
+import { isBasic, normalizeOrgPlan } from '@/lib/org-plan-tier'
 import { proBrandColorChangesRemaining, PRO_BRAND_COLOR_CHANGES_PER_MONTH } from '@/lib/pro-brand-color-limits'
 import { appearanceModeForChoice, normalizeLeagueThemePresetId } from '@/lib/league-theme-choice'
 
@@ -45,7 +46,7 @@ export async function GET(req: Request) {
     .eq('id', access.organization.id)
     .maybeSingle()
 
-  const plan = typeof orgMeta?.plan === 'string' ? orgMeta.plan : 'basic'
+  const plan = normalizeOrgPlan(orgMeta?.plan)
   const maxG = maxGalleryImagesForPlan(plan)
   const themeChoice = normalizeLeagueThemePresetId(
     orgMeta?.league_theme_preset,
@@ -100,8 +101,8 @@ export async function PUT(req: Request) {
     .eq('id', access.organization.id)
     .maybeSingle()
 
-  const planGate = typeof orgGate?.plan === 'string' ? orgGate.plan : 'basic'
-  if (planGate === 'basic') {
+  const planGate = normalizeOrgPlan(orgGate?.plan)
+  if (isBasic(planGate)) {
     return NextResponse.json(
       {
         error:
@@ -131,7 +132,7 @@ export async function PUT(req: Request) {
     .eq('id', access.organization.id)
     .maybeSingle()
 
-  const planPut = typeof orgPlanPut?.plan === 'string' ? orgPlanPut.plan : 'basic'
+  const planPut = normalizeOrgPlan(orgPlanPut?.plan)
   const maxG = maxGalleryImagesForPlan(planPut)
   const galleryCount = countGalleryImages(draft)
   if (galleryCount > maxG) {

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { jerseyPollsEnabledForOrgPlan, JERSEY_POLL_PRO_REQUIRED_MESSAGE } from '@/lib/jersey-poll-tier'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -14,12 +15,16 @@ export async function GET(
 
   const { data: org, error: orgError } = await supabaseAdmin
     .from('organizations')
-    .select('id, name, slug, primary_color')
+    .select('id, name, slug, primary_color, plan')
     .eq('slug', slug)
     .single()
 
   if (orgError || !org) {
     return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
+  }
+
+  if (!jerseyPollsEnabledForOrgPlan(org.plan)) {
+    return NextResponse.json({ error: JERSEY_POLL_PRO_REQUIRED_MESSAGE }, { status: 403 })
   }
 
   const { data: poll, error: pollError } = await supabaseAdmin

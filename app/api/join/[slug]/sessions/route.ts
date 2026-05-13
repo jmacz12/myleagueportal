@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { auth, clerkClient } from '@clerk/nextjs/server'
 import { EMPTY_LEAGUE_SITE, parseLeagueSitePayload } from '@/lib/league-site'
 import { pickFeaturedPublicScheduleItem } from '@/lib/league-public-home-schedule'
+import { normalizeOrgPlan } from '@/lib/org-plan-tier'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -299,7 +300,7 @@ export async function GET(
     sessions: sessionsWithSignups,
     scheduleItems,
     featuredGame,
-    organization: org,
+    organization: { ...org, plan: normalizeOrgPlan((org as { plan?: unknown }).plan) },
     leagueSite,
   })
 }

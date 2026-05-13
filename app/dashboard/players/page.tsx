@@ -48,6 +48,7 @@ export default function PlayersPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [assigningId, setAssigningId] = useState<string | null>(null)
   const [pollHelpOpen, setPollHelpOpen] = useState(false)
+  const [orgPlan, setOrgPlan] = useState<'basic' | 'pro' | 'enterprise'>('basic')
 
   useEffect(() => {
     void fetchData()
@@ -63,6 +64,8 @@ export default function PlayersPage() {
     setPlayers(pd.players || [])
     setTeams(td.teams || [])
     setOrgSlug(typeof td.org_slug === 'string' ? td.org_slug : '')
+    const pr = String(td.org_plan || 'basic').toLowerCase()
+    setOrgPlan(pr === 'enterprise' ? 'enterprise' : pr === 'pro' ? 'pro' : 'basic')
     setSeasons(sd.seasons || [])
     setLoading(false)
   }
@@ -393,20 +396,29 @@ export default function PlayersPage() {
               Jersey number polls
             </h2>
             <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '0 0 14px', lineHeight: 1.5 }}>
-              A poll lets roster players submit a <strong>preferred jersey number</strong> using the email they registered with. You still set the
-              official number here on the Players page; the poll helps you collect preferences and spot conflicts when two people want the same
-              number.
+              <strong>Pro and Enterprise.</strong> A poll lets roster players submit a <strong>preferred jersey number</strong> using the email they
+              registered with. You set the official number on this Players page (only one player per team can have each number). The poll helps you
+              collect preferences before you order jerseys; duplicate picks show as conflicts in <strong>Manage team → Logo &amp; poll</strong>.
             </p>
-            <p style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 8px' }}>Open tools per team</p>
+            {orgPlan === 'basic' ? (
+              <p style={{ fontSize: '12px', color: 'var(--text-primary)', margin: '0 0 14px', lineHeight: 1.5, padding: '10px 12px', borderRadius: '8px', background: 'var(--bg-elevated)', border: '0.5px solid var(--border)' }}>
+                Your league is on <strong>Basic</strong>. Upgrade under{' '}
+                <Link href="/dashboard/settings" style={{ fontWeight: 700, color: 'var(--accent)' }}>
+                  Dashboard → Settings
+                </Link>{' '}
+                to use jersey polls.
+              </p>
+            ) : null}
+            <p style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 8px' }}>Where to open the poll</p>
             <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 10px', lineHeight: 1.45 }}>
-              On each team’s public page, sign in as an owner or team manager and use <strong>Manage team</strong> (top right) to open or close a poll
-              and copy the player link.
+              Open <strong>Dashboard → Teams</strong>, or go to each team&apos;s public page, sign in as owner or staff, and use <strong>Manage team</strong> →{' '}
+              <strong>Logo &amp; poll</strong>. Players see an entry on the team page <strong>Overview</strong> tab when a poll is open.
             </p>
             {orgSlug && teamsForPollModal.length > 0 ? (
               <ul style={{ margin: '0 0 16px', paddingLeft: '18px', fontSize: '13px', color: 'var(--text-primary)' }}>
                 {teamsForPollModal.map((t) => (
                   <li key={t.id} style={{ marginBottom: '6px' }}>
-                    <Link href={`/league/${orgSlug}/teams/${t.id}?manage=1`} style={{ color: 'var(--accent)', fontWeight: 700 }}>
+                    <Link href={`/league/${orgSlug}/teams/${t.id}?manage=1&panel=jersey`} style={{ color: 'var(--accent)', fontWeight: 700 }}>
                       {t.name}
                     </Link>
                   </li>

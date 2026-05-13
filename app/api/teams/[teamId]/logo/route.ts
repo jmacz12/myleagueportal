@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { createClient } from '@supabase/supabase-js'
 import { getOrgAccessForClerkUser } from '@/lib/org-access'
+import { isBasic } from '@/lib/org-plan-tier'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -31,7 +32,7 @@ export async function POST(
 
   const org = await getAccessibleOrg(userId)
   if (!org) return NextResponse.json({ error: 'No organization found' }, { status: 404 })
-  if (String(org.plan || 'basic').toLowerCase() === 'basic') {
+  if (isBasic(org.plan)) {
     return NextResponse.json(
       { error: 'Team logo upload requires Pro or Enterprise.' },
       { status: 403 }

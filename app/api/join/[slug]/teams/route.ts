@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { fetchOrganizationForPublicJoin, normalizeJoinSlugParam } from '@/lib/join-public-org'
+import { jerseyPollsEnabledForOrgPlan } from '@/lib/jersey-poll-tier'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -63,14 +64,17 @@ export async function GET(
     if (row.team_id) counts[row.team_id] = (counts[row.team_id] || 0) + 1
   }
 
-  const { data: openPolls } = await supabaseAdmin
-    .from('jersey_polls')
-    .select('id, team_id')
-    .eq('status', 'open')
-    .in('team_id', teamIds)
+  const openPollsResult = jerseyPollsEnabledForOrgPlan(orgHub.plan)
+    ? await supabaseAdmin
+        .from('jersey_polls')
+        .select('id, team_id')
+        .eq('status', 'open')
+        .in('team_id', teamIds)
+    : { data: [] as { id: string; team_id: string }[] }
 
+  const openPolls = openPollsResult.data ?? []
   const pollByTeam = new Map<string, string>()
-  for (const p of openPolls || []) {
+  for (const p of openPolls) {
     pollByTeam.set(p.team_id, p.id)
   }
 
