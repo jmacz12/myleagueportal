@@ -12,6 +12,7 @@ import {
 } from '@/components/league-site/LeagueSiteOnPageEditor'
 import {
   CalendarDays,
+  ChevronDown,
   ChevronRight,
   LayoutGrid,
   Loader2,
@@ -1400,6 +1401,14 @@ function LeagueHomeContent() {
 
   const standingsDisplayRows = useMemo(() => buildLeagueStandingsDisplayRows(standingsRows), [standingsRows])
 
+  const STANDINGS_HISTORY_PAGE_SIZE = 5
+  const [standingsHistoryExpanded, setStandingsHistoryExpanded] = useState(false)
+  const standingsHistoryVisible = useMemo(
+    () =>
+      standingsHistoryExpanded ? gameResults : gameResults.slice(0, STANDINGS_HISTORY_PAGE_SIZE),
+    [gameResults, standingsHistoryExpanded]
+  )
+
   const [stickyVisible, setStickyVisible] = useState(false)
   const [canManageSite, setCanManageSite] = useState(false)
   const [siteAccessRole, setSiteAccessRole] = useState<'owner' | 'editor' | null>(null)
@@ -1587,6 +1596,10 @@ function LeagueHomeContent() {
   useEffect(() => {
     setStandingsInnerTab('overview')
   }, [slug])
+
+  useEffect(() => {
+    setStandingsHistoryExpanded(false)
+  }, [slug, standingsInnerTab])
 
   const refreshStreamLive = useCallback(async () => {
     try {
@@ -3285,58 +3298,143 @@ function LeagueHomeContent() {
 
                 {standingsInnerTab === 'overview' ? (
                   <>
-                    <p style={{ margin: '0 0 20px', fontSize: '14px', color: preset.muted, lineHeight: 1.55, maxWidth: '560px' }}>
-                      Ties share the same place number. <strong style={{ color: preset.body }}>GB</strong> is games behind the first-place team (— when even or no games yet).
-                    </p>
+                    <div
+                      style={{
+                        margin: '0 0 22px',
+                        padding: '14px 16px',
+                        borderRadius: '12px',
+                        background: preset.accentSoftBg,
+                        border: `1px solid ${preset.surfaceBorder}`,
+                        maxWidth: '640px',
+                      }}
+                    >
+                      <p style={{ margin: 0, fontSize: '13px', color: preset.muted, lineHeight: 1.55 }}>
+                        Tied teams share the same rank. <strong style={{ color: preset.body }}>GB</strong> is games behind first place (shown as — when tied for first or before any games).
+                      </p>
+                    </div>
                     {standingsRows.length > 0 ? (
                       <div
                         style={{
                           background: preset.surfaceBg,
                           border: `1px solid ${preset.surfaceBorder}`,
-                          borderRadius: '16px',
+                          borderRadius: '18px',
                           overflow: 'hidden',
+                          boxShadow: '0 14px 40px -28px rgba(0,0,0,0.22)',
                         }}
                       >
+                        <div
+                          style={{
+                            padding: '16px 20px',
+                            borderBottom: `1px solid ${preset.surfaceBorder}`,
+                            background: `linear-gradient(135deg, ${preset.accentSoftBg} 0%, transparent 55%)`,
+                          }}
+                        >
+                          <p style={{ margin: 0, fontSize: '12px', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: preset.muted }}>
+                            Season table
+                          </p>
+                          <p style={{ margin: '6px 0 0', fontSize: '17px', fontWeight: 900, color: preset.heading, letterSpacing: '-0.02em' }}>
+                            Team standings
+                          </p>
+                        </div>
                         <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
                           <table style={{ width: '100%', minWidth: '520px', borderCollapse: 'collapse', fontSize: '14px' }}>
                             <thead>
-                              <tr style={{ background: preset.accentSoftBg, color: preset.body, textAlign: 'left' }}>
-                                <th style={{ padding: '10px 12px', fontWeight: 800, whiteSpace: 'nowrap' }} title="Place (ties share a number)">
-                                  #
+                              <tr style={{ color: preset.muted, textAlign: 'left' }}>
+                                <th
+                                  style={{ padding: '12px 10px 12px 20px', fontWeight: 800, fontSize: '11px', letterSpacing: '0.06em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}
+                                  title="Place (ties share a number)"
+                                >
+                                  Rank
                                 </th>
-                                <th style={{ padding: '10px 12px', fontWeight: 800 }}>Team</th>
-                                <th style={{ padding: '10px 12px', fontWeight: 800, textAlign: 'center', whiteSpace: 'nowrap' }} title="Games played">
+                                <th style={{ padding: '12px 10px', fontWeight: 800, fontSize: '11px', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Team</th>
+                                <th
+                                  style={{ padding: '12px 10px', fontWeight: 800, fontSize: '11px', letterSpacing: '0.06em', textTransform: 'uppercase', textAlign: 'center', whiteSpace: 'nowrap' }}
+                                  title="Games played"
+                                >
                                   GP
                                 </th>
-                                <th style={{ padding: '10px 12px', fontWeight: 800, textAlign: 'center' }}>W</th>
-                                <th style={{ padding: '10px 12px', fontWeight: 800, textAlign: 'center' }}>L</th>
-                                <th style={{ padding: '10px 12px', fontWeight: 800, textAlign: 'center', whiteSpace: 'nowrap' }} title="Winning percentage">
+                                <th style={{ padding: '12px 10px', fontWeight: 800, fontSize: '11px', letterSpacing: '0.06em', textTransform: 'uppercase', textAlign: 'center' }}>W</th>
+                                <th style={{ padding: '12px 10px', fontWeight: 800, fontSize: '11px', letterSpacing: '0.06em', textTransform: 'uppercase', textAlign: 'center' }}>L</th>
+                                <th
+                                  style={{ padding: '12px 10px', fontWeight: 800, fontSize: '11px', letterSpacing: '0.06em', textTransform: 'uppercase', textAlign: 'center', whiteSpace: 'nowrap' }}
+                                  title="Winning percentage"
+                                >
                                   PCT
                                 </th>
-                                <th style={{ padding: '10px 12px', fontWeight: 800, textAlign: 'center', whiteSpace: 'nowrap' }} title="Games behind first place">
+                                <th
+                                  style={{
+                                    padding: '12px 20px 12px 10px',
+                                    fontWeight: 800,
+                                    fontSize: '11px',
+                                    letterSpacing: '0.06em',
+                                    textTransform: 'uppercase',
+                                    textAlign: 'center',
+                                    whiteSpace: 'nowrap',
+                                  }}
+                                  title="Games behind first place"
+                                >
                                   GB
                                 </th>
                               </tr>
                             </thead>
                             <tbody>
-                              {standingsDisplayRows.map(({ row, rank, gp, gbDisplay, pctDisplay }) => (
-                                <tr key={row.team_id} style={{ borderTop: `1px solid ${preset.surfaceBorder}` }}>
-                                  <td style={{ padding: '10px 12px', color: preset.muted, fontVariantNumeric: 'tabular-nums' }}>{rank}</td>
-                                  <td style={{ padding: '10px 12px', fontWeight: 700 }}>
-                                    <Link
-                                      href={`/league/${slug}/teams/${row.team_id}`}
-                                      style={{ color: preset.heading, textDecoration: 'none', fontWeight: 700 }}
-                                    >
-                                      {row.team_name}
-                                    </Link>
-                                  </td>
-                                  <td style={{ padding: '10px 12px', textAlign: 'center', color: preset.body, fontVariantNumeric: 'tabular-nums' }}>{gp}</td>
-                                  <td style={{ padding: '10px 12px', textAlign: 'center', color: preset.body, fontVariantNumeric: 'tabular-nums' }}>{row.wins}</td>
-                                  <td style={{ padding: '10px 12px', textAlign: 'center', color: preset.body, fontVariantNumeric: 'tabular-nums' }}>{row.losses}</td>
-                                  <td style={{ padding: '10px 12px', textAlign: 'center', color: preset.body, fontVariantNumeric: 'tabular-nums' }}>{pctDisplay}</td>
-                                  <td style={{ padding: '10px 12px', textAlign: 'center', color: preset.muted, fontVariantNumeric: 'tabular-nums' }}>{gbDisplay}</td>
-                                </tr>
-                              ))}
+                              {standingsDisplayRows.map(({ row, rank, gp, gbDisplay, pctDisplay }, idx) => {
+                                const rankChipBg =
+                                  rank === 1 ? preset.accent : rank <= 3 ? preset.accentSoftBg : 'transparent'
+                                const rankChipColor =
+                                  rank === 1 ? contrastTextForAccent(preset.accent) : rank <= 3 ? preset.heading : preset.muted
+                                const rankChipBorder =
+                                  rank === 1 || rank <= 3 ? 'none' : `1px solid ${preset.surfaceBorder}`
+                                return (
+                                  <tr
+                                    key={row.team_id}
+                                    style={{
+                                      borderTop: `1px solid ${preset.surfaceBorder}`,
+                                      background: idx % 2 === 0 ? 'transparent' : `${preset.accentSoftBg}40`,
+                                    }}
+                                  >
+                                    <td style={{ padding: '14px 10px 14px 20px', verticalAlign: 'middle' }}>
+                                      <span
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          minWidth: '36px',
+                                          height: '36px',
+                                          borderRadius: '10px',
+                                          fontSize: '14px',
+                                          fontWeight: 900,
+                                          fontVariantNumeric: 'tabular-nums',
+                                          background: rankChipBg,
+                                          color: rankChipColor,
+                                          border: rankChipBorder,
+                                          boxSizing: 'border-box',
+                                        }}
+                                      >
+                                        {rank}
+                                      </span>
+                                    </td>
+                                    <td style={{ padding: '14px 10px', fontWeight: 800, verticalAlign: 'middle' }}>
+                                      <Link
+                                        href={`/league/${slug}/teams/${row.team_id}`}
+                                        style={{
+                                          color: preset.heading,
+                                          textDecoration: 'none',
+                                          fontWeight: 800,
+                                          borderBottom: `1px solid transparent`,
+                                        }}
+                                      >
+                                        {row.team_name}
+                                      </Link>
+                                    </td>
+                                    <td style={{ padding: '14px 10px', textAlign: 'center', color: preset.body, fontVariantNumeric: 'tabular-nums', verticalAlign: 'middle' }}>{gp}</td>
+                                    <td style={{ padding: '14px 10px', textAlign: 'center', color: preset.body, fontVariantNumeric: 'tabular-nums', verticalAlign: 'middle' }}>{row.wins}</td>
+                                    <td style={{ padding: '14px 10px', textAlign: 'center', color: preset.body, fontVariantNumeric: 'tabular-nums', verticalAlign: 'middle' }}>{row.losses}</td>
+                                    <td style={{ padding: '14px 10px', textAlign: 'center', color: preset.body, fontVariantNumeric: 'tabular-nums', verticalAlign: 'middle' }}>{pctDisplay}</td>
+                                    <td style={{ padding: '14px 20px 14px 10px', textAlign: 'center', color: preset.muted, fontVariantNumeric: 'tabular-nums', verticalAlign: 'middle' }}>{gbDisplay}</td>
+                                  </tr>
+                                )
+                              })}
                             </tbody>
                           </table>
                         </div>
@@ -3346,36 +3444,50 @@ function LeagueHomeContent() {
                         style={{
                           background: preset.surfaceBg,
                           border: `1px solid ${preset.surfaceBorder}`,
-                          borderRadius: '16px',
-                          padding: '28px 24px',
+                          borderRadius: '18px',
+                          padding: '32px 24px',
                           textAlign: 'center',
+                          boxShadow: '0 14px 40px -28px rgba(0,0,0,0.18)',
                         }}
                       >
-                        <BarChart3 size={32} strokeWidth={1.5} style={{ color: preset.accent, margin: '0 auto 12px' }} aria-hidden />
-                        <p style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: preset.heading }}>Standings go live with game results</p>
+                        <BarChart3 size={36} strokeWidth={1.5} style={{ color: preset.accent, margin: '0 auto 14px' }} aria-hidden />
+                        <p style={{ margin: 0, fontSize: '16px', fontWeight: 900, color: preset.heading, letterSpacing: '-0.02em' }}>Standings go live with game results</p>
                         <p style={{ margin: '10px 0 0', fontSize: '14px', color: preset.muted, lineHeight: 1.55, maxWidth: '420px', marginLeft: 'auto', marginRight: 'auto' }}>
                           Your organizer records scores from the dashboard; this hub will fill in as that data rolls out.
                         </p>
                       </div>
                     )}
                     {leadersRows.length > 0 ? (
-                      <div
-                        style={{
-                          marginTop: '14px',
-                          background: preset.surfaceBg,
-                          border: `1px solid ${preset.surfaceBorder}`,
-                          borderRadius: '14px',
-                          padding: '12px 14px',
-                        }}
-                      >
-                        <p style={{ margin: '0 0 8px', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: preset.muted }}>
-                          Current leaders
-                        </p>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                      <div style={{ marginTop: '28px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+                          <Trophy size={22} strokeWidth={2} style={{ color: preset.accent }} aria-hidden />
+                          <div>
+                            <p style={{ margin: 0, fontSize: '12px', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: preset.muted }}>Leaders</p>
+                            <p style={{ margin: '2px 0 0', fontSize: '18px', fontWeight: 900, color: preset.heading, letterSpacing: '-0.02em' }}>Current leaders</p>
+                          </div>
+                        </div>
+                        <div
+                          style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+                            gap: '12px',
+                          }}
+                        >
                           {leadersRows.map((row) => (
-                            <span key={`${row.stat}-${row.player_name}`} style={{ fontSize: '13px', color: preset.body }}>
-                              <strong style={{ color: preset.heading }}>{row.stat}</strong>: {row.player_name} ({Math.round(row.total)})
-                            </span>
+                            <div
+                              key={`${row.stat}-${row.player_name}`}
+                              style={{
+                                background: preset.surfaceBg,
+                                border: `1px solid ${preset.surfaceBorder}`,
+                                borderRadius: '14px',
+                                padding: '16px 18px',
+                                boxShadow: '0 10px 28px -22px rgba(0,0,0,0.2)',
+                              }}
+                            >
+                              <p style={{ margin: 0, fontSize: '11px', fontWeight: 800, letterSpacing: '0.07em', textTransform: 'uppercase', color: preset.muted }}>{row.stat}</p>
+                              <p style={{ margin: '10px 0 4px', fontSize: '16px', fontWeight: 900, color: preset.heading, lineHeight: 1.25 }}>{row.player_name}</p>
+                              <p style={{ margin: 0, fontSize: '22px', fontWeight: 900, color: preset.accent, fontVariantNumeric: 'tabular-nums' }}>{Math.round(row.total)}</p>
+                            </div>
                           ))}
                         </div>
                       </div>
@@ -3383,28 +3495,40 @@ function LeagueHomeContent() {
                   </>
                 ) : (
                   <>
-                    <p style={{ margin: '0 0 20px', fontSize: '14px', color: preset.muted, lineHeight: 1.55, maxWidth: '560px' }}>
-                      Final scores with both teams tallied (newest first). Open a row for the full public recap on the <strong style={{ color: preset.body }}>Stream</strong> tab.
-                    </p>
+                    <div
+                      style={{
+                        margin: '0 0 22px',
+                        padding: '14px 16px',
+                        borderRadius: '12px',
+                        background: preset.accentSoftBg,
+                        border: `1px solid ${preset.surfaceBorder}`,
+                        maxWidth: '640px',
+                      }}
+                    >
+                      <p style={{ margin: 0, fontSize: '13px', color: preset.muted, lineHeight: 1.55 }}>
+                        Final scores with both teams tallied, newest first. Open a game for the full recap on the <strong style={{ color: preset.body }}>Stream</strong> tab.
+                      </p>
+                    </div>
                     {gameResults.length === 0 ? (
                       <div
                         style={{
                           background: preset.surfaceBg,
                           border: `1px solid ${preset.surfaceBorder}`,
-                          borderRadius: '16px',
-                          padding: '28px 24px',
+                          borderRadius: '18px',
+                          padding: '32px 24px',
                           textAlign: 'center',
+                          boxShadow: '0 14px 40px -28px rgba(0,0,0,0.18)',
                         }}
                       >
-                        <CalendarDays size={32} strokeWidth={1.5} style={{ color: preset.accent, margin: '0 auto 12px' }} aria-hidden />
-                        <p style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: preset.heading }}>No completed games yet</p>
+                        <CalendarDays size={36} strokeWidth={1.5} style={{ color: preset.accent, margin: '0 auto 14px' }} aria-hidden />
+                        <p style={{ margin: 0, fontSize: '16px', fontWeight: 900, color: preset.heading, letterSpacing: '-0.02em' }}>No completed games yet</p>
                         <p style={{ margin: '10px 0 0', fontSize: '14px', color: preset.muted, lineHeight: 1.55, maxWidth: '420px', marginLeft: 'auto', marginRight: 'auto' }}>
                           When organizers mark games final, results appear here automatically.
                         </p>
                       </div>
                     ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                        {gameResults.map((g) => {
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        {standingsHistoryVisible.map((g) => {
                           const local = formatDropInSessionLocal(g.scheduled_at, org.league_timezone)
                           const scoreLine = `${g.away_score}–${g.home_score}`
                           return (
@@ -3416,24 +3540,63 @@ function LeagueHomeContent() {
                                 textDecoration: 'none',
                                 background: preset.surfaceBg,
                                 border: `1px solid ${preset.surfaceBorder}`,
-                                borderRadius: '14px',
-                                padding: '16px 18px',
+                                borderRadius: '16px',
+                                padding: '18px 20px',
                                 color: preset.body,
-                                boxShadow: '0 8px 24px -18px rgba(0,0,0,0.12)',
+                                boxShadow: '0 12px 32px -24px rgba(0,0,0,0.2)',
                               }}
                             >
-                              <p style={{ margin: 0, fontSize: '12px', fontWeight: 700, color: preset.muted }}>
-                                {local.day} · {local.time}
-                                {local.zone ? ` ${local.zone}` : ''}
+                              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', justifyContent: 'space-between', gap: '8px 16px' }}>
+                                <p style={{ margin: 0, fontSize: '12px', fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: preset.muted }}>
+                                  {local.day} · {local.time}
+                                  {local.zone ? ` ${local.zone}` : ''}
+                                </p>
+                                <p style={{ margin: 0, fontSize: '20px', fontWeight: 900, color: preset.heading, fontVariantNumeric: 'tabular-nums' }}>{scoreLine}</p>
+                              </div>
+                              <p style={{ margin: '12px 0 0', fontSize: '17px', fontWeight: 900, color: preset.heading, letterSpacing: '-0.02em', lineHeight: 1.3 }}>
+                                {g.away_team_name} <span style={{ color: preset.muted, fontWeight: 800 }}>@</span> {g.home_team_name}
                               </p>
-                              <p style={{ margin: '8px 0 4px', fontSize: '16px', fontWeight: 900, color: preset.heading, letterSpacing: '-0.02em' }}>
-                                {g.away_team_name} @ {g.home_team_name}
-                              </p>
-                              <p style={{ margin: 0, fontSize: '18px', fontWeight: 900, color: preset.heading }}>{scoreLine}</p>
-                              <p style={{ margin: '10px 0 0', fontSize: '12px', fontWeight: 800, color: preset.accent }}>Stream tab →</p>
+                              <p style={{ margin: '12px 0 0', fontSize: '12px', fontWeight: 800, color: preset.accent }}>View recap on Stream →</p>
                             </Link>
                           )
                         })}
+                        {gameResults.length > STANDINGS_HISTORY_PAGE_SIZE ? (
+                          <button
+                            type="button"
+                            aria-expanded={standingsHistoryExpanded}
+                            onClick={() => setStandingsHistoryExpanded((prev) => !prev)}
+                            style={{
+                              marginTop: '4px',
+                              alignSelf: 'center',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '8px',
+                              padding: '12px 22px',
+                              borderRadius: '12px',
+                              fontSize: '14px',
+                              fontWeight: 800,
+                              fontFamily: 'inherit',
+                              cursor: 'pointer',
+                              border: `1px solid ${preset.surfaceBorder}`,
+                              background: preset.surfaceBg,
+                              color: preset.heading,
+                              boxShadow: '0 8px 22px -16px rgba(0,0,0,0.15)',
+                            }}
+                          >
+                            {standingsHistoryExpanded ? 'Show less' : 'Click for more'}
+                            <ChevronDown
+                              size={18}
+                              strokeWidth={2.5}
+                              aria-hidden
+                              style={{
+                                color: preset.accent,
+                                transform: standingsHistoryExpanded ? 'rotate(180deg)' : 'none',
+                                transition: 'transform 0.2s ease',
+                              }}
+                            />
+                          </button>
+                        ) : null}
                       </div>
                     )}
                   </>
