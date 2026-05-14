@@ -53,6 +53,8 @@ export interface TeamPayload {
     league_theme_preset?: string | null
     league_appearance_mode?: string | null
     plan?: string | null
+    /** Drives registration positions + public stat column labels on the team Stats tab. */
+    sport_template_id?: string | null
   }
   public_tier?: 'basic' | 'pro' | 'enterprise'
   /** Five stat keys for Pro public roster/Stats (same as stream box score). */

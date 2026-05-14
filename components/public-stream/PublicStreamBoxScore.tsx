@@ -13,9 +13,19 @@ import {
   PRIMARY_STAT_LABELS,
   PUBLIC_PRIMARY_STAT_ORDER,
   normalizePublicPrimaryStatKeys,
+  orderedFanStatColumns,
   type PublicPrimaryStatKey,
 } from '@/lib/public-primary-stats'
 import type { LeagueWatchLeaguePreset } from '@/components/public-stream/LeagueWatchScoreStrip'
+
+function normalizePublicBoxScoreTier(raw: unknown): 'basic' | 'pro' | 'enterprise' {
+  const t = String(raw ?? '').toLowerCase()
+  if (t === 'enterprise') return 'enterprise'
+  if (t === 'basic') return 'basic'
+  if (t === 'pro') return 'pro'
+  if (t === 'basic_or_pro') return 'pro'
+  return 'pro'
+}
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -62,9 +72,9 @@ type BoxScorePayload = {
   homeTeam: TeamLite | null
   awayTeam: TeamLite | null
   stats: GameStatRow[]
-  /** Public stream: Basic/Pro show five org-picked stats; Enterprise shows full grid. */
-  publicBoxScoreTier?: 'enterprise' | 'basic_or_pro'
-  /** Five stat keys visible on Basic/Pro (from `organizations.public_stream_primary_stat_keys`). */
+  /** `basic` = roster only on public stream; `pro` = five picks (left) + locked rest; `enterprise` = full grid. */
+  publicBoxScoreTier?: 'basic' | 'pro' | 'enterprise'
+  /** Five stat keys for Pro/Enterprise fan surfaces (from `organizations.public_stream_primary_stat_keys`). */
   publicStreamPrimaryStatKeys?: PublicPrimaryStatKey[]
 }
 
@@ -104,7 +114,9 @@ export function PublicStreamBoxScore({
     }
     const normalized: BoxScorePayload = {
       ...json,
-      publicBoxScoreTier: json.publicBoxScoreTier === 'enterprise' ? 'enterprise' : 'basic_or_pro',
+      publicBoxScoreTier: normalizePublicBoxScoreTier(
+        (json as { publicBoxScoreTier?: unknown }).publicBoxScoreTier
+      ),
       publicStreamPrimaryStatKeys: normalizePublicPrimaryStatKeys(
         (json as { publicStreamPrimaryStatKeys?: unknown }).publicStreamPrimaryStatKeys
       ),
@@ -195,10 +207,6 @@ export function PublicStreamBoxScore({
     return { homePts, awayPts, reb, ast }
   }, [homeStats, awayStats])
 
-  const primarySet = useMemo(() => {
-    return new Set(normalizePublicPrimaryStatKeys(payload?.publicStreamPrimaryStatKeys))
-  }, [payload])
-
   const headerBand = P.pageBg
 
   if (loading) {
@@ -237,11 +245,24 @@ export function PublicStreamBoxScore({
   }
 
   const { game, homeTeam, awayTeam } = payload
-  const showFullPublicBoxScoreStats = payload.publicBoxScoreTier === 'enterprise'
+  const tier = normalizePublicBoxScoreTier(payload.publicBoxScoreTier)
+  const showFullPublicBoxScoreStats = tier === 'enterprise'
+  const primaryUnlock = new Set(
+    normalizePublicPrimaryStatKeys(payload.publicStreamPrimaryStatKeys)
+  )
+  const orderedColumns: PublicPrimaryStatKey[] =
+    tier === 'basic'
+      ? []
+      : tier === 'enterprise'
+        ? [...PUBLIC_PRIMARY_STAT_ORDER]
+        : orderedFanStatColumns(payload.publicStreamPrimaryStatKeys ?? [])
 
-  const statColCount = PUBLIC_PRIMARY_STAT_ORDER.length
-  const statGridTemplateColumns = `32px minmax(100px, 1fr) repeat(${statColCount}, minmax(38px, 46px))`
-  const statTableMinWidthPx = 280 + statColCount * 44
+  const statColCount = orderedColumns.length
+  const statGridTemplateColumns =
+    statColCount > 0
+      ? `32px minmax(100px, 1fr) repeat(${statColCount}, minmax(38px, 46px))`
+      : `32px minmax(100px, 1fr)`
+  const statTableMinWidthPx = statColCount > 0 ? 280 + statColCount * 44 : 260
 
   function statValue(s: GameStatRow, key: PublicPrimaryStatKey): string {
     if (key === 'min') return formatSecondsAsMinSec(Number(s.seconds_played ?? 0))
@@ -250,7 +271,7 @@ export function PublicStreamBoxScore({
   }
 
   function isStatUnlocked(key: PublicPrimaryStatKey): boolean {
-    return showFullPublicBoxScoreStats || primarySet.has(key)
+    return showFullPublicBoxScoreStats || primaryUnlock.has(key)
   }
 
   function openLockedSheet(statKey: PublicPrimaryStatKey) {
@@ -260,6 +281,105 @@ export function PublicStreamBoxScore({
   function StatTable({ teamStats, teamName, teamColor }: { teamStats: GameStatRow[]; teamName: string; teamColor: string | null }) {
     const headerBg = P.accentSoftBg
     const rowBorder = P.surfaceBorder
+
+    if (tier === 'basic') {
+      return (
+        <div style={{ marginBottom: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+            {teamColor ? (
+              <div style={{ width: '12px', height: '12px', borderRadius: '2px', background: teamColor, flexShrink: 0 }} />
+            ) : null}
+            <div style={{ fontSize: '14px', fontWeight: 800, color: P.heading }}>{teamName}</div>
+          </div>
+          <div
+            style={{
+              background: P.surfaceBg,
+              borderRadius: '10px',
+              overflow: 'hidden',
+              border: `1px solid ${P.surfaceBorder}`,
+            }}
+          >
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '32px minmax(100px, 1fr)',
+                gap: '4px',
+                padding: '8px 14px',
+                background: headerBg,
+              }}
+            >
+              <span
+                style={{
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.06em',
+                  color: P.muted,
+                  textAlign: 'center',
+                }}
+              >
+                #
+              </span>
+              <span
+                style={{
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.06em',
+                  color: P.muted,
+                  textAlign: 'left',
+                }}
+              >
+                Player
+              </span>
+            </div>
+            {teamStats.length === 0 ? (
+              <div style={{ padding: '16px', textAlign: 'center', fontSize: '12px', color: P.muted }}>No players yet</div>
+            ) : (
+              teamStats
+                .slice()
+                .sort((a, b) => (b.pts || 0) - (a.pts || 0))
+                .map((s, idx) => {
+                  const player = s.players
+                  return (
+                    <div
+                      key={s.id}
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '32px minmax(100px, 1fr)',
+                        gap: '4px',
+                        padding: '10px 14px',
+                        borderTop: idx > 0 ? `0.5px solid ${rowBorder}` : 'none',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <span style={{ fontSize: '11px', color: P.muted, textAlign: 'center' }}>
+                        {player?.jersey_number != null ? `#${player.jersey_number}` : '—'}
+                      </span>
+                      <span style={{ fontSize: '13px', fontWeight: 600, color: P.heading }}>{player?.full_name || '—'}</span>
+                    </div>
+                  )
+                })
+            )}
+            <div
+              style={{
+                padding: '12px 14px',
+                borderTop: `0.5px solid ${rowBorder}`,
+                fontSize: '12px',
+                lineHeight: 1.45,
+                color: P.muted,
+                background: P.accentSoftBg,
+              }}
+            >
+              Per-player stats on the public stream are a <strong style={{ color: P.heading }}>Pro</strong> feature (
+              <strong style={{ color: P.heading }}>Enterprise</strong> shows the full box score). The scoreboard above
+              still updates live.
+            </div>
+          </div>
+        </div>
+      )
+    }
+
     return (
       <div style={{ marginBottom: '20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
@@ -311,7 +431,7 @@ export function PublicStreamBoxScore({
             >
               Player
             </span>
-            {PUBLIC_PRIMARY_STAT_ORDER.map((k) => {
+            {orderedColumns.map((k) => {
               const open = !isStatUnlocked(k)
               if (!open) {
                 return (
@@ -391,7 +511,7 @@ export function PublicStreamBoxScore({
                       {player?.jersey_number != null ? `#${player.jersey_number}` : '—'}
                     </span>
                     <span style={{ fontSize: '13px', fontWeight: 600, color: P.heading }}>{player?.full_name || '—'}</span>
-                    {PUBLIC_PRIMARY_STAT_ORDER.map((stat) => {
+                    {orderedColumns.map((stat) => {
                       const open = !isStatUnlocked(stat)
                       const val = statValue(s, stat)
                       return (
@@ -421,7 +541,7 @@ export function PublicStreamBoxScore({
                           ) : (
                             <span
                               style={{
-                                fontSize: stat === 'pts' ? '13px' : '13px',
+                                fontSize: '13px',
                                 fontWeight: stat === 'pts' ? 800 : 400,
                                 color: stat === 'pts' ? P.heading : P.body,
                                 fontVariantNumeric: 'tabular-nums',
@@ -650,7 +770,24 @@ export function PublicStreamBoxScore({
       ) : null}
 
       <div style={{ padding: hideLiveGameHeader ? '14px 14px 20px' : '18px 14px 20px' }}>
-        {!showFullPublicBoxScoreStats ? (
+        {tier === 'basic' ? (
+          <div
+            style={{
+              marginBottom: '14px',
+              padding: '10px 12px',
+              borderRadius: '10px',
+              border: `1px solid ${P.surfaceBorder}`,
+              background: P.surfaceBg,
+              fontSize: '12px',
+              lineHeight: 1.45,
+              color: P.body,
+            }}
+          >
+            <strong style={{ color: P.heading }}>Basic:</strong> visitors see <strong>roster only</strong> here (no per-player stat columns on the public stream).{' '}
+            <strong>Pro</strong> and <strong>Enterprise</strong> add public stat columns; full grid is <strong>Enterprise</strong>.
+          </div>
+        ) : null}
+        {tier === 'pro' ? (
           <div
             style={{
               marginBottom: '14px',
@@ -663,10 +800,9 @@ export function PublicStreamBoxScore({
               color: P.body,
             }}
           >
-            <strong style={{ color: P.heading }}>Basic &amp; Pro:</strong> fans see the{' '}
-            <strong>five stats</strong> you set on <strong>Dashboard → Games</strong>. Tap a{' '}
-            <strong>🔒</strong> column or &quot;—&quot; cell for details. <strong>Enterprise</strong> unlocks every column
-            on the public stream. Your scorer still records everything.
+            <strong style={{ color: P.heading }}>Pro:</strong> visitors see your <strong>five</strong> chosen stats first, then
+            locked columns. Tap <strong>🔒</strong> or <strong>—</strong> for details. <strong>Enterprise</strong> unlocks
+            every column. Your scorer still records everything.
           </div>
         ) : null}
         <StatTable teamStats={homeStats} teamName={homeTeam?.name || 'Home'} teamColor={homeTeam?.color ?? null} />
@@ -711,10 +847,8 @@ export function PublicStreamBoxScore({
               Enterprise only — {lockedSheet.label}
             </h2>
             <p style={{ margin: '0 0 16px', fontSize: '14px', lineHeight: 1.5 }}>
-              On Basic and Pro, fans only see the <strong>five stats</strong> you choose under{' '}
-              <strong>Dashboard → Games</strong>. Everything else still records on your score sheet but stays locked on
-              the public stream. <strong>Upgrade to Enterprise</strong> to unlock the full stat row for fans (and on
-              public team pages).
+              On <strong>Pro</strong>, visitors see your <strong>five</strong> chosen stat columns first (under <strong>Dashboard → Games</strong>), then locked columns.{' '}
+              Everything else still records on your score sheet. <strong>Upgrade to Enterprise</strong> to unlock the full stat row on the public Stream (and on public team pages).
             </p>
             <button
               type="button"

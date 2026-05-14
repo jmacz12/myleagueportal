@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { ExternalLink, Loader2 } from 'lucide-react'
 import { getPublicSiteOrigin } from '@/lib/public-site-origin'
+import { isProOrEnterprise } from '@/lib/org-plan-tier'
 
 type EditorRow = {
   id: string
@@ -18,6 +19,8 @@ type Props = {
   slug: string
   /** When set (verified custom domain), fan links use this origin instead of the default public portal URL. */
   fanSiteOrigin?: string
+  /** When `pro` or `enterprise`, show the collapsible YouTube streaming guide. */
+  orgPlan?: string
   editors: EditorRow[]
   editorEmail: string
   setEditorEmail: (v: string) => void
@@ -29,6 +32,7 @@ type Props = {
 export function LeagueSiteAccessPanel({
   slug,
   fanSiteOrigin,
+  orgPlan,
   editors,
   editorEmail,
   setEditorEmail,
@@ -108,6 +112,7 @@ export function LeagueSiteAccessPanel({
   const origin = (fanSiteOrigin || getPublicSiteOrigin()).replace(/\/$/, '')
   /** Same canonical origin as game scoring “public watch” — avoids opening /league/… on the dashboard host when public fans use www (or NEXT_PUBLIC_PUBLIC_SITE_URL). */
   const watchOnlyUrl = slug ? `${origin}/league/${encodeURIComponent(slug)}/stream` : ''
+  const showStreamGuide = isProOrEnterprise(orgPlan)
 
   return (
     <div style={{ display: 'grid', gap: '18px' }}>
@@ -121,8 +126,65 @@ export function LeagueSiteAccessPanel({
       >
         <h2 style={{ fontSize: '15px', fontWeight: 800, margin: '0 0 8px' }}>Live streams</h2>
         <p style={{ fontSize: '13px', color: 'var(--sidebar-text)', margin: '0 0 12px', lineHeight: 1.45 }}>
-          Used when a game is <strong>live</strong> on the public league <strong>Stream</strong> tab (and the watch-only link below). Team URLs override the league default for that matchup; if both teams are blank, the league default is used.
+          Used when a game is <strong>live</strong> on the public league <strong>Stream</strong> tab (Pro / Enterprise only) and the watch-only link below. Team URLs override the league default for that matchup; if both teams are blank, the league default is used.
         </p>
+        {showStreamGuide ? (
+          <details
+            style={{
+              marginBottom: '14px',
+              borderRadius: '10px',
+              border: '1px solid var(--sidebar-border)',
+              padding: '10px 12px',
+              background: 'rgba(90,122,42,0.06)',
+            }}
+          >
+            <summary
+              style={{
+                fontSize: '13px',
+                fontWeight: 800,
+                cursor: 'pointer',
+                color: 'var(--sidebar-text-active)',
+                listStyle: 'none',
+              }}
+            >
+              YouTube live — step-by-step (click to expand)
+            </summary>
+            <ol
+              style={{
+                margin: '12px 0 0',
+                paddingLeft: '20px',
+                fontSize: '13px',
+                color: 'var(--sidebar-text)',
+                lineHeight: 1.55,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '10px',
+              }}
+            >
+              <li>
+                <strong style={{ color: 'var(--sidebar-text-active)' }}>Create a YouTube channel</strong> — sign in with Google at{' '}
+                <a href="https://www.youtube.com" target="_blank" rel="noreferrer" style={{ color: 'var(--sidebar-active-border)' }}>
+                  youtube.com
+                </a>
+                , open <strong>YouTube Studio</strong>, and complete any prompts to create a channel if you don&apos;t have one yet.
+              </li>
+              <li>
+                <strong style={{ color: 'var(--sidebar-text-active)' }}>Turn on live streaming</strong> — in Studio, use <strong>Go live</strong> /{' '}
+                <strong>Create</strong> → <strong>Go live</strong>. YouTube may ask you to verify your account (phone) before you can stream from a phone or encoder — follow their prompts once.
+              </li>
+              <li>
+                <strong style={{ color: 'var(--sidebar-text-active)' }}>Choose how you broadcast</strong> — use <strong>OBS</strong>, <strong>Streamlabs</strong>, or another encoder with a <strong>stream key</strong>, or use <strong>Stream from phone</strong> in the YouTube app. Start the broadcast when your game begins.
+              </li>
+              <li>
+                <strong style={{ color: 'var(--sidebar-text-active)' }}>Paste a stable watch link here</strong> — each broadcast can get a new <code style={{ fontSize: '12px' }}>watch?v=…</code> link, which is annoying to update every game. Prefer your channel&apos;s <strong>always-on live URL</strong> instead, for example{' '}
+                <code style={{ fontSize: '11px', wordBreak: 'break-all' }}>https://www.youtube.com/@YourChannelHandle/live</code> or your channel&apos;s <strong>/live</strong> page from the browser when you&apos;re not live — when you go live, that same URL shows the current stream. (Twitch channel URLs behave similarly.)
+              </li>
+              <li>
+                <strong style={{ color: 'var(--sidebar-text-active)' }}>Save below</strong> — put the URL in <strong>League default</strong> and/or a <strong>Team override</strong>, then <strong>Save stream links</strong>. Fans see the embed on the league <strong>Stream</strong> tab when a game is <strong>live</strong> in MyLeaguePortal.
+              </li>
+            </ol>
+          </details>
+        ) : null}
         {watchOnlyUrl ? (
           <p style={{ fontSize: '13px', margin: '0 0 14px', lineHeight: 1.45 }}>
             <span style={{ display: 'block', color: 'var(--sidebar-text)', marginBottom: '8px' }}>
@@ -169,7 +231,7 @@ export function LeagueSiteAccessPanel({
               </div>
               <input
                 type="url"
-                placeholder="https://www.youtube.com/watch?v=…"
+                placeholder="https://www.youtube.com/@YourChannel/live"
                 value={defaultStream}
                 onChange={(e) => setDefaultStream(e.target.value)}
                 style={{

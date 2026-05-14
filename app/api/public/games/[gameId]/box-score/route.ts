@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { isEnterprise } from '@/lib/org-plan-tier'
+import { normalizeOrgPlan } from '@/lib/org-plan-tier'
 import { normalizePublicPrimaryStatKeys } from '@/lib/public-primary-stats'
 
 const supabaseAdmin = createClient(
@@ -31,20 +31,30 @@ export async function GET(
     return NextResponse.json({ error: 'Game not found' }, { status: 404 })
   }
 
-  let publicBoxScoreTier: 'enterprise' | 'basic_or_pro' = 'basic_or_pro'
+  let publicBoxScoreTier: 'basic' | 'pro' | 'enterprise' = 'basic'
   let publicStreamPrimaryStatKeys = normalizePublicPrimaryStatKeys(null)
   const orgId = (game as { organization_id?: string | null }).organization_id
   if (orgId) {
-    const { data: orgRow } = await supabaseAdmin
+    const { data: orgRow, error: orgSelErr } = await supabaseAdmin
       .from('organizations')
       .select('plan, public_stream_primary_stat_keys')
       .eq('id', orgId)
       .maybeSingle()
-    const row = orgRow as { plan?: unknown; public_stream_primary_stat_keys?: unknown } | null
-    if (isEnterprise(row?.plan)) {
-      publicBoxScoreTier = 'enterprise'
+
+    if (!orgSelErr && orgRow) {
+      const row = orgRow as { plan?: unknown; public_stream_primary_stat_keys?: unknown }
+      publicBoxScoreTier = normalizeOrgPlan(row.plan)
+      publicStreamPrimaryStatKeys = normalizePublicPrimaryStatKeys(row.public_stream_primary_stat_keys)
+    } else {
+      const { data: orgPlanOnly } = await supabaseAdmin
+        .from('organizations')
+        .select('plan')
+        .eq('id', orgId)
+        .maybeSingle()
+      if (orgPlanOnly) {
+        publicBoxScoreTier = normalizeOrgPlan((orgPlanOnly as { plan?: unknown }).plan)
+      }
     }
-    publicStreamPrimaryStatKeys = normalizePublicPrimaryStatKeys(row?.public_stream_primary_stat_keys)
   }
 
   const pair = [game.home_team_id, game.away_team_id].filter(Boolean) as string[]

@@ -284,6 +284,7 @@ export async function GET(
       league_theme_preset: org.league_theme_preset ?? 'classic',
       league_appearance_mode: org.league_appearance_mode ?? 'light',
       plan: normalizeOrgPlan(org.plan),
+      sport_template_id: orgHub.sport_template_id,
     },
     public_primary_stat_keys,
     public_tier: tier,

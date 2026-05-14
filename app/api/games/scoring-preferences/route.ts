@@ -7,13 +7,14 @@ import {
   recomputeMinutesForAllOrgGames,
 } from '@/lib/game-lineup-minutes'
 import { normalizePublicPrimaryStatKeys } from '@/lib/public-primary-stats'
+import { normalizeOrgPlan } from '@/lib/org-plan-tier'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-/** Game-clock + public fan stat picks (Dashboard → Games). */
+/** Game-clock + public headline stat picks (Dashboard → Games). */
 export async function GET() {
   const { userId } = await auth()
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -23,7 +24,7 @@ export async function GET() {
 
   const { data: row, error } = await supabaseAdmin
     .from('organizations')
-    .select('scoring_quarter_minutes, public_stream_primary_stat_keys')
+    .select('scoring_quarter_minutes, public_stream_primary_stat_keys, plan')
     .eq('id', access.organization.id)
     .maybeSingle()
 
@@ -32,7 +33,7 @@ export async function GET() {
     if (msg.includes('public_stream_primary_stat_keys')) {
       const { data: row2, error: err2 } = await supabaseAdmin
         .from('organizations')
-        .select('scoring_quarter_minutes')
+        .select('scoring_quarter_minutes, plan')
         .eq('id', access.organization.id)
         .maybeSingle()
       if (err2) return NextResponse.json({ error: 'Failed to load game preferences' }, { status: 500 })
@@ -42,6 +43,7 @@ export async function GET() {
       return NextResponse.json({
         scoring_quarter_minutes,
         public_stream_primary_stat_keys: normalizePublicPrimaryStatKeys(null),
+        plan: normalizeOrgPlan((row2 as { plan?: unknown } | null)?.plan),
       })
     }
     return NextResponse.json({ error: 'Failed to load game preferences' }, { status: 500 })
@@ -53,7 +55,11 @@ export async function GET() {
   const public_stream_primary_stat_keys = normalizePublicPrimaryStatKeys(
     (row as { public_stream_primary_stat_keys?: unknown } | null)?.public_stream_primary_stat_keys
   )
-  return NextResponse.json({ scoring_quarter_minutes, public_stream_primary_stat_keys })
+  return NextResponse.json({
+    scoring_quarter_minutes,
+    public_stream_primary_stat_keys,
+    plan: normalizeOrgPlan((row as { plan?: unknown } | null)?.plan),
+  })
 }
 
 export async function PATCH(req: Request) {
@@ -81,26 +87,58 @@ export async function PATCH(req: Request) {
     )
   }
 
-  const { data: org, error: orgErr } = await supabaseAdmin
+  type OrgPatchRow = {
+    id: string
+    plan?: unknown
+    scoring_quarter_minutes?: unknown
+    public_stream_primary_stat_keys?: unknown
+  }
+
+  let orgRow: OrgPatchRow | null = null
+
+  const fullSelect = await supabaseAdmin
     .from('organizations')
-    .select('id, scoring_quarter_minutes, public_stream_primary_stat_keys')
+    .select('id, plan, scoring_quarter_minutes, public_stream_primary_stat_keys')
     .eq('id', access.organization.id)
     .maybeSingle()
 
-  if (orgErr || !org?.id) {
+  if (fullSelect.error) {
+    const msg = String(fullSelect.error.message || '')
+    if (msg.includes('public_stream_primary_stat_keys')) {
+      const partial = await supabaseAdmin
+        .from('organizations')
+        .select('id, plan, scoring_quarter_minutes')
+        .eq('id', access.organization.id)
+        .maybeSingle()
+      if (partial.error || !partial.data?.id) {
+        return NextResponse.json({ error: 'Failed to load organization' }, { status: 500 })
+      }
+      orgRow = { ...partial.data, public_stream_primary_stat_keys: null }
+    } else {
+      return NextResponse.json({ error: 'Failed to load organization' }, { status: 500 })
+    }
+  } else if (!fullSelect.data?.id) {
+    return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
+  } else {
+    orgRow = fullSelect.data as OrgPatchRow
+  }
+
+  if (!orgRow) {
     return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
   }
 
-  const orgRow = org as {
-    scoring_quarter_minutes?: unknown
-    public_stream_primary_stat_keys?: unknown
+  const plan = normalizeOrgPlan(orgRow.plan)
+  if (hasPk && plan === 'basic') {
+    return NextResponse.json(
+      { error: 'Public stat columns are available on Pro and Enterprise.' },
+      { status: 403 }
+    )
   }
 
   const updatePayload: Record<string, unknown> = {}
 
   let nextQm: number | undefined
   if (hasQm) {
-    const prev = clampScoringQuarterMinutes(orgRow.scoring_quarter_minutes)
     nextQm = clampScoringQuarterMinutes(body.scoring_quarter_minutes)
     updatePayload.scoring_quarter_minutes = nextQm
   }
@@ -111,13 +149,36 @@ export async function PATCH(req: Request) {
     updatePayload.public_stream_primary_stat_keys = nextPrimary
   }
 
-  const { error: upErr } = await supabaseAdmin.from('organizations').update(updatePayload).eq('id', org.id)
+  const { error: upErr } = await supabaseAdmin.from('organizations').update(updatePayload).eq('id', orgRow.id)
 
   if (upErr) {
     const msg = String(upErr.message || '')
-    if (msg.includes('scoring_quarter_minutes') || msg.includes('public_stream_primary_stat_keys')) {
+    const missingPk = msg.includes('public_stream_primary_stat_keys')
+    const missingQm = msg.includes('scoring_quarter_minutes')
+    if (missingPk || missingQm) {
+      const devHint =
+        ' Whoever deploys MyLeaguePortal for your league needs to apply pending database updates (local: from the project folder, run the same “apply pending DB migrations” step as in ROADMAP maintenance notes).'
+      if (missingPk && missingQm) {
+        return NextResponse.json(
+          {
+            error:
+              `Cannot save these settings: the live database is missing recent league columns (public stat picks and/or quarter length).${devHint}`,
+          },
+          { status: 503 }
+        )
+      }
+      if (missingPk) {
+        return NextResponse.json(
+          {
+            error: `Cannot save stat picks: the live database does not have the public headline-stat column yet.${devHint}`,
+          },
+          { status: 503 }
+        )
+      }
       return NextResponse.json(
-        { error: 'This setting is unavailable until the latest database migrations are applied.' },
+        {
+          error: `Cannot save quarter length: the live database does not have the league “minutes per quarter” field yet.${devHint}`,
+        },
         { status: 503 }
       )
     }
@@ -127,7 +188,7 @@ export async function PATCH(req: Request) {
   if (hasQm && nextQm !== undefined) {
     const prev = clampScoringQuarterMinutes(orgRow.scoring_quarter_minutes)
     if (prev !== nextQm) {
-      await recomputeMinutesForAllOrgGames(supabaseAdmin, org.id)
+      await recomputeMinutesForAllOrgGames(supabaseAdmin, orgRow.id)
     }
   }
 

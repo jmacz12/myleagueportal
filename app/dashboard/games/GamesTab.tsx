@@ -10,6 +10,7 @@ import {
   normalizePublicPrimaryStatKeys,
   type PublicPrimaryStatKey,
 } from '@/lib/public-primary-stats'
+import { normalizeOrgPlan, type OrgPlanSlug } from '@/lib/org-plan-tier'
 
 const DEMO_LIVE_LOCATION = 'MLP_DEMO_LIVE_STREAM'
 
@@ -64,6 +65,7 @@ export default function GamesTab() {
   const [statPicksDirty, setStatPicksDirty] = useState(false)
   const [statPicksSaving, setStatPicksSaving] = useState(false)
   const [statPicksError, setStatPicksError] = useState('')
+  const [orgPlan, setOrgPlan] = useState<OrgPlanSlug | null>(null)
 
   useEffect(() => {
     void fetchData()
@@ -76,12 +78,16 @@ export default function GamesTab() {
       const j = (await res.json().catch(() => null)) as {
         scoring_quarter_minutes?: number
         public_stream_primary_stat_keys?: unknown
+        plan?: unknown
         error?: string
       } | null
       if (cancelled) return
       if (res.ok && j) {
         if (typeof j.scoring_quarter_minutes === 'number') {
           setScoringQuarterMinutes(j.scoring_quarter_minutes)
+        }
+        if (j.plan !== undefined) {
+          setOrgPlan(normalizeOrgPlan(j.plan))
         }
         if (j.public_stream_primary_stat_keys !== undefined) {
           setPrimaryDraft([...normalizePublicPrimaryStatKeys(j.public_stream_primary_stat_keys)])
@@ -340,60 +346,77 @@ export default function GamesTab() {
         <BarChart3 size={20} color="var(--accent)" style={{ flexShrink: 0, marginTop: '2px' }} aria-hidden />
         <div style={{ flex: '1 1 260px', minWidth: 0 }}>
           <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '6px' }}>
-            Public fan stats (Basic &amp; Pro)
+            Public stats (Pro &amp; Enterprise)
           </div>
-          <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 12px', lineHeight: 1.45 }}>
-            Choose <strong>five</strong> columns for the <strong>league Stream</strong> box score and <strong>public team</strong> season
-            table. Everything else still records on your score sheet but looks <strong>locked</strong> to fans until you&apos;re on{' '}
-            <strong>Enterprise</strong>.
-          </p>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
-              gap: '10px 12px',
-              marginBottom: '12px',
-            }}
-          >
-            {[0, 1, 2, 3, 4].map((i) => (
-              <label key={i} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)' }}>Column {i + 1}</span>
-                <select
-                  className="input"
-                  value={primaryDraft[i]}
-                  disabled={statPicksSaving}
-                  onChange={(e) => {
-                    const v = e.target.value as PublicPrimaryStatKey
-                    setPrimaryDraft((d) => {
-                      const n = [...d]
-                      n[i] = v
-                      return n
-                    })
-                    setStatPicksDirty(true)
-                  }}
+          {orgPlan === null ? (
+            <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0, lineHeight: 1.45 }}>Loading plan…</p>
+          ) : orgPlan === 'basic' ? (
+            <>
+              <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 12px', lineHeight: 1.45 }}>
+                <strong>Basic:</strong> the public <strong>Stream</strong> box score shows <strong>roster only</strong> (no per-player stat
+                columns on the public site). Your score sheet still records full stats. Upgrade to <strong>Pro</strong> or{' '}
+                <strong>Enterprise</strong> to show public stat columns on the Stream tab and public team pages.
+              </p>
+              <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0, lineHeight: 1.45 }}>
+                Change plan under <strong>Dashboard → Settings</strong>.
+              </p>
+            </>
+          ) : (
+            <>
+              <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 12px', lineHeight: 1.45 }}>
+                Choose <strong>five</strong> headline columns for the <strong>league Stream</strong> box score and <strong>public team</strong>{' '}
+                season table — they always appear <strong>first (left)</strong> on those public pages. On <strong>Pro</strong>, other columns show as{' '}
+                <strong>locked</strong> until <strong>Enterprise</strong>, which shows the full grid.
+              </p>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+                  gap: '10px 12px',
+                  marginBottom: '12px',
+                }}
+              >
+                {[0, 1, 2, 3, 4].map((i) => (
+                  <label key={i} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)' }}>Column {i + 1}</span>
+                    <select
+                      className="input"
+                      value={primaryDraft[i]}
+                      disabled={statPicksSaving}
+                      onChange={(e) => {
+                        const v = e.target.value as PublicPrimaryStatKey
+                        setPrimaryDraft((d) => {
+                          const n = [...d]
+                          n[i] = v
+                          return n
+                        })
+                        setStatPicksDirty(true)
+                      }}
+                    >
+                      {primarySlotOptions(i, primaryDraft).map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ))}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  disabled={statPicksSaving || !statPicksDirty}
+                  onClick={() => void saveStatPicks()}
                 >
-                  {primarySlotOptions(i, primaryDraft).map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ))}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              className="btn-primary"
-              disabled={statPicksSaving || !statPicksDirty}
-              onClick={() => void saveStatPicks()}
-            >
-              {statPicksSaving ? 'Saving…' : 'Save stat picks'}
-            </button>
-            {statPicksError ? (
-              <span style={{ fontSize: '12px', color: '#dc2626' }}>{statPicksError}</span>
-            ) : null}
-          </div>
+                  {statPicksSaving ? 'Saving…' : 'Save stat picks'}
+                </button>
+                {statPicksError ? (
+                  <span style={{ fontSize: '12px', color: '#dc2626' }}>{statPicksError}</span>
+                ) : null}
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -410,7 +433,7 @@ export default function GamesTab() {
             color: 'var(--text-primary)',
           }}
         >
-          <strong>Practice stream demo is live.</strong> Use <strong>Score</strong> below to change points — the list refreshes every few seconds, and the public{' '}
+          <strong>Practice stream demo is live.</strong> Use <strong>Stats</strong> below to open scoring — the list refreshes every few seconds, and the public{' '}
           <a
             href={`/games/${demoLiveGame.id}/stream-preview`}
             target="_blank"
@@ -518,9 +541,17 @@ export default function GamesTab() {
                       background: game.status === 'live' ? '#fff9f9' : 'var(--bg-surface)',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'minmax(80px, 96px) minmax(0, 1fr) auto',
+                        alignItems: 'center',
+                        columnGap: '12px',
+                        rowGap: '10px',
+                      }}
+                    >
 
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flexShrink: 0 }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flexShrink: 0, justifySelf: 'start' }}>
                         <span style={{
                           ...statusStyle(game.status),
                           borderRadius: '99px', fontSize: '10px', fontWeight: '700',
@@ -545,7 +576,7 @@ export default function GamesTab() {
                         )}
                       </div>
 
-                      <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center', minWidth: '200px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center', minWidth: 0 }}>
                         <div style={{ flex: 1, textAlign: 'right' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-end' }}>
                             {homeTeam?.color && (
@@ -611,71 +642,82 @@ export default function GamesTab() {
                         </div>
                       </div>
 
-                      <div style={{ display: 'flex', gap: '6px', flexShrink: 0, flexWrap: 'wrap', alignItems: 'center' }}>
+                      <div
+                        style={{
+                          justifySelf: 'end',
+                          display: 'flex',
+                          gap: '8px',
+                          alignItems: 'center',
+                          flexWrap: 'nowrap',
+                          minWidth: 0,
+                        }}
+                      >
+                        <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'nowrap' }}>
+                          {game.status === 'scheduled' && (
+                            <button
+                              onClick={() => updateStatus(game.id, 'live')}
+                              style={{ background: '#dc2626', color: 'white', border: 'none', borderRadius: '6px', padding: '5px 10px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit' }}
+                            >
+                              Start Live
+                            </button>
+                          )}
 
-                        {game.status === 'scheduled' && (
-                          <button
-                            onClick={() => updateStatus(game.id, 'live')}
-                            style={{ background: '#dc2626', color: 'white', border: 'none', borderRadius: '6px', padding: '5px 10px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit' }}
-                          >
-                            Start Live
-                          </button>
-                        )}
+                          {game.status === 'live' && (
+                            <>
+                              <button
+                                onClick={() => goToScoring(game.id)}
+                                style={{ background: '#dc2626', color: 'white', border: 'none', borderRadius: '6px', padding: '5px 10px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
+                              >
+                                <BarChart3 size={14} strokeWidth={2} aria-hidden />
+                                Stats
+                              </button>
+                              <a
+                                href={`/games/${game.id}/stream-preview`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  background: 'var(--bg-elevated)',
+                                  border: '0.5px solid var(--border)',
+                                  borderRadius: '6px',
+                                  padding: '5px 10px',
+                                  fontSize: '11px',
+                                  fontWeight: 700,
+                                  color: 'var(--text-primary)',
+                                  textDecoration: 'none',
+                                  fontFamily: 'inherit',
+                                  whiteSpace: 'nowrap',
+                                }}
+                              >
+                                <ExternalLink size={14} aria-hidden />
+                                Preview
+                              </a>
+                              <button
+                                onClick={() => updateStatus(game.id, 'final')}
+                                style={{ background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', padding: '5px 10px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}
+                              >
+                                End Game
+                              </button>
+                            </>
+                          )}
 
-                        {game.status === 'live' && (
-                          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                          {game.status === 'final' && (
                             <button
                               onClick={() => goToScoring(game.id)}
-                              style={{ background: '#dc2626', color: 'white', border: 'none', borderRadius: '6px', padding: '5px 10px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '4px' }}
+                              style={{ background: 'var(--bg-surface)', border: '0.5px solid var(--border)', borderRadius: '6px', padding: '5px 10px', fontSize: '11px', fontWeight: '600', color: 'var(--text-primary)', cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
                             >
-                              <BarChart3 size={14} strokeWidth={2} aria-hidden />
-                              Score
+                              <Trophy size={14} strokeWidth={2} aria-hidden />
+                              Highlights
                             </button>
-                            <a
-                              href={`/games/${game.id}/stream-preview`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                background: 'var(--bg-elevated)',
-                                border: '0.5px solid var(--border)',
-                                borderRadius: '6px',
-                                padding: '5px 10px',
-                                fontSize: '11px',
-                                fontWeight: 700,
-                                color: 'var(--text-primary)',
-                                textDecoration: 'none',
-                                fontFamily: 'inherit',
-                              }}
-                            >
-                              <ExternalLink size={14} aria-hidden />
-                              Preview
-                            </a>
-                            <button
-                              onClick={() => updateStatus(game.id, 'final')}
-                              style={{ background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', padding: '5px 10px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit' }}
-                            >
-                              End Game
-                            </button>
-                          </div>
-                        )}
-
-                        {game.status === 'final' && (
-                          <button
-                            onClick={() => goToScoring(game.id)}
-                            style={{ background: 'var(--bg-surface)', border: '0.5px solid var(--border)', borderRadius: '6px', padding: '5px 10px', fontSize: '11px', fontWeight: '600', color: 'var(--text-primary)', cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                          >
-                            <Trophy size={14} strokeWidth={2} aria-hidden />
-                            Highlights
-                          </button>
-                        )}
+                          )}
+                        </div>
 
                         <button
                           onClick={() => deleteGame(game.id)}
                           disabled={deletingId === game.id}
-                          style={{ background: 'transparent', border: 'none', color: '#dc2626', fontSize: '12px', fontWeight: '600', cursor: 'pointer', fontFamily: 'inherit', opacity: deletingId === game.id ? 0.5 : 1 }}
+                          style={{ background: 'transparent', border: 'none', color: '#dc2626', fontSize: '12px', fontWeight: '600', cursor: 'pointer', fontFamily: 'inherit', opacity: deletingId === game.id ? 0.5 : 1, flexShrink: 0, whiteSpace: 'nowrap' }}
                         >
                           {deletingId === game.id ? '...' : 'Delete'}
                         </button>

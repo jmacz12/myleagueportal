@@ -1,6 +1,7 @@
 /**
- * Organizers pick **five** stats to show on **Basic/Pro** public fan surfaces (stream box score,
- * public team season table). All other tracked stats stay recorded but appear **locked** until **Enterprise**.
+ * Organizers pick **five** stats for **Pro** public fan surfaces (stream box score, public team season table).
+ * **Basic** leagues do not show per-player stat columns on those public surfaces. **Enterprise** shows every column.
+ * The five chosen stats always render **first** (left); remaining stats follow in canonical order (Pro: locked).
  */
 
 export const PUBLIC_PRIMARY_STAT_ORDER = [
@@ -68,4 +69,12 @@ export function normalizePublicPrimaryStatKeys(raw: unknown): PublicPrimaryStatK
 
 export function headlineStatsForPro(primary: PublicPrimaryStatKey[]): { key: PublicPrimaryStatKey; label: string }[] {
   return primary.map((key) => ({ key, label: PRIMARY_STAT_LABELS[key] }))
+}
+
+/** Primary picks first (left), then remaining stats in `PUBLIC_PRIMARY_STAT_ORDER` (for Pro locked tail + Enterprise full row). */
+export function orderedFanStatColumns(primary: PublicPrimaryStatKey[]): PublicPrimaryStatKey[] {
+  const head = normalizePublicPrimaryStatKeys(primary)
+  const used = new Set(head)
+  const tail = PUBLIC_PRIMARY_STAT_ORDER.filter((k) => !used.has(k))
+  return [...head, ...tail]
 }

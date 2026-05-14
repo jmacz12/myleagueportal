@@ -7,8 +7,9 @@ const supabaseAdmin = createClient(
 )
 
 /**
- * Legacy `/games/[gameId]/scoreboard` URLs redirect to the league Stream tab
- * with the same game’s public box score (replaces the old standalone page).
+ * Legacy `/games/[gameId]/scoreboard` URLs redirect to the league **Stream** tab
+ * with the same game’s public box score (full experience on **Pro / Enterprise**;
+ * **Basic** still lands on **Stream** with upgrade messaging for the live hub).
  */
 export default async function GameScoreboardRedirect({
   params,

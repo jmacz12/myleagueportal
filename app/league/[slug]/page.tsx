@@ -15,6 +15,7 @@ import {
   ChevronRight,
   LayoutGrid,
   Loader2,
+  Lock,
   MapPin,
   Trophy,
   Users,
@@ -62,7 +63,14 @@ import {
   resolvePublicLeagueFontStack,
 } from '@/lib/public-league-fonts'
 import { LeaguePublicStreamFanBlock } from '@/components/public-stream/LeaguePublicStreamFanBlock'
+import {
+  PUBLIC_LOCKED_PRO_ENTERPRISE_ARIA,
+  PUBLIC_LOCKED_PRO_ENTERPRISE_BADGE,
+  PUBLIC_LOCKED_PRO_ENTERPRISE_BADGE_TITLE,
+  PUBLIC_STREAM_HUB_UPSELL,
+} from '@/lib/public-plan-copy'
 import { parseJoinStreamLivePayload, type JoinStreamLivePayload } from '@/lib/join-stream-live'
+import { isProOrEnterprise } from '@/lib/org-plan-tier'
 import { createClient } from '@supabase/supabase-js'
 import { type LeagueFeaturedGamePayload } from '@/lib/league-public-home-schedule'
 
@@ -654,6 +662,10 @@ const LEAGUE_TAB_META: { id: LeaguePublicTabId; label: string }[] = [
   { id: 'about', label: 'About' },
 ]
 
+function leagueSeasonGamePublicHref(slug: string, gameId: string) {
+  return `/league/${encodeURIComponent(slug)}?tab=stream&game=${encodeURIComponent(gameId)}`
+}
+
 function parseLeaguePublicTab(v: string | null): LeaguePublicTabId {
   if (v === 'stream' || v === 'news' || v === 'schedule' || v === 'standings' || v === 'teams' || v === 'about') return v
   return 'home'
@@ -867,7 +879,7 @@ function LeagueHomeFeaturedGameCard({
 
   const primaryHref =
     display?.type === 'season_game'
-      ? `/league/${encodeURIComponent(slug)}?tab=stream&game=${encodeURIComponent(display.source_id)}`
+      ? leagueSeasonGamePublicHref(slug, display.source_id)
       : `/join/${slug}/dropins`
   const primaryLabel = display?.type === 'season_game' ? 'Box score' : 'Reserve spot'
 
@@ -1043,12 +1055,14 @@ function LeagueHomeFeaturedGameCard({
 function LeaguePublicTabBar({
   active,
   onChange,
+  tabs,
   preset,
   maxWidth = '1000px',
   headingFontFamily,
 }: {
   active: LeaguePublicTabId
   onChange: (id: LeaguePublicTabId) => void
+  tabs: readonly { id: LeaguePublicTabId; label: string; locked?: boolean }[]
   preset: ReturnType<typeof resolveThemePreset>
   maxWidth?: string
   headingFontFamily?: string
@@ -1090,13 +1104,16 @@ function LeaguePublicTabBar({
             border: poster ? `1px solid ${preset.surfaceBorder}` : undefined,
           }}
         >
-        {LEAGUE_TAB_META.map((t) => {
+        {tabs.map((t) => {
           const isActive = active === t.id
+          const tabLocked = !!t.locked
           return (
             <button
               key={t.id}
               type="button"
               onClick={() => onChange(t.id)}
+              aria-current={isActive ? 'page' : undefined}
+              aria-label={tabLocked ? `${t.label} (${PUBLIC_LOCKED_PRO_ENTERPRISE_ARIA})` : t.label}
               style={{
                 flex: '0 0 auto',
                 padding: poster ? '9px 18px' : '14px 14px',
@@ -1104,6 +1121,7 @@ function LeaguePublicTabBar({
                 fontWeight: poster ? 600 : 800,
                 letterSpacing: poster ? '0.01em' : '0.02em',
                 textTransform: 'none',
+                opacity: tabLocked && !isActive ? 0.88 : 1,
                 ...(poster
                   ? (() => {
                       const c = isActive ? preset.accent : 'transparent'
@@ -1146,7 +1164,27 @@ function LeaguePublicTabBar({
                 boxShadow: poster && isActive ? '0 4px 14px -4px rgba(0,0,0,0.2)' : undefined,
               }}
             >
-              {t.label}
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', justifyContent: 'center' }}>
+                {t.label}
+                {tabLocked ? (
+                  <span
+                    title={PUBLIC_LOCKED_PRO_ENTERPRISE_BADGE_TITLE}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '3px',
+                      fontSize: '9px',
+                      fontWeight: 800,
+                      letterSpacing: '0.02em',
+                      textTransform: 'none',
+                      color: poster && isActive ? 'rgba(255,255,255,0.92)' : preset.accent,
+                    }}
+                  >
+                    <Lock size={12} strokeWidth={2.5} aria-hidden />
+                    {PUBLIC_LOCKED_PRO_ENTERPRISE_BADGE}
+                  </span>
+                ) : null}
+              </span>
             </button>
           )
         })}
@@ -1275,13 +1313,7 @@ function LeagueHomeContent() {
       setLoading(true)
       setNotFound(false)
       try {
-        const [hubRes, teamsRes, sesRes, standingsRes, streamRes] = await Promise.all([
-          fetch(`/api/join/${slug}/hub`),
-          fetch(`/api/join/${slug}/teams`),
-          fetch(`/api/join/${slug}/sessions`),
-          fetch(`/api/join/${slug}/standings`),
-          fetch(`/api/join/${slug}/stream`),
-        ])
+        const hubRes = await fetch(`/api/join/${slug}/hub`)
         if (cancelled) return
         if (hubRes.status === 404) {
           setNotFound(true)
@@ -1297,10 +1329,6 @@ function LeagueHomeContent() {
           return
         }
         const hubJson = await hubRes.json().catch(() => null)
-        const teamsJson = await teamsRes.json().catch(() => ({}))
-        const sesJson = await sesRes.json().catch(() => ({}))
-        const standingsJson = await standingsRes.json().catch(() => ({}))
-        const streamJson = await streamRes.json().catch(() => ({}))
         if (!hubJson?.organization) {
           setNotFound(true)
           setHub(null)
@@ -1312,32 +1340,49 @@ function LeagueHomeContent() {
           setGameResults([])
           setLeadersRows([])
           setStreamLive(null)
-        } else {
-          setHub({
-            organization: hubJson.organization,
-            competitiveSeason: hubJson.competitiveSeason ?? null,
-            seasonRegistrationOpen: !!hubJson.seasonRegistrationOpen,
-            leagueSite: hubJson.leagueSite ?? EMPTY_LEAGUE_SITE,
-          })
-          setTeams(Array.isArray(teamsJson.teams) ? teamsJson.teams : [])
-          setSessions(Array.isArray(sesJson.sessions) ? sesJson.sessions : [])
-          setScheduleItems(
-            Array.isArray(sesJson.scheduleItems)
-              ? sesJson.scheduleItems
-              : Array.isArray(sesJson.sessions)
-                ? sesJson.sessions.map(
-                    (s: {
-                      id: string
-                      name?: string
-                      scheduled_at: string
-                      fee_amount?: number
-                      location?: string | null
-                      is_recurring?: boolean
-                      signups?: unknown[]
-                      waitlist?: unknown[]
-                      max_players?: number | null
-                      max_waitlist?: number | null
-                    }) => ({
+          return
+        }
+
+        const [teamsRes, sesRes, standingsRes] = await Promise.all([
+          fetch(`/api/join/${slug}/teams`),
+          fetch(`/api/join/${slug}/sessions`),
+          fetch(`/api/join/${slug}/standings`),
+        ])
+        if (cancelled) return
+
+        const streamJson = await fetch(`/api/join/${slug}/stream`)
+          .then((r) => r.json().catch(() => ({})))
+          .catch(() => ({}))
+
+        const teamsJson = await teamsRes.json().catch(() => ({}))
+        const sesJson = await sesRes.json().catch(() => ({}))
+        const standingsJson = await standingsRes.json().catch(() => ({}))
+
+        setHub({
+          organization: hubJson.organization,
+          competitiveSeason: hubJson.competitiveSeason ?? null,
+          seasonRegistrationOpen: !!hubJson.seasonRegistrationOpen,
+          leagueSite: hubJson.leagueSite ?? EMPTY_LEAGUE_SITE,
+        })
+        setTeams(Array.isArray(teamsJson.teams) ? teamsJson.teams : [])
+        setSessions(Array.isArray(sesJson.sessions) ? sesJson.sessions : [])
+        setScheduleItems(
+          Array.isArray(sesJson.scheduleItems)
+            ? sesJson.scheduleItems
+            : Array.isArray(sesJson.sessions)
+              ? sesJson.sessions.map(
+                  (s: {
+                    id: string
+                    name?: string
+                    scheduled_at: string
+                    fee_amount?: number
+                    location?: string | null
+                    is_recurring?: boolean
+                    signups?: unknown[]
+                    waitlist?: unknown[]
+                    max_players?: number | null
+                    max_waitlist?: number | null
+                  }) => ({
                     id: `dropin:${s.id}`,
                     source_id: s.id,
                     type: 'drop_in' as const,
@@ -1352,31 +1397,30 @@ function LeagueHomeContent() {
                     max_players: typeof s.max_players === 'number' ? s.max_players : null,
                     max_waitlist: typeof s.max_waitlist === 'number' && s.max_waitlist > 0 ? s.max_waitlist : null,
                   }))
-                : []
-          )
-          const fg = sesJson.featuredGame as LeagueFeaturedGamePayload | undefined
-          setFeaturedGame(
-            fg &&
-              (fg.type === 'season_game' || fg.type === 'drop_in') &&
-              typeof fg.source_id === 'string' &&
-              typeof fg.scheduled_at === 'string'
-              ? fg
-              : null
-          )
-          const lf = sesJson.lastFinalGame as LeagueFeaturedGamePayload | undefined
-          setLastFinalGame(
-            lf &&
-              lf.type === 'season_game' &&
-              typeof lf.source_id === 'string' &&
-              typeof lf.scheduled_at === 'string'
-              ? lf
-              : null
-          )
-          setStandingsRows(Array.isArray(standingsJson.standings) ? standingsJson.standings : [])
-          setGameResults(normalizeLeagueGameResults(standingsJson.gameResults))
-          setLeadersRows(Array.isArray(standingsJson.leaders) ? standingsJson.leaders : [])
-          setStreamLive(parseJoinStreamLivePayload(streamJson?.live))
-        }
+              : []
+        )
+        const fg = sesJson.featuredGame as LeagueFeaturedGamePayload | undefined
+        setFeaturedGame(
+          fg &&
+            (fg.type === 'season_game' || fg.type === 'drop_in') &&
+            typeof fg.source_id === 'string' &&
+            typeof fg.scheduled_at === 'string'
+            ? fg
+            : null
+        )
+        const lf = sesJson.lastFinalGame as LeagueFeaturedGamePayload | undefined
+        setLastFinalGame(
+          lf &&
+            lf.type === 'season_game' &&
+            typeof lf.source_id === 'string' &&
+            typeof lf.scheduled_at === 'string'
+            ? lf
+            : null
+        )
+        setStandingsRows(Array.isArray(standingsJson.standings) ? standingsJson.standings : [])
+        setGameResults(normalizeLeagueGameResults(standingsJson.gameResults))
+        setLeadersRows(Array.isArray(standingsJson.leaders) ? standingsJson.leaders : [])
+        setStreamLive(parseJoinStreamLivePayload(streamJson?.live))
       } catch {
         if (!cancelled) {
           setNotFound(true)
@@ -1417,14 +1461,14 @@ function LeagueHomeContent() {
 
   /** Live tab: refetch stream context when scoring updates games/stats (no polling). */
   useEffect(() => {
-    const orgId = hub?.organization?.id
-    if (!orgId) return
+    const org = hub?.organization
+    if (!org?.id || !isProOrEnterprise(org.plan)) return
     let cancelled = false
     const channel = supabase
-      .channel(`league-stream-org-${orgId}`)
+      .channel(`league-stream-org-${org.id}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'games', filter: `organization_id=eq.${orgId}` },
+        { event: '*', schema: 'public', table: 'games', filter: `organization_id=eq.${org.id}` },
         () => {
           if (!cancelled) void refreshStreamLive()
         }
@@ -1434,10 +1478,11 @@ function LeagueHomeContent() {
       cancelled = true
       void supabase.removeChannel(channel)
     }
-  }, [hub?.organization?.id, refreshStreamLive])
+  }, [hub?.organization?.id, hub?.organization?.plan, refreshStreamLive])
 
   /** Also listen on the active live game so stat taps (player_game_stats) refresh immediately. */
   useEffect(() => {
+    if (!hub?.organization || !isProOrEnterprise(hub.organization.plan)) return
     const gid = streamLive?.gameId
     if (!gid) return
     let cancelled = false
@@ -1462,15 +1507,16 @@ function LeagueHomeContent() {
       cancelled = true
       void supabase.removeChannel(channel)
     }
-  }, [streamLive?.gameId, refreshStreamLive])
+  }, [streamLive?.gameId, refreshStreamLive, hub?.organization?.plan])
 
   useEffect(() => {
+    if (!hub?.organization || !isProOrEnterprise(hub.organization.plan)) return
     if (activeTab !== 'stream' || !streamLive?.gameId) return
     const id = window.setInterval(() => {
       void refreshStreamLive()
     }, 2000)
     return () => window.clearInterval(id)
-  }, [activeTab, streamLive?.gameId, refreshStreamLive])
+  }, [activeTab, streamLive?.gameId, refreshStreamLive, hub?.organization?.plan])
 
   useEffect(() => {
     let cancelled = false
@@ -1728,6 +1774,12 @@ function LeagueHomeContent() {
     }
     return count
   }, [sessions])
+
+  const leagueTabsForBar = useMemo(() => {
+    const plan = hub ? String(hub.organization.plan || 'basic').toLowerCase() : 'basic'
+    const proLike = plan === 'pro' || plan === 'enterprise'
+    return LEAGUE_TAB_META.map((t) => ({ ...t, locked: t.id === 'stream' && !proLike }))
+  }, [hub])
 
   const accent = preset.accent
 
@@ -2092,6 +2144,7 @@ function LeagueHomeContent() {
       <LeaguePublicTabBar
         active={activeTab}
         onChange={setLeagueTab}
+        tabs={leagueTabsForBar}
         preset={preset}
         maxWidth={leagueContentMax}
         headingFontFamily={portalOriginalLayout ? publicHeadingFontStack : undefined}
@@ -2469,18 +2522,48 @@ function LeagueHomeContent() {
             >
               Live stream
             </h2>
-            <p style={{ margin: '0 0 22px', fontSize: '14px', color: preset.muted, lineHeight: 1.55, width: '100%' }}>
-              Live score and clock stay on the <strong style={{ color: preset.heading }}>video overlay</strong> while the game is in progress.{' '}
-              <strong style={{ color: preset.heading }}>Player stats</strong> below use the same rows as{' '}
-              <strong style={{ color: preset.heading }}>Dashboard → Games → scoring</strong> (threes, twos, assists, etc.) and refresh in real time. Schedule and standings links can open a specific game with{' '}
-              <strong style={{ color: preset.heading }}>?game=</strong> in the URL.
-            </p>
-            <LeaguePublicStreamFanBlock
-              slug={slug}
-              streamGameIdParam={streamGameIdParam}
-              streamLive={streamLive}
-              leaguePreset={publicStreamBoxLeaguePreset}
-            />
+            {isProLike ? (
+              <>
+                <p style={{ margin: '0 0 22px', fontSize: '14px', color: preset.muted, lineHeight: 1.55, width: '100%' }}>
+                  Live score and clock stay on the <strong style={{ color: preset.heading }}>video overlay</strong> while the game is in progress.{' '}
+                  <strong style={{ color: preset.heading }}>Player stats</strong> below use the same rows as{' '}
+                  <strong style={{ color: preset.heading }}>Dashboard → Games → scoring</strong> (threes, twos, assists, etc.) and refresh in real time. Schedule and standings links can open a specific game with{' '}
+                  <strong style={{ color: preset.heading }}>?game=</strong> in the URL.
+                </p>
+                <LeaguePublicStreamFanBlock
+                  slug={slug}
+                  streamGameIdParam={streamGameIdParam}
+                  streamLive={streamLive}
+                  leaguePreset={publicStreamBoxLeaguePreset}
+                />
+              </>
+            ) : (
+              <>
+                <p style={{ margin: '0 0 18px', fontSize: '14px', color: preset.muted, lineHeight: 1.55, width: '100%' }}>
+                  {PUBLIC_STREAM_HUB_UPSELL.intro}
+                </p>
+                <div
+                  style={{
+                    borderRadius: '16px',
+                    border: `1px dashed ${preset.surfaceBorder}`,
+                    background: preset.accentSoftBg,
+                    padding: '28px 22px',
+                    textAlign: 'center',
+                  }}
+                >
+                  <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '12px' }}>
+                    <Lock size={22} strokeWidth={2.2} aria-hidden style={{ color: preset.accent }} />
+                    <span style={{ fontSize: '16px', fontWeight: 900, color: preset.heading }}>{PUBLIC_STREAM_HUB_UPSELL.cardTitle}</span>
+                  </div>
+                  <p style={{ margin: '0 0 16px', fontSize: '14px', color: preset.body, lineHeight: 1.6, maxWidth: '440px', marginLeft: 'auto', marginRight: 'auto' }}>
+                    {PUBLIC_STREAM_HUB_UPSELL.body}
+                  </p>
+                  <p style={{ margin: 0, fontSize: '13px', color: preset.muted, lineHeight: 1.5 }}>
+                    {PUBLIC_STREAM_HUB_UPSELL.organizerHint}
+                  </p>
+                </div>
+              </>
+            )}
           </div>
         ) : null}
 
@@ -2553,7 +2636,7 @@ function LeagueHomeContent() {
                     const rowHref =
                       item.type === 'drop_in'
                         ? `/join/${slug}/dropins`
-                        : `/league/${encodeURIComponent(slug)}?tab=stream&game=${encodeURIComponent(item.source_id)}`
+                        : leagueSeasonGamePublicHref(slug, item.source_id)
                     return (
                       <div
                         key={`personal-${item.id}`}
@@ -2610,7 +2693,7 @@ function LeagueHomeContent() {
                     const loc = item.location_label
                     const cardHref = isDropin
                       ? `/join/${slug}/dropins`
-                      : `/league/${encodeURIComponent(slug)}?tab=stream&game=${encodeURIComponent(item.source_id)}`
+                      : leagueSeasonGamePublicHref(slug, item.source_id)
                     const seasonStatus = !isDropin ? String(item.game_status || '').toLowerCase() : ''
                     const seasonScoreLine = !isDropin ? seasonGameScoreSummary(item) : null
                     return (

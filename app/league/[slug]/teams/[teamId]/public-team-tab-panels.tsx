@@ -18,13 +18,14 @@ import {
 } from 'lucide-react'
 import { StreamWithOverlay } from '@/components/public-stream/StreamWithOverlay'
 import type { ThemePreset } from '@/lib/leagueTheme'
+import { fanStatLabelForTemplate, headlineFanStatsForTemplate, publicFanStatFootnoteForTemplate } from '@/lib/public-fan-stat-labels'
+import { PUBLIC_PRIMARY_STAT_ORDER, normalizePublicPrimaryStatKeys, type PublicPrimaryStatKey } from '@/lib/public-primary-stats'
+import { normalizeSportTemplateId } from '@/lib/sport-templates'
 import {
-  PRIMARY_STAT_LABELS,
-  PUBLIC_PRIMARY_STAT_ORDER,
-  headlineStatsForPro,
-  normalizePublicPrimaryStatKeys,
-  type PublicPrimaryStatKey,
-} from '@/lib/public-primary-stats'
+  PUBLIC_LOCKED_PRO_ENTERPRISE_ARIA,
+  PUBLIC_LOCKED_PRO_ENTERPRISE_BADGE,
+  PUBLIC_STREAM_HUB_UPSELL,
+} from '@/lib/public-plan-copy'
 import type { PlayerTotalsRow, PublicTeamTab, TeamPayload } from './team-page-types'
 
 type Props = {
@@ -301,9 +302,17 @@ export function PublicTeamTabPanels({
 
   const tier = data.public_tier ?? 'basic'
   const proLike = tier === 'pro' || tier === 'enterprise'
-  const proHeadlineColumns = headlineStatsForPro(
-    normalizePublicPrimaryStatKeys(data.public_primary_stat_keys)
-  )
+  const sportTemplateId = normalizeSportTemplateId(data.organization.sport_template_id)
+  const primaryStatKeysNormalized = normalizePublicPrimaryStatKeys(data.public_primary_stat_keys)
+  /** Pro: match public stream parity — always show MIN when organizers omitted it from their five picks. */
+  const proHeadlineColumns =
+    tier === 'pro' && !primaryStatKeysNormalized.includes('min')
+      ? [
+          { key: 'min' as const, label: fanStatLabelForTemplate(sportTemplateId, 'min') },
+          ...headlineFanStatsForTemplate(primaryStatKeysNormalized, sportTemplateId),
+        ]
+      : headlineFanStatsForTemplate(primaryStatKeysNormalized, sportTemplateId)
+  const fanStatFootnote = publicFanStatFootnoteForTemplate(sportTemplateId)
   const enterpriseStatColumns = [...PUBLIC_PRIMARY_STAT_ORDER] as PublicPrimaryStatKey[]
   const cardRadius = portalOriginalLayout ? '12px' : '14px'
 
@@ -556,7 +565,8 @@ export function PublicTeamTabPanels({
                 color: preset.muted,
               }}
             >
-              Pro: five season totals you pick under <strong>Dashboard → Games</strong>. Enterprise shows every column.
+              Pro: headline season totals you pick under <strong>Dashboard → Games</strong>
+              {primaryStatKeysNormalized.includes('min') ? '' : ' — minutes (**MIN**) always show first when they aren’t among your five picks'}. Enterprise shows every column.
             </span>
           ) : null}
           {includeStats && tier === 'enterprise' ? (
@@ -572,6 +582,22 @@ export function PublicTeamTabPanels({
               }}
             >
               Enterprise: full season stat grid (same order as the public stream box score).
+            </span>
+          ) : null}
+          {includeStats && fanStatFootnote ? (
+            <span
+              style={{
+                display: 'block',
+                marginTop: '8px',
+                fontSize: '11px',
+                fontWeight: 600,
+                textTransform: 'none',
+                letterSpacing: '0.02em',
+                color: preset.muted,
+                lineHeight: 1.45,
+              }}
+            >
+              {fanStatFootnote}
             </span>
           ) : null}
         </div>
@@ -613,7 +639,7 @@ export function PublicTeamTabPanels({
                             fontVariantNumeric: 'tabular-nums',
                           }}
                         >
-                          {PRIMARY_STAT_LABELS[k]}
+                          {fanStatLabelForTemplate(sportTemplateId, k)}
                         </th>
                       ))
                     : null}
@@ -838,7 +864,12 @@ export function PublicTeamTabPanels({
 
   const tabItems = [
     { id: 'overview' as const, label: 'Overview', icon: LayoutList },
-    { id: 'stream' as const, label: 'Stream', icon: Video },
+    {
+      id: 'stream' as const,
+      label: 'Stream',
+      icon: proLike ? Video : Lock,
+      suffix: !proLike ? ` · ${PUBLIC_LOCKED_PRO_ENTERPRISE_BADGE}` : '',
+    },
     { id: 'news' as const, label: 'News', icon: Newspaper },
     { id: 'schedule' as const, label: 'Schedule', icon: CalendarDays },
     { id: 'roster' as const, label: 'Roster', icon: Users },
@@ -865,10 +896,12 @@ export function PublicTeamTabPanels({
       >
         {tabItems.map(({ id, label, icon: Icon, suffix }) => {
           const active = publicTab === id
+          const streamLocked = id === 'stream' && !proLike
           return (
             <button
               key={id}
               type="button"
+              aria-label={streamLocked ? `${label} (${PUBLIC_LOCKED_PRO_ENTERPRISE_ARIA})` : undefined}
               onClick={() => setPublicTabQuery(id)}
               style={{
                 display: 'inline-flex',
@@ -930,7 +963,7 @@ export function PublicTeamTabPanels({
               }}
             >
               <Radio size={20} aria-hidden />
-              Watch live
+              {proLike ? 'Watch live' : 'League stream & box score'}
             </Link>
           ) : watchHref ? (
             <a
@@ -1049,43 +1082,69 @@ export function PublicTeamTabPanels({
       ) : null}
 
       {publicTab === 'stream' ? (
-        <div>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              marginBottom: '14px',
-              fontSize: '11px',
-              letterSpacing: '0.06em',
-              textTransform: 'uppercase',
-              fontWeight: 800,
-              color: preset.muted,
-            }}
-          >
-            <Video size={14} aria-hidden style={{ color: preset.accent }} />
-            Watch on this page
-          </div>
-          {watchHref ? (
-            <StreamWithOverlay watchUrl={watchHref} liveGameId={liveGameId} accentColor={preset.accent} />
-          ) : (
+        proLike ? (
+          <div>
             <div
               style={{
-                borderRadius: cardRadius,
-                padding: '22px 18px',
-                textAlign: 'center',
-                background: preset.surfaceBg,
-                border: `1px solid ${preset.surfaceBorder}`,
-                color: preset.body,
-                fontSize: '14px',
-                lineHeight: 1.55,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                marginBottom: '14px',
+                fontSize: '11px',
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+                fontWeight: 800,
+                color: preset.muted,
               }}
             >
-              This team hasn&apos;t published a stream link yet. When a manager adds a YouTube or Twitch URL under{' '}
-              <strong style={{ color: preset.heading }}>Manage team → Page & links</strong>, it will appear here and on Overview.
+              <Video size={14} aria-hidden style={{ color: preset.accent }} />
+              Watch on this page
             </div>
-          )}
-        </div>
+            {watchHref ? (
+              <StreamWithOverlay watchUrl={watchHref} liveGameId={liveGameId} accentColor={preset.accent} />
+            ) : (
+              <div
+                style={{
+                  borderRadius: cardRadius,
+                  padding: '22px 18px',
+                  textAlign: 'center',
+                  background: preset.surfaceBg,
+                  border: `1px solid ${preset.surfaceBorder}`,
+                  color: preset.body,
+                  fontSize: '14px',
+                  lineHeight: 1.55,
+                }}
+              >
+                This team hasn&apos;t published a stream link yet. When a manager adds a YouTube or Twitch URL under{' '}
+                <strong style={{ color: preset.heading }}>Manage team → Page & links</strong>, it will appear here and on Overview.
+              </div>
+            )}
+          </div>
+        ) : (
+          <div
+            style={{
+              borderRadius: cardRadius,
+              border: `1px dashed ${preset.surfaceBorder}`,
+              background: preset.accentSoftBg,
+              padding: '28px 22px',
+              textAlign: 'center',
+            }}
+          >
+            <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '12px' }}>
+              <Lock size={22} strokeWidth={2.2} aria-hidden style={{ color: preset.accent }} />
+              <span style={{ fontSize: '16px', fontWeight: 900, color: preset.heading }}>{PUBLIC_STREAM_HUB_UPSELL.cardTitle}</span>
+            </div>
+            <p style={{ margin: '0 0 12px', fontSize: '14px', color: preset.body, lineHeight: 1.6, maxWidth: '440px', marginLeft: 'auto', marginRight: 'auto' }}>
+              {PUBLIC_STREAM_HUB_UPSELL.intro}
+            </p>
+            <p style={{ margin: '0 0 12px', fontSize: '14px', color: preset.body, lineHeight: 1.6, maxWidth: '440px', marginLeft: 'auto', marginRight: 'auto' }}>
+              {PUBLIC_STREAM_HUB_UPSELL.body}
+            </p>
+            <p style={{ margin: 0, fontSize: '13px', color: preset.muted }}>
+              {PUBLIC_STREAM_HUB_UPSELL.organizerHint}
+            </p>
+          </div>
+        )
       ) : null}
 
       {publicTab === 'news' ? renderNewsBlock(mergedNews, true) : null}

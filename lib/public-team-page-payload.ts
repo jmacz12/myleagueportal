@@ -225,10 +225,14 @@ export async function buildPublicTeamSeasonExtras(
         })),
       new Set(seasonRows.map((r) => String(r.player_id)))
     )
+    /** Pro: public team Stats prepends MIN when not in the five picks — badges must include `min` in that case. */
+    const proVisibleKeys: TeamPageStatKey[] = primaryStatKeys.includes('min')
+      ? (primaryStatKeys as TeamPageStatKey[])
+      : (['min', ...primaryStatKeys] as TeamPageStatKey[])
     const visibleKeys: TeamPageStatKey[] =
       params.tier === 'enterprise'
         ? ([...PUBLIC_PRIMARY_STAT_ORDER] as PublicPrimaryStatKey[])
-        : (primaryStatKeys as TeamPageStatKey[])
+        : proVisibleKeys
 
     const badges: Record<string, Partial<Record<TeamPageStatKey, true>>> = {}
     for (const key of visibleKeys) {

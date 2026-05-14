@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, usePathname, useRouter } from 'next/navigation'
 import { ChevronLeft, Settings2, Trophy } from 'lucide-react'
 import { LeagueTeamManagePanel } from '@/components/league-team-manage-panel'
 import { PRESET_PORTAL_ORIGINAL_ID, publicHeroThemeFromPreset, resolveThemePreset } from '@/lib/leagueTheme'
@@ -14,6 +14,7 @@ import type { PublicTeamTab, TeamPayload } from './team-page-types'
 export default function LeaguePublicTeamPage() {
   const params = useParams()
   const router = useRouter()
+  const pathname = usePathname()
   const slug = params.slug as string
   const teamId = params.teamId as string
 

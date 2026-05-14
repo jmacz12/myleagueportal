@@ -838,6 +838,7 @@ function LeagueSitePageClient() {
         <LeagueSiteAccessPanel
           slug={slug}
           fanSiteOrigin={fanSiteOrigin}
+          orgPlan={orgPlan}
           editors={editors}
           editorEmail={editorEmail}
           setEditorEmail={setEditorEmail}
