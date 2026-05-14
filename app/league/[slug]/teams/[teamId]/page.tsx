@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { useParams, usePathname, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { CalendarDays, ChevronLeft, Settings2, Trophy } from 'lucide-react'
 import { LeagueTeamManagePanel } from '@/components/league-team-manage-panel'
 import { PRESET_PORTAL_ORIGINAL_ID, publicHeroThemeFromPreset, resolveThemePreset } from '@/lib/leagueTheme'
@@ -14,9 +14,11 @@ import type { PublicTeamTab, TeamPayload } from './team-page-types'
 export default function LeaguePublicTeamPage() {
   const params = useParams()
   const router = useRouter()
-  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const slug = params.slug as string
   const teamId = params.teamId as string
+  const tabFromUrl = searchParams.get('tab')
+  const manageFromUrl = searchParams.get('manage')
 
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
@@ -105,10 +107,8 @@ export default function LeaguePublicTeamPage() {
   }, [slug, teamId])
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
-    const q = new URLSearchParams(window.location.search)
-    setManageOpen(q.get('manage') === '1')
-  }, [slug, teamId])
+    setManageOpen(manageFromUrl === '1')
+  }, [manageFromUrl])
 
   useEffect(() => {
     let cancelled = false
@@ -143,13 +143,10 @@ export default function LeaguePublicTeamPage() {
   }
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
-    const q = new URLSearchParams(window.location.search)
-    const t = q.get('tab')
     const allowed: PublicTeamTab[] = ['overview', 'stream', 'news', 'schedule', 'roster', 'stats']
-    if (t && allowed.includes(t as PublicTeamTab)) setPublicTab(t as PublicTeamTab)
+    if (tabFromUrl && allowed.includes(tabFromUrl as PublicTeamTab)) setPublicTab(tabFromUrl as PublicTeamTab)
     else setPublicTab('overview')
-  }, [slug, teamId])
+  }, [tabFromUrl])
 
   function setPublicTabQuery(next: PublicTeamTab) {
     setPublicTab(next)

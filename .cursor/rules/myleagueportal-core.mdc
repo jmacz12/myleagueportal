@@ -22,6 +22,8 @@ description: MyLeaguePortal — partner mode; beginner plain English; ROADMAP sy
 
 **Self-correction:** Fix TypeScript and lint issues you cause or hit in the same session — don’t leave broken builds.
 
+**How to check (user-visible changes):** When a change affects something fans or organizers **see or click** on the site (public league/team/join pages or the dashboard), end the reply with a short **“How to check”** section: **numbered steps** (open the browser here → click this → you should see that). Say whether they need **local** (dev server running) or **deployed** live site. Use plain English only — no file names or code unless they asked for technical detail.
+
 **Fix-first execution (agent):** When an error clearly matches a **known, safe project fix** (e.g. missing database columns this repo documents, typecheck after edits), **run** the documented command yourself (`npm run db:apply-pending`, `npx tsc --noEmit`, etc.) **before** telling the user to run it — unless **credentials are missing**, the environment is **unknown**, or the action is **destructive** or needs **explicit approval** (drops, production data, billing). Prefer fixing over hand-waving.
 
 ## Mission and roadmap
