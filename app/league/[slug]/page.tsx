@@ -61,8 +61,8 @@ import {
   resolvePortalOriginalHeadingFontStack,
   resolvePublicLeagueFontStack,
 } from '@/lib/public-league-fonts'
-import { StreamWithOverlay } from '@/components/public-stream/StreamWithOverlay'
-import { PublicStreamBoxScore } from '@/components/public-stream/PublicStreamBoxScore'
+import { LeaguePublicStreamFanBlock } from '@/components/public-stream/LeaguePublicStreamFanBlock'
+import { parseJoinStreamLivePayload, type JoinStreamLivePayload } from '@/lib/join-stream-live'
 import { createClient } from '@supabase/supabase-js'
 import { type LeagueFeaturedGamePayload } from '@/lib/league-public-home-schedule'
 
@@ -182,35 +182,6 @@ function normalizeLeagueGameResults(raw: unknown): LeagueGameResultRow[] {
     })
   }
   return out
-}
-
-type LeagueJoinStreamLive = {
-  gameId: string
-  streamPageUrl: string | null
-  homeName: string | null
-  awayName: string | null
-  homeScore: number | null
-  awayScore: number | null
-  period: number | null
-  gameClock: string | null
-  location: string | null
-}
-
-function parseJoinStreamLive(live: unknown): LeagueJoinStreamLive | null {
-  if (!live || typeof live !== 'object') return null
-  const o = live as Record<string, unknown>
-  if (typeof o.gameId !== 'string') return null
-  return {
-    gameId: o.gameId,
-    streamPageUrl: typeof o.streamPageUrl === 'string' ? o.streamPageUrl : null,
-    homeName: typeof o.homeName === 'string' ? o.homeName : null,
-    awayName: typeof o.awayName === 'string' ? o.awayName : null,
-    homeScore: typeof o.homeScore === 'number' ? o.homeScore : null,
-    awayScore: typeof o.awayScore === 'number' ? o.awayScore : null,
-    period: typeof o.period === 'number' ? o.period : null,
-    gameClock: typeof o.gameClock === 'string' ? o.gameClock : null,
-    location: typeof o.location === 'string' && o.location.trim() ? o.location.trim() : null,
-  }
 }
 
 function LeagueSiteSections({
@@ -1253,27 +1224,7 @@ function LeagueHomeContent() {
   const [gameResults, setGameResults] = useState<LeagueGameResultRow[]>([])
   const [standingsInnerTab, setStandingsInnerTab] = useState<LeagueStandingsInnerTab>('overview')
   const [leadersRows, setLeadersRows] = useState<LeagueLeaderRow[]>([])
-  const [streamLive, setStreamLive] = useState<LeagueJoinStreamLive | null>(null)
-  const streamEffectiveBoxGameId = streamGameIdParam ?? streamLive?.gameId ?? null
-
-  const streamWatchUrlParsed = useMemo(() => {
-    const raw = streamLive?.streamPageUrl?.trim()
-    if (!raw) return null
-    try {
-      const u = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`)
-      if (u.protocol === 'http:' || u.protocol === 'https:') return u.href
-    } catch {
-      return null
-    }
-    return null
-  }, [streamLive?.streamPageUrl])
-
-  /** Live embed shows `/games/.../overlay` for this same game — hide duplicate score strip in `PublicStreamBoxScore`. */
-  const streamScoreOverlayCoversHeader =
-    !!streamWatchUrlParsed &&
-    !!streamLive &&
-    (!streamGameIdParam || streamGameIdParam === streamLive.gameId) &&
-    streamLive.gameId === streamEffectiveBoxGameId
+  const [streamLive, setStreamLive] = useState<JoinStreamLivePayload | null>(null)
 
   const [stickyVisible, setStickyVisible] = useState(false)
   const [canManageSite, setCanManageSite] = useState(false)
@@ -1424,7 +1375,7 @@ function LeagueHomeContent() {
           setStandingsRows(Array.isArray(standingsJson.standings) ? standingsJson.standings : [])
           setGameResults(normalizeLeagueGameResults(standingsJson.gameResults))
           setLeadersRows(Array.isArray(standingsJson.leaders) ? standingsJson.leaders : [])
-          setStreamLive(parseJoinStreamLive(streamJson?.live))
+          setStreamLive(parseJoinStreamLivePayload(streamJson?.live))
         }
       } catch {
         if (!cancelled) {
@@ -1458,7 +1409,7 @@ function LeagueHomeContent() {
       const res = await fetch(`/api/join/${slug}/stream`)
       if (!res.ok) return
       const json = await res.json().catch(() => null)
-      setStreamLive(parseJoinStreamLive(json?.live))
+      setStreamLive(parseJoinStreamLivePayload(json?.live))
     } catch {
       /* ignore */
     }
@@ -2524,134 +2475,12 @@ function LeagueHomeContent() {
               <strong style={{ color: preset.heading }}>Dashboard → Games → scoring</strong> (threes, twos, assists, etc.) and refresh in real time. Schedule and standings links can open a specific game with{' '}
               <strong style={{ color: preset.heading }}>?game=</strong> in the URL.
             </p>
-            {streamGameIdParam && streamLive && streamLive.gameId !== streamGameIdParam ? (
-              <div
-                style={{
-                  marginBottom: '16px',
-                  padding: '12px 14px',
-                  borderRadius: '12px',
-                  background: preset.accentSoftBg,
-                  border: `1px solid ${preset.surfaceBorder}`,
-                }}
-              >
-                <p style={{ margin: 0, fontSize: '13px', color: preset.body, lineHeight: 1.55 }}>
-                  <strong style={{ color: preset.heading }}>Another game is live</strong> for this league. The player stats section below is for the game you opened.{' '}
-                  <Link href={`/league/${encodeURIComponent(slug)}?tab=stream`} style={{ fontWeight: 800, color: preset.accent }}>
-                    Switch to the current live broadcast →
-                  </Link>
-                </p>
-              </div>
-            ) : null}
-            {!streamEffectiveBoxGameId ? (
-              <div
-                style={{
-                  padding: '28px 20px',
-                  textAlign: 'center',
-                  background: preset.surfaceBg,
-                  border: `1px solid ${preset.surfaceBorder}`,
-                  borderRadius: '16px',
-                  color: preset.body,
-                  fontSize: '14px',
-                  lineHeight: 1.55,
-                }}
-              >
-                No game is live right now. Check the <strong style={{ color: preset.heading }}>Schedule</strong> tab, or open a team&apos;s{' '}
-                <strong style={{ color: preset.heading }}>Stream</strong> tab if they&apos;ve posted a broadcast link.
-              </div>
-            ) : (
-              <>
-                {(() => {
-                  const showLiveBroadcastUi =
-                    !!streamLive && (!streamGameIdParam || streamGameIdParam === streamLive.gameId)
-                  if (!showLiveBroadcastUi) {
-                    return streamEffectiveBoxGameId ? (
-                      <PublicStreamBoxScore
-                        gameId={streamEffectiveBoxGameId}
-                        leaguePreset={publicStreamBoxLeaguePreset}
-                        hideLiveGameHeader={false}
-                      />
-                    ) : null
-                  }
-
-                  const raw = streamLive.streamPageUrl?.trim() || ''
-                  let watchUrl: string | null = null
-                  if (raw) {
-                    try {
-                      const u = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`)
-                      if (u.protocol === 'http:' || u.protocol === 'https:') watchUrl = u.href
-                    } catch {
-                      watchUrl = null
-                    }
-                  }
-
-                  if (!raw) {
-                    return (
-                      <>
-                        <div
-                          style={{
-                            padding: '28px 20px',
-                            textAlign: 'center',
-                            background: preset.surfaceBg,
-                            border: `1px solid ${preset.surfaceBorder}`,
-                            borderRadius: '16px',
-                            color: preset.body,
-                            fontSize: '14px',
-                            lineHeight: 1.55,
-                          }}
-                        >
-                          <strong style={{ color: preset.heading }}>
-                            {streamLive.homeName || 'Home'} vs {streamLive.awayName || 'Away'}
-                          </strong>{' '}
-                          is live, but neither team has added a stream URL yet. Add a <strong style={{ color: preset.heading }}>league default</strong> or team links in{' '}
-                          <strong style={{ color: preset.heading }}>Dashboard → League website → Access & streams</strong>, or under{' '}
-                          <strong style={{ color: preset.heading }}>Manage team → Page & links</strong> on a team page.
-                        </div>
-                        {streamEffectiveBoxGameId ? (
-                          <PublicStreamBoxScore
-                            gameId={streamEffectiveBoxGameId}
-                            leaguePreset={publicStreamBoxLeaguePreset}
-                            hideLiveGameHeader={false}
-                            marginTopPx={18}
-                          />
-                        ) : null}
-                      </>
-                    )
-                  }
-                  if (!watchUrl) {
-                    return (
-                      <>
-                        <p style={{ color: preset.muted }}>Could not read stream URL.</p>
-                        {streamEffectiveBoxGameId ? (
-                          <PublicStreamBoxScore
-                            gameId={streamEffectiveBoxGameId}
-                            leaguePreset={publicStreamBoxLeaguePreset}
-                            hideLiveGameHeader={false}
-                            marginTopPx={18}
-                          />
-                        ) : null}
-                      </>
-                    )
-                  }
-                  return (
-                    <>
-                      <StreamWithOverlay
-                        watchUrl={watchUrl}
-                        liveGameId={streamLive.gameId}
-                        accentColor={preset.accent}
-                      />
-                      {streamEffectiveBoxGameId ? (
-                        <PublicStreamBoxScore
-                          gameId={streamEffectiveBoxGameId}
-                          leaguePreset={publicStreamBoxLeaguePreset}
-                          hideLiveGameHeader={streamScoreOverlayCoversHeader}
-                          marginTopPx={18}
-                        />
-                      ) : null}
-                    </>
-                  )
-                })()}
-              </>
-            )}
+            <LeaguePublicStreamFanBlock
+              slug={slug}
+              streamGameIdParam={streamGameIdParam}
+              streamLive={streamLive}
+              leaguePreset={publicStreamBoxLeaguePreset}
+            />
           </div>
         ) : null}
 

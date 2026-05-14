@@ -7,23 +7,12 @@ import { Link2, Trophy } from 'lucide-react'
 import GameHighlights from '../../GameHighlights'
 import { contrastTextOnColor } from '@/lib/contrast-text-on-color'
 import { publicFanSiteOrigin } from '@/lib/public-site-origin'
+import { parseStarterSlotArray } from '@/lib/starter-slot-array'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
-
-function parseStarterSlots(raw: unknown): (string | null)[] {
-  const base: (string | null)[] = [null, null, null, null, null]
-  if (!Array.isArray(raw)) return base
-  for (let i = 0; i < 5; i++) {
-    const v = raw[i]
-    if (v === null || v === undefined || v === '') base[i] = null
-    else if (typeof v === 'string' && v.length > 0) base[i] = v
-    else base[i] = null
-  }
-  return base
-}
 
 function jerseySort(a: Player, b: Player) {
   const na = parseInt(String(a.jersey_number || '999'), 10)
@@ -78,6 +67,7 @@ interface PlayerStat {
   blk: number
   tov: number
   pf: number
+  seconds_played: number
 }
 
 function rowFromApi(s: Record<string, unknown>): PlayerStat {
@@ -93,6 +83,7 @@ function rowFromApi(s: Record<string, unknown>): PlayerStat {
     blk: Number(s.blk) || 0,
     tov: Number(s.tov) || 0,
     pf: Number(s.pf) || 0,
+    seconds_played: Math.max(0, Math.floor(Number(s.seconds_played) || 0)),
   }
 }
 
@@ -278,6 +269,8 @@ export default function ScoringPage() {
       body: JSON.stringify({
         home_starter_slot_ids: home,
         away_starter_slot_ids: away,
+        period,
+        game_clock: clock,
       }),
     })
     await fetchData()
@@ -330,7 +323,12 @@ export default function ScoringPage() {
     await fetch('/api/games', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ game_id: gameId, status: 'final' }),
+      body: JSON.stringify({
+        game_id: gameId,
+        status: 'final',
+        period,
+        game_clock: clock,
+      }),
     })
     await fetchData()
     setShowHighlights(true)
@@ -376,8 +374,8 @@ export default function ScoringPage() {
     ? `${shareOrigin}/league/${encodeURIComponent(orgSlug.trim())}?tab=stream&game=${encodeURIComponent(gameId)}`
     : `${shareOrigin}/games/${encodeURIComponent(gameId)}/scoreboard`
 
-  const homeSlots = parseStarterSlots(game.home_starter_slot_ids)
-  const awaySlots = parseStarterSlots(game.away_starter_slot_ids)
+  const homeSlots = parseStarterSlotArray(game.home_starter_slot_ids)
+  const awaySlots = parseStarterSlotArray(game.away_starter_slot_ids)
 
   const homeRoster = players.filter((p) => p.team_id === game.home_team_id).sort(jerseySort)
   const awayRoster = players.filter((p) => p.team_id === game.away_team_id).sort(jerseySort)
@@ -398,7 +396,7 @@ export default function ScoringPage() {
 
   async function fillFirstFive(side: 'home' | 'away') {
     const roster = side === 'home' ? homeRoster : awayRoster
-    const next = parseStarterSlots(null)
+    const next = parseStarterSlotArray(null)
     roster.slice(0, 5).forEach((p, i) => {
       next[i] = p.id
     })
@@ -877,6 +875,21 @@ export default function ScoringPage() {
           slots={awaySlots}
           roster={awayRoster}
         />
+      </div>
+
+      <div
+        className="card"
+        style={{
+          marginBottom: '16px',
+          padding: '12px 16px',
+          background: 'var(--bg-elevated)',
+          border: '0.5px solid var(--border)',
+          borderRadius: '12px',
+        }}
+      >
+        <p style={{ margin: 0, fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+          <strong style={{ color: 'var(--text-primary)' }}>Minutes played</strong> accrue for whoever is in the five starter slots whenever the game clock is moving. They update when you substitute, when the clock syncs, and when you end the game — keep the quarter and clock accurate for best results.
+        </p>
       </div>
 
       {slotPick ? (

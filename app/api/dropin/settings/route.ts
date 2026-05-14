@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { auth } from '@clerk/nextjs/server'
+import { requireOwnerOrgForDashboard } from '@/lib/org-access'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -11,21 +12,19 @@ export async function GET() {
   const { userId } = await auth()
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: org } = await supabaseAdmin
-    .from('organizations').select('id')
-    .eq('clerk_user_id', userId).single()
-  if (!org) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  const gate = await requireOwnerOrgForDashboard(userId)
+  if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status })
 
   let { data: settings } = await supabaseAdmin
     .from('reputation_settings')
     .select('*')
-    .eq('organization_id', org.id)
+    .eq('organization_id', gate.organizationId)
     .single()
 
   if (!settings) {
     const { data: newSettings } = await supabaseAdmin
       .from('reputation_settings')
-      .insert({ organization_id: org.id })
+      .insert({ organization_id: gate.organizationId })
       .select().single()
     settings = newSettings
   }
@@ -37,15 +36,13 @@ export async function PATCH(req: Request) {
   const { userId } = await auth()
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: org } = await supabaseAdmin
-    .from('organizations').select('id')
-    .eq('clerk_user_id', userId).single()
-  if (!org) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  const gate = await requireOwnerOrgForDashboard(userId)
+  if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status })
 
   const body = await req.json()
 
   await supabaseAdmin.from('reputation_settings')
-    .upsert({ organization_id: org.id, ...body })
+    .upsert({ organization_id: gate.organizationId, ...body })
 
   return NextResponse.json({ success: true })
 }

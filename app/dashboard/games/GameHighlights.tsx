@@ -1,6 +1,7 @@
 'use client'
 
 import { Handshake, Trophy } from 'lucide-react'
+import { formatSecondsAsMinSec } from '@/lib/game-lineup-minutes'
 
 interface PlayerStat {
   player_id: string
@@ -15,6 +16,7 @@ interface PlayerStat {
   blk: number
   tov: number
   pf: number
+  seconds_played?: number
 }
 
 interface Props {
@@ -127,18 +129,46 @@ export default function GameHighlights({
               {potg.team_name}
             </div>
             <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-primary)', lineHeight: '1' }}>
+                  {formatSecondsAsMinSec(potg.seconds_played ?? 0)}
+                </div>
+                <div
+                  style={{
+                    fontSize: '9px',
+                    fontWeight: '700',
+                    textTransform: 'uppercase',
+                    color: 'var(--text-muted)',
+                    marginTop: '2px',
+                  }}
+                >
+                  MIN
+                </div>
+              </div>
               {[
                 { label: 'PTS', value: potg.pts },
                 { label: 'AST', value: potg.ast },
                 { label: 'REB', value: potg.reb },
                 { label: 'STL', value: potg.stl },
                 { label: 'BLK', value: potg.blk },
-              ].filter(s => s.value > 0).map((s) => (
-                <div key={s.label} style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-primary)', lineHeight: '1' }}>{s.value}</div>
-                  <div style={{ fontSize: '9px', fontWeight: '700', textTransform: 'uppercase', color: 'var(--text-muted)', marginTop: '2px' }}>{s.label}</div>
-                </div>
-              ))}
+              ]
+                .filter((s) => s.value > 0)
+                .map((s) => (
+                  <div key={s.label} style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-primary)', lineHeight: '1' }}>{s.value}</div>
+                    <div
+                      style={{
+                        fontSize: '9px',
+                        fontWeight: '700',
+                        textTransform: 'uppercase',
+                        color: 'var(--text-muted)',
+                        marginTop: '2px',
+                      }}
+                    >
+                      {s.label}
+                    </div>
+                  </div>
+                ))}
               <div style={{ textAlign: 'center' }}>
                 <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--accent)', lineHeight: '1' }}>
                   {Math.round(calcScore(potg))}
@@ -179,16 +209,24 @@ export default function GameHighlights({
                   <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{player.team_name}</div>
                 </div>
                 <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '14px', fontWeight: '800', color: 'var(--text-primary)', lineHeight: '1' }}>
+                      {formatSecondsAsMinSec(player.seconds_played ?? 0)}
+                    </div>
+                    <div style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>MIN</div>
+                  </div>
                   {[
                     { label: 'PTS', value: player.pts },
                     { label: 'AST', value: player.ast },
                     { label: 'REB', value: player.reb },
-                  ].map(s => (
-                    <div key={s.label} style={{ textAlign: 'center' }}>
-                      <div style={{ fontSize: '14px', fontWeight: '800', color: 'var(--text-primary)', lineHeight: '1' }}>{s.value}</div>
-                      <div style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>{s.label}</div>
-                    </div>
-                  ))}
+                  ]
+                    .filter((s) => s.value > 0)
+                    .map((s) => (
+                      <div key={s.label} style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '14px', fontWeight: '800', color: 'var(--text-primary)', lineHeight: '1' }}>{s.value}</div>
+                        <div style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>{s.label}</div>
+                      </div>
+                    ))}
                 </div>
                 <div style={{ textAlign: 'center', flexShrink: 0 }}>
                   <div style={{ fontSize: '14px', fontWeight: '800', color: 'var(--accent)', lineHeight: '1' }}>

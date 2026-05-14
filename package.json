@@ -10,7 +10,8 @@
     "db:apply-pending": "node scripts/db-apply-pending.mjs",
     "smoke:delete-account": "tsx scripts/smoke-delete-league-account.ts",
     "seed-dropin": "tsx scripts/seed-dropin-cli.ts",
-    "seed-league-site": "tsx scripts/push-league-site-demo.ts"
+    "seed-league-site": "tsx scripts/push-league-site-demo.ts",
+    "stripe:test-checkout": "node scripts/stripe-open-test-checkout.mjs"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.2.8",

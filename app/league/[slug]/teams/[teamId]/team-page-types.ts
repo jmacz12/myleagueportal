@@ -1,5 +1,9 @@
 export interface PlayerTotalsRow {
+  min: number
   pts: number
+  fg2m: number
+  fg3m: number
+  ftm: number
   reb: number
   ast: number
   stl: number
@@ -51,6 +55,8 @@ export interface TeamPayload {
     plan?: string | null
   }
   public_tier?: 'basic' | 'pro' | 'enterprise'
+  /** Five stat keys for Pro public roster/Stats (same as stream box score). */
+  public_primary_stat_keys?: string[]
   team: {
     id: string
     name: string

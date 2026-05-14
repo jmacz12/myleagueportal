@@ -1,10 +1,11 @@
 /**
  * Season standings + aggregates for the public team page (tier-aware).
- * Pro: five headline stats only in UI (PTS, REB, AST, STL, BLK).
+ * Pro: five headline stats chosen per org (`organizations.public_stream_primary_stat_keys`).
  */
 
 import type { OrgPlanSlug } from '@/lib/org-plan-tier'
 import { normalizeOrgPlan } from '@/lib/org-plan-tier'
+import type { PublicPrimaryStatKey } from '@/lib/public-primary-stats'
 
 export type PublicTeamPlanTier = OrgPlanSlug
 
@@ -12,23 +13,7 @@ export function normalizePublicTeamTier(plan: string | null | undefined): Public
   return normalizeOrgPlan(plan)
 }
 
-/** Fixed platform-wide headline set for Pro public team page (roadmap: five stats). */
-export const TEAM_PAGE_PRO_HEADLINE_STATS = [
-  { key: 'pts', label: 'PTS' },
-  { key: 'reb', label: 'REB' },
-  { key: 'ast', label: 'AST' },
-  { key: 'stl', label: 'STL' },
-  { key: 'blk', label: 'BLK' },
-] as const
-
-export type TeamPageStatKey =
-  | 'pts'
-  | 'reb'
-  | 'ast'
-  | 'stl'
-  | 'blk'
-  | 'tov'
-  | 'pf'
+export type TeamPageStatKey = PublicPrimaryStatKey
 
 export interface SeasonGameRow {
   id: string
@@ -113,7 +98,11 @@ export function rankTeamInSeason(teamId: string, teamIds: string[], standings: M
 }
 
 export interface PlayerStatTotals {
+  min: number
   pts: number
+  fg2m: number
+  fg3m: number
+  ftm: number
   reb: number
   ast: number
   stl: number
@@ -123,19 +112,23 @@ export interface PlayerStatTotals {
 }
 
 export function emptyPlayerTotals(): PlayerStatTotals {
-  return { pts: 0, reb: 0, ast: 0, stl: 0, blk: 0, tov: 0, pf: 0 }
+  return { min: 0, pts: 0, fg2m: 0, fg3m: 0, ftm: 0, reb: 0, ast: 0, stl: 0, blk: 0, tov: 0, pf: 0 }
 }
 
 export function aggregatePlayerStats(
   rows: Array<{
     player_id: string
     pts?: number | null
+    fg2m?: number | null
+    fg3m?: number | null
+    ftm?: number | null
     reb?: number | null
     ast?: number | null
     stl?: number | null
     blk?: number | null
     tov?: number | null
     pf?: number | null
+    seconds_played?: number | null
   }>,
   rosterIds: Set<string>
 ): Record<string, PlayerStatTotals> {
@@ -148,12 +141,16 @@ export function aggregatePlayerStats(
     const t = out[row.player_id]
     if (!t) continue
     t.pts += Number(row.pts ?? 0)
+    t.fg2m += Number(row.fg2m ?? 0)
+    t.fg3m += Number(row.fg3m ?? 0)
+    t.ftm += Number(row.ftm ?? 0)
     t.reb += Number(row.reb ?? 0)
     t.ast += Number(row.ast ?? 0)
     t.stl += Number(row.stl ?? 0)
     t.blk += Number(row.blk ?? 0)
     t.tov += Number(row.tov ?? 0)
     t.pf += Number(row.pf ?? 0)
+    t.min += Math.round(Number(row.seconds_played ?? 0) / 60)
   }
   return out
 }

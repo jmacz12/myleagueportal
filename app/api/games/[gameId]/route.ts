@@ -1,6 +1,13 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { auth } from '@clerk/nextjs/server'
+import { parseStarterSlotArray } from '@/lib/starter-slot-array'
+import {
+  appendLineupSnapshotIfNeeded,
+  parseGameClockToRemainingSeconds,
+  recomputePlayerSecondsPlayedForGame,
+  slotsChangedVsRow,
+} from '@/lib/game-lineup-minutes'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -13,29 +20,16 @@ export async function GET(
 ) {
   const { gameId } = await params
 
-  const { data: game } = await supabaseAdmin
-    .from('games').select('*').eq('id', gameId).single()
+  const { data: game } = await supabaseAdmin.from('games').select('*').eq('id', gameId).single()
 
   return NextResponse.json({ game })
-}
-
-function parseStarterSlots(raw: unknown): (string | null)[] {
-  const base: (string | null)[] = [null, null, null, null, null]
-  if (!Array.isArray(raw)) return base
-  for (let i = 0; i < 5; i++) {
-    const v = raw[i]
-    if (v === null || v === undefined || v === '') base[i] = null
-    else if (typeof v === 'string' && v.length > 0) base[i] = v
-    else base[i] = null
-  }
-  return base
 }
 
 async function validateStarterSlots(
   teamId: string | null,
   slots: unknown
 ): Promise<(string | null)[]> {
-  const parsed = parseStarterSlots(slots)
+  const parsed = parseStarterSlotArray(slots)
   if (!teamId) return parsed
   const ids = parsed.filter((x): x is string => !!x)
   if (ids.length === 0) return parsed
@@ -65,11 +59,7 @@ export async function PATCH(
   const { gameId } = await params
   const body = await req.json()
 
-  const { data: gameRow } = await supabaseAdmin
-    .from('games')
-    .select('organization_id, home_team_id, away_team_id')
-    .eq('id', gameId)
-    .single()
+  const { data: gameRow } = await supabaseAdmin.from('games').select('*').eq('id', gameId).single()
 
   if (!gameRow || gameRow.organization_id !== org.id) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -98,7 +88,41 @@ export async function PATCH(
     return NextResponse.json({ error: 'No valid fields' }, { status: 400 })
   }
 
+  const lineupChanged = slotsChangedVsRow(body, gameRow)
+  if (lineupChanged) {
+    if (body.period === undefined || body.game_clock === undefined) {
+      return NextResponse.json(
+        { error: 'When changing the on-court lineup, send the current period and game_clock so minutes can update.' },
+        { status: 400 }
+      )
+    }
+  }
+
   const { error } = await supabaseAdmin.from('games').update(updates).eq('id', gameId)
   if (error) return NextResponse.json({ error: 'Failed to update' }, { status: 500 })
+
+  if (lineupChanged) {
+    const homeForSnap =
+      updates.home_starter_slot_ids !== undefined
+        ? (updates.home_starter_slot_ids as (string | null)[])
+        : parseStarterSlotArray(gameRow.home_starter_slot_ids)
+    const awayForSnap =
+      updates.away_starter_slot_ids !== undefined
+        ? (updates.away_starter_slot_ids as (string | null)[])
+        : parseStarterSlotArray(gameRow.away_starter_slot_ids)
+    const periodSnap = Math.max(1, Number(body.period) || 1)
+    const remSnap = parseGameClockToRemainingSeconds(body.game_clock)
+    await appendLineupSnapshotIfNeeded(supabaseAdmin, {
+      gameId,
+      organizationId: String(gameRow.organization_id),
+      period: periodSnap,
+      clockRemainingSeconds: remSnap,
+      homeSlots: homeForSnap,
+      awaySlots: awayForSnap,
+    })
+  }
+
+  await recomputePlayerSecondsPlayedForGame(supabaseAdmin, gameId)
+
   return NextResponse.json({ success: true })
 }

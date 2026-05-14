@@ -18,7 +18,13 @@ import {
 } from 'lucide-react'
 import { StreamWithOverlay } from '@/components/public-stream/StreamWithOverlay'
 import type { ThemePreset } from '@/lib/leagueTheme'
-import { TEAM_PAGE_PRO_HEADLINE_STATS } from '@/lib/public-team-season-view'
+import {
+  PRIMARY_STAT_LABELS,
+  PUBLIC_PRIMARY_STAT_ORDER,
+  headlineStatsForPro,
+  normalizePublicPrimaryStatKeys,
+  type PublicPrimaryStatKey,
+} from '@/lib/public-primary-stats'
 import type { PlayerTotalsRow, PublicTeamTab, TeamPayload } from './team-page-types'
 
 type Props = {
@@ -295,6 +301,10 @@ export function PublicTeamTabPanels({
 
   const tier = data.public_tier ?? 'basic'
   const proLike = tier === 'pro' || tier === 'enterprise'
+  const proHeadlineColumns = headlineStatsForPro(
+    normalizePublicPrimaryStatKeys(data.public_primary_stat_keys)
+  )
+  const enterpriseStatColumns = [...PUBLIC_PRIMARY_STAT_ORDER] as PublicPrimaryStatKey[]
   const cardRadius = portalOriginalLayout ? '12px' : '14px'
 
   function fmtPts(n: number | undefined) {
@@ -512,7 +522,6 @@ export function PublicTeamTabPanels({
 
   function renderRosterTable(includeStats: boolean) {
     const statCols = includeStats && proLike
-    const entExtra = includeStats && tier === 'enterprise'
     return (
       <div
         style={{
@@ -547,7 +556,22 @@ export function PublicTeamTabPanels({
                 color: preset.muted,
               }}
             >
-              Pro: five headline totals. Enterprise adds TOV/PF and game log below.
+              Pro: five season totals you pick under <strong>Dashboard → Games</strong>. Enterprise shows every column.
+            </span>
+          ) : null}
+          {includeStats && tier === 'enterprise' ? (
+            <span
+              style={{
+                display: 'block',
+                marginTop: '6px',
+                fontSize: '11px',
+                fontWeight: 600,
+                textTransform: 'none',
+                letterSpacing: '0.02em',
+                color: preset.muted,
+              }}
+            >
+              Enterprise: full season stat grid (same order as the public stream box score).
             </span>
           ) : null}
         </div>
@@ -563,22 +587,36 @@ export function PublicTeamTabPanels({
                   <th style={{ padding: '10px 14px', fontWeight: 700 }}>#</th>
                   <th style={{ padding: '10px 14px', fontWeight: 700 }}>Player</th>
                   <th style={{ padding: '10px 14px', fontWeight: 700 }}>Pos.</th>
-                  {statCols
-                    ? TEAM_PAGE_PRO_HEADLINE_STATS.map((s) => (
+                  {statCols && tier === 'pro'
+                    ? proHeadlineColumns.map((s) => (
                         <th
                           key={s.key}
-                          style={{ padding: '10px 10px', fontWeight: 700, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}
+                          style={{
+                            padding: '10px 10px',
+                            fontWeight: 700,
+                            textAlign: 'center',
+                            fontVariantNumeric: 'tabular-nums',
+                          }}
                         >
                           {s.label}
                         </th>
                       ))
                     : null}
-                  {entExtra ? (
-                    <>
-                      <th style={{ padding: '10px 10px', fontWeight: 700, textAlign: 'center' }}>TOV</th>
-                      <th style={{ padding: '10px 10px', fontWeight: 700, textAlign: 'center' }}>PF</th>
-                    </>
-                  ) : null}
+                  {statCols && tier === 'enterprise'
+                    ? enterpriseStatColumns.map((k) => (
+                        <th
+                          key={k}
+                          style={{
+                            padding: '10px 10px',
+                            fontWeight: 700,
+                            textAlign: 'center',
+                            fontVariantNumeric: 'tabular-nums',
+                          }}
+                        >
+                          {PRIMARY_STAT_LABELS[k]}
+                        </th>
+                      ))
+                    : null}
                 </tr>
               </thead>
               <tbody>
@@ -635,8 +673,8 @@ export function PublicTeamTabPanels({
                         </div>
                       </td>
                       <td style={{ padding: '12px 14px', color: preset.muted }}>{p.position_label || '—'}</td>
-                      {statCols
-                        ? TEAM_PAGE_PRO_HEADLINE_STATS.map((s) => (
+                      {statCols && tier === 'pro'
+                        ? proHeadlineColumns.map((s) => (
                             <td
                               key={s.key}
                               style={{
@@ -658,13 +696,19 @@ export function PublicTeamTabPanels({
                                   {fmtPts(totals?.[s.key as keyof PlayerTotalsRow] as number | undefined)}
                                 </span>
                                 <span
-                                  title={leader_badges?.[p.id]?.[s.key as keyof PlayerTotalsRow] ? 'Top 5 in league' : undefined}
+                                  title={
+                                    leader_badges?.[p.id]?.[s.key as keyof PlayerTotalsRow]
+                                      ? 'Top 5 in league'
+                                      : undefined
+                                  }
                                   style={{
                                     width: '11px',
                                     display: 'inline-flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
-                                    visibility: leader_badges?.[p.id]?.[s.key as keyof PlayerTotalsRow] ? 'visible' : 'hidden',
+                                    visibility: leader_badges?.[p.id]?.[s.key as keyof PlayerTotalsRow]
+                                      ? 'visible'
+                                      : 'hidden',
                                   }}
                                 >
                                   <Crown size={11} color={preset.accent} aria-hidden />
@@ -673,16 +717,50 @@ export function PublicTeamTabPanels({
                             </td>
                           ))
                         : null}
-                      {entExtra ? (
-                        <>
-                          <td style={{ padding: '12px 10px', textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>
-                            {fmtPts(totals?.tov)}
-                          </td>
-                          <td style={{ padding: '12px 10px', textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>
-                            {fmtPts(totals?.pf)}
-                          </td>
-                        </>
-                      ) : null}
+                      {statCols && tier === 'enterprise'
+                        ? enterpriseStatColumns.map((k) => (
+                            <td
+                              key={k}
+                              style={{
+                                padding: '12px 10px',
+                                textAlign: 'center',
+                                fontVariantNumeric: 'tabular-nums',
+                                color: preset.body,
+                              }}
+                            >
+                              <span
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '4px',
+                                }}
+                              >
+                                <span style={{ minWidth: '22px', textAlign: 'right' }}>
+                                  {fmtPts(totals?.[k as keyof PlayerTotalsRow] as number | undefined)}
+                                </span>
+                                <span
+                                  title={
+                                    leader_badges?.[p.id]?.[k as keyof PlayerTotalsRow]
+                                      ? 'Top 5 in league'
+                                      : undefined
+                                  }
+                                  style={{
+                                    width: '11px',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    visibility: leader_badges?.[p.id]?.[k as keyof PlayerTotalsRow]
+                                      ? 'visible'
+                                      : 'hidden',
+                                  }}
+                                >
+                                  <Crown size={11} color={preset.accent} aria-hidden />
+                                </span>
+                              </span>
+                            </td>
+                          ))
+                        : null}
                     </tr>
                   )
                 })}
@@ -832,7 +910,29 @@ export function PublicTeamTabPanels({
               onSaved={onJerseyPreferenceSaved}
             />
           ) : null}
-          {watchHref ? (
+          {liveGameId ? (
+            <Link
+              href={`/league/${encodeURIComponent(slug)}?tab=stream&game=${encodeURIComponent(liveGameId)}`}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '10px',
+                marginBottom: '14px',
+                padding: '14px 16px',
+                borderRadius: cardRadius,
+                background: preset.accent,
+                color: '#fff',
+                fontSize: '15px',
+                fontWeight: 800,
+                textDecoration: 'none',
+                boxShadow: '0 8px 24px -12px rgba(0,0,0,0.35)',
+              }}
+            >
+              <Radio size={20} aria-hidden />
+              Watch live
+            </Link>
+          ) : watchHref ? (
             <a
               href={watchHref}
               target="_blank"

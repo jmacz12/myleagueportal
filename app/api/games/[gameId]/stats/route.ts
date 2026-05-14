@@ -94,6 +94,7 @@ export async function PATCH(
         blk: existing.blk ?? 0,
         tov: existing.tov ?? 0,
         pf: existing.pf ?? 0,
+        seconds_played: Math.max(0, Math.floor(Number(existing.seconds_played) || 0)),
       }
     : {
         fg2m: 0,
@@ -105,6 +106,7 @@ export async function PATCH(
         blk: 0,
         tov: 0,
         pf: 0,
+        seconds_played: 0,
       }
 
   if (increment && typeof increment === 'object' && increment !== null) {
@@ -174,6 +176,7 @@ export async function PATCH(
       blk: base.blk,
       tov: base.tov,
       pf: base.pf,
+      seconds_played: base.seconds_played,
     }
     upsertErr = (
       await supabaseAdmin.from('player_game_stats').upsert(minimal, {

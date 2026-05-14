@@ -1,5 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
+  PUBLIC_PRIMARY_STAT_ORDER,
+  type PublicPrimaryStatKey,
+  normalizePublicPrimaryStatKeys,
+} from '@/lib/public-primary-stats'
+import {
   aggregatePlayerStats,
   computeStandingsMap,
   computeTeamRecord,
@@ -34,6 +39,8 @@ export async function buildPublicTeamSeasonExtras(
     seasonId: string
     rosterPlayerIds: string[]
     tier: PublicTeamPlanTier
+    /** From `organizations.public_stream_primary_stat_keys` — five visible stats on Pro. */
+    publicPrimaryStatKeys?: unknown
   }
 ): Promise<{
   season_record: { wins: number; losses: number }
@@ -59,6 +66,8 @@ export async function buildPublicTeamSeasonExtras(
   if (params.tier === 'basic') {
     return empty
   }
+
+  const primaryStatKeys = normalizePublicPrimaryStatKeys(params.publicPrimaryStatKeys)
 
   const [{ data: teamsInSeason }, { data: seasonGames }] = await Promise.all([
     supabase
@@ -155,7 +164,9 @@ export async function buildPublicTeamSeasonExtras(
   const gameIdList = [...teamSeasonFinalIds]
   const { data: statRows } = await supabase
     .from('player_game_stats')
-    .select('player_id, pts, ast, reb, stl, blk, tov, pf, game_id')
+    .select(
+      'player_id, pts, fg2m, fg3m, ftm, ast, reb, stl, blk, tov, pf, seconds_played, game_id'
+    )
     .in('game_id', gameIdList)
 
   const filtered = (statRows || []).filter(
@@ -170,12 +181,16 @@ export async function buildPublicTeamSeasonExtras(
     filtered.map((r) => ({
       player_id: String(r.player_id),
       pts: r.pts ?? null,
+      fg2m: (r as { fg2m?: number | null }).fg2m ?? null,
+      fg3m: (r as { fg3m?: number | null }).fg3m ?? null,
+      ftm: (r as { ftm?: number | null }).ftm ?? null,
       ast: r.ast ?? null,
       reb: r.reb ?? null,
       stl: r.stl ?? null,
       blk: r.blk ?? null,
       tov: r.tov ?? null,
       pf: r.pf ?? null,
+      seconds_played: (r as { seconds_played?: number | null }).seconds_played ?? null,
     })),
     rosterSet
   )
@@ -185,7 +200,9 @@ export async function buildPublicTeamSeasonExtras(
   if (seasonFinalGameIds.length > 0) {
     const { data: allSeasonStatRows } = await supabase
       .from('player_game_stats')
-      .select('player_id, pts, ast, reb, stl, blk, tov, pf, game_id')
+      .select(
+        'player_id, pts, fg2m, fg3m, ftm, ast, reb, stl, blk, tov, pf, seconds_played, game_id'
+      )
       .in('game_id', seasonFinalGameIds)
 
     const seasonRows = allSeasonStatRows || []
@@ -195,19 +212,23 @@ export async function buildPublicTeamSeasonExtras(
         .map((r) => ({
           player_id: String(r.player_id),
           pts: r.pts ?? null,
+          fg2m: (r as { fg2m?: number | null }).fg2m ?? null,
+          fg3m: (r as { fg3m?: number | null }).fg3m ?? null,
+          ftm: (r as { ftm?: number | null }).ftm ?? null,
           ast: r.ast ?? null,
           reb: r.reb ?? null,
           stl: r.stl ?? null,
           blk: r.blk ?? null,
           tov: r.tov ?? null,
           pf: r.pf ?? null,
+          seconds_played: (r as { seconds_played?: number | null }).seconds_played ?? null,
         })),
       new Set(seasonRows.map((r) => String(r.player_id)))
     )
     const visibleKeys: TeamPageStatKey[] =
       params.tier === 'enterprise'
-        ? ['pts', 'reb', 'ast', 'stl', 'blk', 'tov', 'pf']
-        : ['pts', 'reb', 'ast', 'stl', 'blk']
+        ? ([...PUBLIC_PRIMARY_STAT_ORDER] as PublicPrimaryStatKey[])
+        : (primaryStatKeys as TeamPageStatKey[])
 
     const badges: Record<string, Partial<Record<TeamPageStatKey, true>>> = {}
     for (const key of visibleKeys) {

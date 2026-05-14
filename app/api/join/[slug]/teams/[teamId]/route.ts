@@ -6,6 +6,7 @@ import { fetchOrganizationForPublicJoin, normalizeJoinSlugParam } from '@/lib/jo
 import { jerseyPollsEnabledForOrgPlan } from '@/lib/jersey-poll-tier'
 import { getJerseyPollSelfPayload } from '@/lib/jersey-poll-self'
 import { normalizeOrgPlan } from '@/lib/org-plan-tier'
+import { normalizePublicPrimaryStatKeys } from '@/lib/public-primary-stats'
 import { buildPublicTeamSeasonExtras } from '@/lib/public-team-page-payload'
 import { normalizePublicTeamTier } from '@/lib/public-team-season-view'
 
@@ -202,6 +203,7 @@ export async function GET(
     seasonId: team.season_id,
     rosterPlayerIds: rosterIds,
     tier,
+    publicPrimaryStatKeys: orgHub.public_stream_primary_stat_keys,
   })
 
   const nowIso = new Date().toISOString()
@@ -271,6 +273,8 @@ export async function GET(
         }))
       : []
 
+  const public_primary_stat_keys = normalizePublicPrimaryStatKeys(orgHub.public_stream_primary_stat_keys)
+
   return NextResponse.json({
     organization: {
       name: org.name,
@@ -281,6 +285,7 @@ export async function GET(
       league_appearance_mode: org.league_appearance_mode ?? 'light',
       plan: normalizeOrgPlan(org.plan),
     },
+    public_primary_stat_keys,
     public_tier: tier,
     team: {
       id: team.id,

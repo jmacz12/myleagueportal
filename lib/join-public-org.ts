@@ -22,7 +22,7 @@ function isMissingColumnOrSchemaError(error: { message?: string; code?: string }
 }
 
 const ORG_SELECT_ATTEMPTS = [
-  'id, name, slug, primary_color, logo_url, news_banner, news_banner_color, league_timezone, league_theme_preset, league_appearance_mode, plan, sport_template_id',
+  'id, name, slug, primary_color, logo_url, news_banner, news_banner_color, league_timezone, league_theme_preset, league_appearance_mode, plan, sport_template_id, public_stream_primary_stat_keys',
   'id, name, slug, primary_color, logo_url, news_banner, news_banner_color, league_timezone, league_theme_preset, league_appearance_mode, plan',
   'id, name, slug, primary_color, logo_url, news_banner, news_banner_color, league_theme_preset, league_appearance_mode, plan',
   'id, name, slug, primary_color, logo_url, news_banner, news_banner_color, league_theme_preset, plan',
@@ -42,6 +42,8 @@ export type PublicHubOrganization = {
   league_appearance_mode: string | null
   plan: OrgPlanSlug
   sport_template_id: SportTemplateId
+  /** JSON array of five stat keys — Basic/Pro public fan surfaces. */
+  public_stream_primary_stat_keys?: unknown
 }
 
 function coerceHubOrg(row: Record<string, unknown>): PublicHubOrganization {
@@ -58,6 +60,7 @@ function coerceHubOrg(row: Record<string, unknown>): PublicHubOrganization {
     league_appearance_mode: row.league_appearance_mode != null ? String(row.league_appearance_mode) : 'light',
     plan: normalizeOrgPlan(row.plan),
     sport_template_id: normalizeSportTemplateId(row.sport_template_id),
+    public_stream_primary_stat_keys: row.public_stream_primary_stat_keys,
   }
 }
 

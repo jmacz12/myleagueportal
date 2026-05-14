@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { auth } from '@clerk/nextjs/server'
+import { requireOwnerOrgForDashboard } from '@/lib/org-access'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -17,14 +18,12 @@ export async function GET() {
   const { userId } = await auth()
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: org } = await supabaseAdmin
-    .from('organizations').select('id')
-    .eq('clerk_user_id', userId).single()
-  if (!org) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  const gate = await requireOwnerOrgForDashboard(userId)
+  if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status })
 
   const { data: sessions } = await supabaseAdmin
     .from('dropin_sessions').select('*')
-    .eq('organization_id', org.id)
+    .eq('organization_id', gate.organizationId)
     .order('scheduled_at', { ascending: true })
 
   const rows = sessions || []
@@ -58,10 +57,8 @@ export async function POST(req: Request) {
   const { userId } = await auth()
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: org } = await supabaseAdmin
-    .from('organizations').select('id')
-    .eq('clerk_user_id', userId).single()
-  if (!org) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  const gate = await requireOwnerOrgForDashboard(userId)
+  if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status })
 
   const {
     name, date, start_time, end_time, location,
@@ -92,7 +89,7 @@ export async function POST(req: Request) {
   }
 
   const inserts = dates.map((d) => ({
-    organization_id: org.id,
+    organization_id: gate.organizationId,
     name: is_recurring
       ? `${name} — ${new Date(d + 'T12:00:00').toLocaleDateString('en-CA', { month: 'short', day: 'numeric' })}`
       : name,
@@ -127,12 +124,8 @@ export async function DELETE(req: Request) {
   const { session_id } = await req.json()
   if (!session_id) return NextResponse.json({ error: 'session_id is required' }, { status: 400 })
 
-  const { data: org } = await supabaseAdmin
-    .from('organizations')
-    .select('id')
-    .eq('clerk_user_id', userId)
-    .single()
-  if (!org) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  const gate = await requireOwnerOrgForDashboard(userId)
+  if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status })
 
   const { data: session } = await supabaseAdmin
     .from('dropin_sessions')
@@ -140,7 +133,7 @@ export async function DELETE(req: Request) {
     .eq('id', session_id)
     .single()
 
-  if (!session || session.organization_id !== org.id) {
+  if (!session || session.organization_id !== gate.organizationId) {
     return NextResponse.json({ error: 'Session not found' }, { status: 404 })
   }
 
@@ -156,7 +149,7 @@ export async function DELETE(req: Request) {
     .from('dropin_sessions')
     .delete()
     .eq('id', session_id)
-    .eq('organization_id', org.id)
+    .eq('organization_id', gate.organizationId)
   if (sessionErr) {
     return NextResponse.json({ error: sessionErr.message || 'Failed to delete session' }, { status: 500 })
   }

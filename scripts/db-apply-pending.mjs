@@ -50,6 +50,11 @@ const FILES = [
   '20260514140000_organization_fk_on_delete_cascade.sql',
   /* Pro custom domain — organizations.custom_domain* columns */
   '20260515120000_organizations_custom_domain.sql',
+  /* Minutes played — lineup snapshots + player_game_stats.seconds_played */
+  '20260516120000_game_lineup_snapshots_minutes.sql',
+  /* Scoring — regulation quarter length (minutes) per league */
+  '20260516140000_organizations_scoring_quarter_minutes.sql',
+  '20260516150000_organizations_public_stream_primary_stat_keys.sql',
 ]
 
 async function main() {

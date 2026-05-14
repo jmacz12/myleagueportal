@@ -8,12 +8,14 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
+import { formatSecondsAsMinSec } from '@/lib/game-lineup-minutes'
+import {
+  PRIMARY_STAT_LABELS,
+  PUBLIC_PRIMARY_STAT_ORDER,
+  normalizePublicPrimaryStatKeys,
+  type PublicPrimaryStatKey,
+} from '@/lib/public-primary-stats'
 import type { LeagueWatchLeaguePreset } from '@/components/public-stream/LeagueWatchScoreStrip'
-
-const statKeys = ['pts', 'fg2m', 'fg3m', 'ftm', 'ast', 'reb', 'stl', 'blk', 'tov', 'pf'] as const
-type StatKey = (typeof statKeys)[number]
-
-const statHeaders = ['#', 'Player', 'PTS', '2PM', '3PM', 'FTM', 'AST', 'REB', 'STL', 'BLK', 'TOV', 'PF'] as const
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -39,6 +41,7 @@ type GameStatRow = {
   fg2m?: number | null
   fg3m?: number | null
   ftm?: number | null
+  seconds_played?: number | null
   players: PlayerJoin | null
 }
 
@@ -59,6 +62,10 @@ type BoxScorePayload = {
   homeTeam: TeamLite | null
   awayTeam: TeamLite | null
   stats: GameStatRow[]
+  /** Public stream: Basic/Pro show five org-picked stats; Enterprise shows full grid. */
+  publicBoxScoreTier?: 'enterprise' | 'basic_or_pro'
+  /** Five stat keys visible on Basic/Pro (from `organizations.public_stream_primary_stat_keys`). */
+  publicStreamPrimaryStatKeys?: PublicPrimaryStatKey[]
 }
 
 export type PublicStreamBoxScoreProps = {
@@ -83,6 +90,7 @@ export function PublicStreamBoxScore({
   const [payload, setPayload] = useState<BoxScorePayload | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [lockedSheet, setLockedSheet] = useState<{ label: string } | null>(null)
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/public/games/${encodeURIComponent(gameId)}/box-score`, {
@@ -94,7 +102,14 @@ export function PublicStreamBoxScore({
       setLoading(false)
       return
     }
-    setPayload(json as BoxScorePayload)
+    const normalized: BoxScorePayload = {
+      ...json,
+      publicBoxScoreTier: json.publicBoxScoreTier === 'enterprise' ? 'enterprise' : 'basic_or_pro',
+      publicStreamPrimaryStatKeys: normalizePublicPrimaryStatKeys(
+        (json as { publicStreamPrimaryStatKeys?: unknown }).publicStreamPrimaryStatKeys
+      ),
+    }
+    setPayload(normalized)
     setError('')
     setLoading(false)
   }, [gameId])
@@ -143,6 +158,47 @@ export function PublicStreamBoxScore({
     return { homeStats, awayStats }
   }, [payload])
 
+  const leadersStrip = useMemo(() => {
+    const fmt = (s: GameStatRow) => {
+      const p = s.players
+      const j = p?.jersey_number != null ? `#${p.jersey_number} ` : ''
+      const n = (p?.full_name || '—').trim()
+      return `${j}${n}`.trim()
+    }
+
+    const ptsLeaders = (teamStats: GameStatRow[]) => {
+      if (!teamStats.length) return null
+      const max = Math.max(0, ...teamStats.map((r) => r.pts ?? 0))
+      if (max <= 0) return null
+      const rows = teamStats.filter((r) => (r.pts ?? 0) === max)
+      return { names: rows.map(fmt).join(' · '), pts: max }
+    }
+
+    const gameWide = (key: 'reb' | 'ast') => {
+      const all = [...homeStats, ...awayStats]
+      if (!all.length) return null
+      const max = Math.max(0, ...all.map((r) => (r[key] ?? 0) as number))
+      if (max <= 0) return null
+      const rows = all.filter((r) => (r[key] ?? 0) === max)
+      const label = key === 'reb' ? 'REB' : 'AST'
+      const text = rows.map((r) => `${fmt(r)} (${max})`).join(' · ')
+      return { label, text }
+    }
+
+    const homePts = ptsLeaders(homeStats)
+    const awayPts = ptsLeaders(awayStats)
+    const reb = gameWide('reb')
+    const ast = gameWide('ast')
+
+    if (!homePts && !awayPts && !reb && !ast) return null
+
+    return { homePts, awayPts, reb, ast }
+  }, [homeStats, awayStats])
+
+  const primarySet = useMemo(() => {
+    return new Set(normalizePublicPrimaryStatKeys(payload?.publicStreamPrimaryStatKeys))
+  }, [payload])
+
   const headerBand = P.pageBg
 
   if (loading) {
@@ -181,6 +237,25 @@ export function PublicStreamBoxScore({
   }
 
   const { game, homeTeam, awayTeam } = payload
+  const showFullPublicBoxScoreStats = payload.publicBoxScoreTier === 'enterprise'
+
+  const statColCount = PUBLIC_PRIMARY_STAT_ORDER.length
+  const statGridTemplateColumns = `32px minmax(100px, 1fr) repeat(${statColCount}, minmax(38px, 46px))`
+  const statTableMinWidthPx = 280 + statColCount * 44
+
+  function statValue(s: GameStatRow, key: PublicPrimaryStatKey): string {
+    if (key === 'min') return formatSecondsAsMinSec(Number(s.seconds_played ?? 0))
+    const v = s[key as keyof GameStatRow]
+    return String(Number(v ?? 0))
+  }
+
+  function isStatUnlocked(key: PublicPrimaryStatKey): boolean {
+    return showFullPublicBoxScoreStats || primarySet.has(key)
+  }
+
+  function openLockedSheet(statKey: PublicPrimaryStatKey) {
+    setLockedSheet({ label: PRIMARY_STAT_LABELS[statKey] })
+  }
 
   function StatTable({ teamStats, teamName, teamColor }: { teamStats: GameStatRow[]; teamName: string; teamColor: string | null }) {
     const headerBg = P.accentSoftBg
@@ -205,28 +280,91 @@ export function PublicStreamBoxScore({
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: '32px minmax(100px, 1fr) repeat(10, minmax(36px, 40px))',
+              gridTemplateColumns: statGridTemplateColumns,
               gap: '4px',
               padding: '8px 14px',
               background: headerBg,
-              minWidth: '520px',
+              minWidth: `${statTableMinWidthPx}px`,
             }}
           >
-            {statHeaders.map((h) => (
-              <span
-                key={h}
-                style={{
-                  fontSize: '10px',
-                  fontWeight: 700,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.06em',
-                  color: P.muted,
-                  textAlign: h !== 'Player' ? 'center' : 'left',
-                }}
-              >
-                {h}
-              </span>
-            ))}
+            <span
+              style={{
+                fontSize: '10px',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.06em',
+                color: P.muted,
+                textAlign: 'center',
+              }}
+            >
+              #
+            </span>
+            <span
+              style={{
+                fontSize: '10px',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.06em',
+                color: P.muted,
+                textAlign: 'left',
+              }}
+            >
+              Player
+            </span>
+            {PUBLIC_PRIMARY_STAT_ORDER.map((k) => {
+              const open = !isStatUnlocked(k)
+              if (!open) {
+                return (
+                  <span
+                    key={k}
+                    style={{
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.06em',
+                      color: P.muted,
+                      textAlign: 'center',
+                      lineHeight: 1.15,
+                    }}
+                  >
+                    {PRIMARY_STAT_LABELS[k]}
+                  </span>
+                )
+              }
+              return (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => openLockedSheet(k)}
+                  title="Tap for Enterprise — full public stat grid"
+                  style={{
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.06em',
+                    color: P.muted,
+                    textAlign: 'center',
+                    opacity: 0.75,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '1px',
+                    lineHeight: 1.15,
+                    background: 'transparent',
+                    border: 'none',
+                    padding: '2px 0',
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  <span aria-hidden style={{ fontSize: '9px' }}>
+                    🔒
+                  </span>
+                  <span>{PRIMARY_STAT_LABELS[k]}</span>
+                </button>
+              )
+            })}
           </div>
           {teamStats.length === 0 ? (
             <div style={{ padding: '16px', textAlign: 'center', fontSize: '12px', color: P.muted }}>No stats yet</div>
@@ -241,31 +379,60 @@ export function PublicStreamBoxScore({
                     key={s.id}
                     style={{
                       display: 'grid',
-                      gridTemplateColumns: '32px minmax(100px, 1fr) repeat(10, minmax(36px, 40px))',
+                      gridTemplateColumns: statGridTemplateColumns,
                       gap: '4px',
                       padding: '10px 14px',
                       borderTop: idx > 0 ? `0.5px solid ${rowBorder}` : 'none',
                       alignItems: 'center',
-                      minWidth: '520px',
+                      minWidth: `${statTableMinWidthPx}px`,
                     }}
                   >
                     <span style={{ fontSize: '11px', color: P.muted, textAlign: 'center' }}>
                       {player?.jersey_number != null ? `#${player.jersey_number}` : '—'}
                     </span>
                     <span style={{ fontSize: '13px', fontWeight: 600, color: P.heading }}>{player?.full_name || '—'}</span>
-                    {statKeys.map((stat) => (
-                      <span
-                        key={stat}
-                        style={{
-                          fontSize: '13px',
-                          fontWeight: stat === 'pts' ? 800 : 400,
-                          color: stat === 'pts' ? P.heading : P.body,
-                          textAlign: 'center',
-                        }}
-                      >
-                        {Number(s[stat as StatKey] ?? 0)}
-                      </span>
-                    ))}
+                    {PUBLIC_PRIMARY_STAT_ORDER.map((stat) => {
+                      const open = !isStatUnlocked(stat)
+                      const val = statValue(s, stat)
+                      return (
+                        <span key={stat} style={{ textAlign: 'center', minHeight: '22px' }}>
+                          {open ? (
+                            <button
+                              type="button"
+                              onClick={() => openLockedSheet(stat)}
+                              aria-label={`${PRIMARY_STAT_LABELS[stat]}: Enterprise only. Tap for details.`}
+                              style={{
+                                fontSize: '12px',
+                                fontWeight: 500,
+                                color: P.muted,
+                                opacity: 0.65,
+                                fontVariantNumeric: 'tabular-nums',
+                                background: 'transparent',
+                                border: 'none',
+                                padding: '4px 6px',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                fontFamily: 'inherit',
+                                width: '100%',
+                              }}
+                            >
+                              —
+                            </button>
+                          ) : (
+                            <span
+                              style={{
+                                fontSize: stat === 'pts' ? '13px' : '13px',
+                                fontWeight: stat === 'pts' ? 800 : 400,
+                                color: stat === 'pts' ? P.heading : P.body,
+                                fontVariantNumeric: 'tabular-nums',
+                              }}
+                            >
+                              {val}
+                            </span>
+                          )}
+                        </span>
+                      )
+                    })}
                   </div>
                 )
               })
@@ -410,10 +577,166 @@ export function PublicStreamBoxScore({
         </div>
       )}
 
+      {leadersStrip ? (
+        <div
+          style={{
+            padding: '12px 16px',
+            background: P.accentSoftBg,
+            borderBottom: `1px solid ${P.surfaceBorder}`,
+          }}
+        >
+          <p
+            style={{
+              margin: '0 0 8px',
+              fontSize: '10px',
+              fontWeight: 800,
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
+              color: P.muted,
+            }}
+          >
+            Leaders
+          </p>
+          {leadersStrip.homePts || leadersStrip.awayPts ? (
+            <div
+              style={{
+                fontSize: '13px',
+                color: P.body,
+                lineHeight: 1.5,
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '8px 16px',
+                marginBottom: leadersStrip.reb || leadersStrip.ast ? '8px' : 0,
+              }}
+            >
+              {leadersStrip.homePts ? (
+                <span>
+                  <strong style={{ color: P.heading }}>{homeTeam?.name || 'Home'}</strong> — {leadersStrip.homePts.names} ·{' '}
+                  <strong style={{ color: P.heading }}>{leadersStrip.homePts.pts} PTS</strong>
+                </span>
+              ) : null}
+              {leadersStrip.awayPts ? (
+                <span>
+                  <strong style={{ color: P.heading }}>{awayTeam?.name || 'Away'}</strong> — {leadersStrip.awayPts.names} ·{' '}
+                  <strong style={{ color: P.heading }}>{leadersStrip.awayPts.pts} PTS</strong>
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+          {leadersStrip.reb || leadersStrip.ast ? (
+            <div
+              style={{
+                fontSize: '12px',
+                color: P.muted,
+                lineHeight: 1.45,
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '6px 12px',
+              }}
+            >
+              {leadersStrip.reb ? (
+                <span>
+                  <strong style={{ color: P.heading }}>{leadersStrip.reb.label}</strong> {leadersStrip.reb.text}
+                </span>
+              ) : null}
+              {leadersStrip.ast ? (
+                <span>
+                  <strong style={{ color: P.heading }}>{leadersStrip.ast.label}</strong> {leadersStrip.ast.text}
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
       <div style={{ padding: hideLiveGameHeader ? '14px 14px 20px' : '18px 14px 20px' }}>
+        {!showFullPublicBoxScoreStats ? (
+          <div
+            style={{
+              marginBottom: '14px',
+              padding: '10px 12px',
+              borderRadius: '10px',
+              border: `1px dashed ${P.surfaceBorder}`,
+              background: P.accentSoftBg,
+              fontSize: '12px',
+              lineHeight: 1.45,
+              color: P.body,
+            }}
+          >
+            <strong style={{ color: P.heading }}>Basic &amp; Pro:</strong> fans see the{' '}
+            <strong>five stats</strong> you set on <strong>Dashboard → Games</strong>. Tap a{' '}
+            <strong>🔒</strong> column or &quot;—&quot; cell for details. <strong>Enterprise</strong> unlocks every column
+            on the public stream. Your scorer still records everything.
+          </div>
+        ) : null}
         <StatTable teamStats={homeStats} teamName={homeTeam?.name || 'Home'} teamColor={homeTeam?.color ?? null} />
         <StatTable teamStats={awayStats} teamName={awayTeam?.name || 'Away'} teamColor={awayTeam?.color ?? null} />
       </div>
+
+      {lockedSheet ? (
+        <div
+          role="presentation"
+          onClick={() => setLockedSheet(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 60,
+            background: 'rgba(0,0,0,0.45)',
+            display: 'flex',
+            alignItems: 'flex-end',
+            justifyContent: 'center',
+            padding: '12px',
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="locked-stat-title"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: '420px',
+              background: P.surfaceBg,
+              color: P.body,
+              borderRadius: '16px 16px 0 0',
+              padding: '20px 18px 22px',
+              border: `1px solid ${P.surfaceBorder}`,
+              boxShadow: '0 -8px 30px rgba(0,0,0,0.2)',
+            }}
+          >
+            <h2
+              id="locked-stat-title"
+              style={{ margin: '0 0 10px', fontSize: '17px', fontWeight: 800, color: P.heading }}
+            >
+              Enterprise only — {lockedSheet.label}
+            </h2>
+            <p style={{ margin: '0 0 16px', fontSize: '14px', lineHeight: 1.5 }}>
+              On Basic and Pro, fans only see the <strong>five stats</strong> you choose under{' '}
+              <strong>Dashboard → Games</strong>. Everything else still records on your score sheet but stays locked on
+              the public stream. <strong>Upgrade to Enterprise</strong> to unlock the full stat row for fans (and on
+              public team pages).
+            </p>
+            <button
+              type="button"
+              onClick={() => setLockedSheet(null)}
+              style={{
+                width: '100%',
+                padding: '12px',
+                borderRadius: '10px',
+                fontWeight: 700,
+                fontSize: '14px',
+                border: `1px solid ${P.surfaceBorder}`,
+                background: P.accentSoftBg,
+                color: P.heading,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

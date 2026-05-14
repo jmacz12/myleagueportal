@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { auth } from '@clerk/nextjs/server'
+import { recomputePlayerSecondsPlayedForGame } from '@/lib/game-lineup-minutes'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -63,15 +64,46 @@ export async function PATCH(req: Request) {
   const { userId } = await auth()
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { game_id, status, home_score, away_score } = await req.json()
+  const { data: org } = await supabaseAdmin
+    .from('organizations')
+    .select('id')
+    .eq('clerk_user_id', userId)
+    .single()
+  if (!org) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  const { game_id, status, home_score, away_score, period, game_clock } = await req.json()
+  if (!game_id || typeof game_id !== 'string') {
+    return NextResponse.json({ error: 'game_id required' }, { status: 400 })
+  }
+
+  const { data: gameRow } = await supabaseAdmin
+    .from('games')
+    .select('organization_id')
+    .eq('id', game_id)
+    .maybeSingle()
+
+  if (!gameRow || gameRow.organization_id !== org.id) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
   const updates: Record<string, string | number | undefined> = {}
   if (status !== undefined) updates.status = status
   if (home_score !== undefined) updates.home_score = home_score
   if (away_score !== undefined) updates.away_score = away_score
+  if (period !== undefined) updates.period = period
+  if (game_clock !== undefined) updates.game_clock = game_clock
+
+  if (Object.keys(updates).length === 0) {
+    return NextResponse.json({ error: 'No valid fields' }, { status: 400 })
+  }
 
   const { error } = await supabaseAdmin.from('games').update(updates).eq('id', game_id)
   if (error) return NextResponse.json({ error: 'Failed to update' }, { status: 500 })
+
+  if (status === 'final' && game_id) {
+    await recomputePlayerSecondsPlayedForGame(supabaseAdmin, game_id)
+  }
+
   return NextResponse.json({ success: true })
 }
 

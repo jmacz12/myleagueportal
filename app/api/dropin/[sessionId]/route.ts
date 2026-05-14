@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { auth } from '@clerk/nextjs/server'
+import { requireOwnerOrgForDashboard } from '@/lib/org-access'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -22,8 +23,18 @@ export async function GET(
 
   const { sessionId } = await params
 
+  const gate = await requireOwnerOrgForDashboard(userId)
+  if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status })
+
   const { data: session } = await supabaseAdmin
-    .from('dropin_sessions').select('*').eq('id', sessionId).single()
+    .from('dropin_sessions')
+    .select('*')
+    .eq('id', sessionId)
+    .maybeSingle()
+
+  if (!session || session.organization_id !== gate.organizationId) {
+    return NextResponse.json({ error: 'Session not found' }, { status: 404 })
+  }
 
   const { data: registrations } = await supabaseAdmin
     .from('dropin_registrations').select('*')
@@ -46,19 +57,15 @@ export async function PATCH(
 
   // ─── Registration row (check-in / payment) ─────────────────────────────────
   if (registration_id != null && registration_id !== '') {
-    const { data: org } = await supabaseAdmin
-      .from('organizations')
-      .select('id')
-      .eq('clerk_user_id', userId)
-      .single()
-    if (!org) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    const gate = await requireOwnerOrgForDashboard(userId)
+    if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status })
 
     const { data: session } = await supabaseAdmin
       .from('dropin_sessions')
       .select('id, organization_id')
       .eq('id', sessionId)
       .single()
-    if (!session || session.organization_id !== org.id) {
+    if (!session || session.organization_id !== gate.organizationId) {
       return NextResponse.json({ error: 'Session not found' }, { status: 404 })
     }
 
@@ -156,10 +163,8 @@ export async function PATCH(
     )
   }
 
-  const { data: org } = await supabaseAdmin
-    .from('organizations').select('id')
-    .eq('clerk_user_id', userId).single()
-  if (!org) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  const gate = await requireOwnerOrgForDashboard(userId)
+  if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status })
 
   const { data: existing } = await supabaseAdmin
     .from('dropin_sessions')
@@ -167,7 +172,7 @@ export async function PATCH(
     .eq('id', sessionId)
     .single()
 
-  if (!existing || existing.organization_id !== org.id) {
+  if (!existing || existing.organization_id !== gate.organizationId) {
     return NextResponse.json({ error: 'Session not found' }, { status: 404 })
   }
 

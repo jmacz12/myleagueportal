@@ -108,3 +108,20 @@ export async function getOrgAccessForClerkUser(userId: string | null | undefined
   if (!org) return null
   return { organization: org, role: 'editor' }
 }
+
+export type DashboardOwnerOrgGate =
+  | { ok: true; organizationId: string }
+  | { ok: false; status: 404 | 403; error: string }
+
+/**
+ * Dashboard routes for drop-ins / reputation: resolve org the same way as the rest of the app,
+ * but require the **owner** (website-only `organization_editors` must not manage sessions).
+ */
+export async function requireOwnerOrgForDashboard(userId: string | null | undefined): Promise<DashboardOwnerOrgGate> {
+  const access = await getOrgAccessForClerkUser(userId)
+  if (!access) return { ok: false, status: 404, error: 'Not found' }
+  if (access.role !== 'owner') {
+    return { ok: false, status: 403, error: 'Only the league owner can manage this.' }
+  }
+  return { ok: true, organizationId: access.organization.id }
+}

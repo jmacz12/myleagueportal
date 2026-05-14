@@ -1,11 +1,26 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { BarChart3, CalendarDays, ExternalLink, Trophy } from 'lucide-react'
+import { BarChart3, CalendarDays, ExternalLink, Timer, Trophy } from 'lucide-react'
 import AddGamesForm from './AddGamesForm'
 import { contrastTextOnColor } from '@/lib/contrast-text-on-color'
+import {
+  PRIMARY_STAT_LABELS,
+  PUBLIC_PRIMARY_STAT_ORDER,
+  normalizePublicPrimaryStatKeys,
+  type PublicPrimaryStatKey,
+} from '@/lib/public-primary-stats'
 
 const DEMO_LIVE_LOCATION = 'MLP_DEMO_LIVE_STREAM'
+
+function primarySlotOptions(slotIndex: number, draft: PublicPrimaryStatKey[]) {
+  const cur = draft[slotIndex]
+  const usedElsewhere = new Set(draft.filter((_, j) => j !== slotIndex))
+  return PUBLIC_PRIMARY_STAT_ORDER.filter((k) => k === cur || !usedElsewhere.has(k)).map((k) => ({
+    value: k,
+    label: PRIMARY_STAT_LABELS[k],
+  }))
+}
 
 function formatGameLocation(location: string | null): string | null {
   if (!location) return null
@@ -40,9 +55,46 @@ export default function GamesTab() {
   const [filter, setFilter] = useState<'all' | 'scheduled' | 'live' | 'final'>('all')
   const [selectedSeason, setSelectedSeason] = useState('all')
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [scoringQuarterMinutes, setScoringQuarterMinutes] = useState(10)
+  const [scoringPrefsSaving, setScoringPrefsSaving] = useState(false)
+  const [scoringPrefsError, setScoringPrefsError] = useState('')
+  const [primaryDraft, setPrimaryDraft] = useState<PublicPrimaryStatKey[]>(() => [
+    ...normalizePublicPrimaryStatKeys(null),
+  ])
+  const [statPicksDirty, setStatPicksDirty] = useState(false)
+  const [statPicksSaving, setStatPicksSaving] = useState(false)
+  const [statPicksError, setStatPicksError] = useState('')
 
   useEffect(() => {
     void fetchData()
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const res = await fetch('/api/games/scoring-preferences')
+      const j = (await res.json().catch(() => null)) as {
+        scoring_quarter_minutes?: number
+        public_stream_primary_stat_keys?: unknown
+        error?: string
+      } | null
+      if (cancelled) return
+      if (res.ok && j) {
+        if (typeof j.scoring_quarter_minutes === 'number') {
+          setScoringQuarterMinutes(j.scoring_quarter_minutes)
+        }
+        if (j.public_stream_primary_stat_keys !== undefined) {
+          setPrimaryDraft([...normalizePublicPrimaryStatKeys(j.public_stream_primary_stat_keys)])
+          setStatPicksDirty(false)
+        }
+        setScoringPrefsError('')
+      } else if (j?.error) {
+        setScoringPrefsError(j.error)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   /** Keep the list in sync with the scoring page (and public overlay) while you practice. */
@@ -59,6 +111,62 @@ export default function GamesTab() {
       document.removeEventListener('visibilitychange', onVis)
     }
   }, [])
+
+  async function updateScoringQuarterMinutes(next: number) {
+    setScoringPrefsError('')
+    setScoringPrefsSaving(true)
+    setScoringQuarterMinutes(next)
+    try {
+      const res = await fetch('/api/games/scoring-preferences', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scoring_quarter_minutes: next }),
+      })
+      const j = (await res.json().catch(() => null)) as { scoring_quarter_minutes?: number; error?: string } | null
+      if (!res.ok) {
+        setScoringPrefsError(typeof j?.error === 'string' ? j.error : 'Could not save quarter length')
+        const reload = await fetch('/api/games/scoring-preferences')
+        const rj = (await reload.json().catch(() => null)) as { scoring_quarter_minutes?: number } | null
+        if (reload.ok && rj && typeof rj.scoring_quarter_minutes === 'number') {
+          setScoringQuarterMinutes(rj.scoring_quarter_minutes)
+        }
+        return
+      }
+      if (j && typeof j.scoring_quarter_minutes === 'number') {
+        setScoringQuarterMinutes(j.scoring_quarter_minutes)
+      }
+    } finally {
+      setScoringPrefsSaving(false)
+    }
+  }
+
+  async function saveStatPicks() {
+    setStatPicksError('')
+    setStatPicksSaving(true)
+    try {
+      const normalized = normalizePublicPrimaryStatKeys(primaryDraft)
+      setPrimaryDraft([...normalized])
+      const res = await fetch('/api/games/scoring-preferences', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ public_stream_primary_stat_keys: normalized }),
+      })
+      const j = (await res.json().catch(() => null)) as {
+        public_stream_primary_stat_keys?: unknown
+        error?: string
+      } | null
+      if (!res.ok) {
+        setStatPicksError(typeof j?.error === 'string' ? j.error : 'Could not save stat picks')
+        return
+      }
+      if (j?.public_stream_primary_stat_keys !== undefined) {
+        setPrimaryDraft([...normalizePublicPrimaryStatKeys(j.public_stream_primary_stat_keys)])
+      }
+      setStatPicksDirty(false)
+    } finally {
+      setStatPicksSaving(false)
+    }
+  }
 
   async function fetchData() {
     const [gamesRes, teamsRes, seasonsRes] = await Promise.all([
@@ -166,6 +274,128 @@ export default function GamesTab() {
           onSuccess={() => { setShowForm(false); fetchData() }}
         />
       )}
+
+      <div
+        style={{
+          marginBottom: '18px',
+          padding: '14px 16px',
+          borderRadius: '12px',
+          border: '1px solid var(--border)',
+          background: 'var(--surface-elevated, #fafafa)',
+          display: 'flex',
+          gap: '14px',
+          alignItems: 'flex-start',
+          flexWrap: 'wrap',
+        }}
+      >
+        <Timer size={20} color="var(--accent)" style={{ flexShrink: 0, marginTop: '2px' }} aria-hidden />
+        <div style={{ flex: '1 1 240px', minWidth: 0 }}>
+          <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '6px' }}>
+            Minutes per quarter (scoring)
+          </div>
+          <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 10px', lineHeight: 1.45 }}>
+            Used for the game clock and <strong>minutes played</strong> on the score sheet. If you change this, we recalc minutes for every game in your league (can take a moment).
+          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <select
+              className="input"
+              style={{ maxWidth: '200px' }}
+              value={scoringQuarterMinutes}
+              disabled={scoringPrefsSaving}
+              onChange={(e) => {
+                const v = parseInt(e.target.value, 10)
+                if (!Number.isFinite(v)) return
+                void updateScoringQuarterMinutes(v)
+              }}
+            >
+              {Array.from({ length: 20 - 4 + 1 }, (_, i) => i + 4).map((m) => (
+                <option key={m} value={m}>
+                  {m} minutes
+                </option>
+              ))}
+            </select>
+            {scoringPrefsSaving ? (
+              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Saving…</span>
+            ) : null}
+          </div>
+          {scoringPrefsError ? (
+            <p style={{ fontSize: '12px', color: '#dc2626', margin: '8px 0 0' }}>{scoringPrefsError}</p>
+          ) : null}
+        </div>
+      </div>
+
+      <div
+        style={{
+          marginBottom: '18px',
+          padding: '14px 16px',
+          borderRadius: '12px',
+          border: '1px solid var(--border)',
+          background: 'var(--surface-elevated, #fafafa)',
+          display: 'flex',
+          gap: '14px',
+          alignItems: 'flex-start',
+          flexWrap: 'wrap',
+        }}
+      >
+        <BarChart3 size={20} color="var(--accent)" style={{ flexShrink: 0, marginTop: '2px' }} aria-hidden />
+        <div style={{ flex: '1 1 260px', minWidth: 0 }}>
+          <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '6px' }}>
+            Public fan stats (Basic &amp; Pro)
+          </div>
+          <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 12px', lineHeight: 1.45 }}>
+            Choose <strong>five</strong> columns for the <strong>league Stream</strong> box score and <strong>public team</strong> season
+            table. Everything else still records on your score sheet but looks <strong>locked</strong> to fans until you&apos;re on{' '}
+            <strong>Enterprise</strong>.
+          </p>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+              gap: '10px 12px',
+              marginBottom: '12px',
+            }}
+          >
+            {[0, 1, 2, 3, 4].map((i) => (
+              <label key={i} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)' }}>Column {i + 1}</span>
+                <select
+                  className="input"
+                  value={primaryDraft[i]}
+                  disabled={statPicksSaving}
+                  onChange={(e) => {
+                    const v = e.target.value as PublicPrimaryStatKey
+                    setPrimaryDraft((d) => {
+                      const n = [...d]
+                      n[i] = v
+                      return n
+                    })
+                    setStatPicksDirty(true)
+                  }}
+                >
+                  {primarySlotOptions(i, primaryDraft).map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ))}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="btn-primary"
+              disabled={statPicksSaving || !statPicksDirty}
+              onClick={() => void saveStatPicks()}
+            >
+              {statPicksSaving ? 'Saving…' : 'Save stat picks'}
+            </button>
+            {statPicksError ? (
+              <span style={{ fontSize: '12px', color: '#dc2626' }}>{statPicksError}</span>
+            ) : null}
+          </div>
+        </div>
+      </div>
 
       {demoLiveGame ? (
         <div
