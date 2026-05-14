@@ -13,6 +13,7 @@ export interface PlayerTotalsRow {
 }
 
 export interface LastGameView {
+  game_id: string
   scheduled_at: string | null
   opponent_name: string
   team_points: number

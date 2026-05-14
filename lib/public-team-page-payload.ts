@@ -17,6 +17,7 @@ import {
 } from '@/lib/public-team-season-view'
 
 export interface PublicTeamLastGameView {
+  game_id: string
   scheduled_at: string | null
   opponent_name: string
   team_points: number
@@ -120,6 +121,7 @@ export async function buildPublicTeamSeasonExtras(
     const lost = teamPts < oppPts
     if (!won && !lost) return null
     return {
+      game_id: g.id,
       scheduled_at: g.scheduled_at,
       opponent_name: oppId ? nameById.get(oppId) || 'Opponent' : 'Opponent',
       team_points: teamPts,

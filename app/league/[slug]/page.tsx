@@ -666,6 +666,25 @@ function leagueSeasonGamePublicHref(slug: string, gameId: string) {
   return `/league/${encodeURIComponent(slug)}?tab=stream&game=${encodeURIComponent(gameId)}`
 }
 
+/** Away — home, then Q / clock when present (matches featured score line convention). */
+function joinStreamLiveTeaserLine(live: JoinStreamLivePayload): string | null {
+  const hs = live.homeScore
+  const aw = live.awayScore
+  const bits: string[] = []
+  if (typeof aw === 'number' || typeof hs === 'number') {
+    bits.push(`${typeof aw === 'number' ? aw : '—'} — ${typeof hs === 'number' ? hs : '—'}`)
+  }
+  const clockBits: string[] = []
+  if (typeof live.period === 'number' && Number.isFinite(live.period)) {
+    clockBits.push(`Q${live.period}`)
+  }
+  if (live.gameClock?.trim()) {
+    clockBits.push(live.gameClock.trim())
+  }
+  if (clockBits.length) bits.push(clockBits.join(' · '))
+  return bits.length ? bits.join(' · ') : null
+}
+
 function parseLeaguePublicTab(v: string | null): LeaguePublicTabId {
   if (v === 'stream' || v === 'news' || v === 'schedule' || v === 'standings' || v === 'teams' || v === 'about') return v
   return 'home'
@@ -824,6 +843,10 @@ function LeagueHomeFeaturedGameCard({
 }) {
   const showLastResult = !featured && !!lastFinal
   const display = featured ?? (showLastResult ? lastFinal : null)
+  const secondaryLastFinal =
+    featured && lastFinal && (featured.source_id !== lastFinal.source_id || featured.type !== lastFinal.type)
+      ? lastFinal
+      : null
 
   const badgeFor = (f: LeagueFeaturedGamePayload) => {
     if (f.type === 'season_game') return 'League game'
@@ -1045,6 +1068,72 @@ function LeagueHomeFeaturedGameCard({
                 Full schedule
               </Link>
             </div>
+            {secondaryLastFinal ? (
+              <div
+                style={{
+                  marginTop: '18px',
+                  paddingTop: '16px',
+                  borderTop: `1px solid ${preset.surfaceBorder}`,
+                }}
+              >
+                <p
+                  style={{
+                    margin: '0 0 6px',
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    letterSpacing: '0.12em',
+                    textTransform: 'uppercase',
+                    color: preset.muted,
+                  }}
+                >
+                  Latest result
+                </p>
+                <p
+                  style={{
+                    margin: '0 0 6px',
+                    fontSize: '16px',
+                    fontWeight: 900,
+                    color: preset.heading,
+                    letterSpacing: '-0.02em',
+                    lineHeight: 1.25,
+                  }}
+                >
+                  {secondaryLastFinal.name}
+                </p>
+                {secondaryLastFinal.type === 'season_game' ? (
+                  <p
+                    style={{
+                      margin: '0 0 12px',
+                      fontSize: '15px',
+                      fontWeight: 800,
+                      color: preset.heading,
+                      letterSpacing: '-0.02em',
+                    }}
+                  >
+                    {seasonGameScoreSummary(secondaryLastFinal) ?? '—'}
+                  </p>
+                ) : null}
+                <Link
+                  href={
+                    secondaryLastFinal.type === 'season_game'
+                      ? leagueSeasonGamePublicHref(slug, secondaryLastFinal.source_id)
+                      : `/join/${slug}/dropins`
+                  }
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    fontSize: '13px',
+                    fontWeight: 800,
+                    color: preset.accent,
+                    textDecoration: 'none',
+                  }}
+                >
+                  {secondaryLastFinal.type === 'season_game' ? 'Box score' : 'Drop-ins'}
+                  <ChevronRight size={16} aria-hidden />
+                </Link>
+              </div>
+            ) : null}
           </>
         )}
       </div>
@@ -1263,6 +1352,10 @@ function LeagueHomeContent() {
   const [standingsInnerTab, setStandingsInnerTab] = useState<LeagueStandingsInnerTab>('overview')
   const [leadersRows, setLeadersRows] = useState<LeagueLeaderRow[]>([])
   const [streamLive, setStreamLive] = useState<JoinStreamLivePayload | null>(null)
+  const streamLiveTeaserLine = useMemo(
+    () => (streamLive ? joinStreamLiveTeaserLine(streamLive) : null),
+    [streamLive]
+  )
 
   const [stickyVisible, setStickyVisible] = useState(false)
   const [canManageSite, setCanManageSite] = useState(false)
@@ -2344,7 +2437,7 @@ function LeagueHomeContent() {
             <div style={{ marginBottom: '26px' }}>
               {streamLive ? (
                 <Link
-                  href={`/league/${slug}?tab=stream`}
+                  href={leagueSeasonGamePublicHref(slug, streamLive.gameId)}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -2360,25 +2453,32 @@ function LeagueHomeContent() {
                     color: preset.heading,
                   }}
                 >
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                    <span
-                      style={{
-                        fontSize: '10px',
-                        fontWeight: 900,
-                        letterSpacing: '0.12em',
-                        color: '#fff',
-                        background: '#dc2626',
-                        padding: '4px 8px',
-                        borderRadius: '6px',
-                      }}
-                    >
-                      LIVE
+                  <span style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: 0, flex: '1 1 200px' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                      <span
+                        style={{
+                          fontSize: '10px',
+                          fontWeight: 900,
+                          letterSpacing: '0.12em',
+                          color: '#fff',
+                          background: '#dc2626',
+                          padding: '4px 8px',
+                          borderRadius: '6px',
+                        }}
+                      >
+                        LIVE
+                      </span>
+                      <span style={{ fontSize: '14px', fontWeight: 800 }}>
+                        {streamLive.homeName || 'Home'} vs {streamLive.awayName || 'Away'}
+                      </span>
                     </span>
-                    <span style={{ fontSize: '14px', fontWeight: 800 }}>
-                      {streamLive.homeName || 'Home'} vs {streamLive.awayName || 'Away'}
-                    </span>
+                    {streamLiveTeaserLine ? (
+                      <span style={{ fontSize: '13px', fontWeight: 800, color: preset.body, letterSpacing: '-0.01em' }}>
+                        {streamLiveTeaserLine}
+                      </span>
+                    ) : null}
                   </span>
-                  <span style={{ fontSize: '13px', fontWeight: 800, color: preset.accent }}>Watch →</span>
+                  <span style={{ fontSize: '13px', fontWeight: 800, color: preset.accent, flexShrink: 0 }}>Watch →</span>
                 </Link>
               ) : null}
 

@@ -529,6 +529,9 @@ export default function LeaguePublicTeamPage() {
               {last_game.scheduled_at
                 ? ` · ${new Date(last_game.scheduled_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
                 : ''}
+              <span style={{ display: 'block', marginTop: '4px', fontSize: '12px', fontWeight: 600, opacity: 0.95 }}>
+                Full recap card is on this team&apos;s Stream tab.
+              </span>
             </p>
           ) : null}
         </div>

@@ -3,27 +3,16 @@
 import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
 import { SignInButton, useUser } from '@clerk/nextjs'
-import {
-  BarChart3,
-  CalendarDays,
-  Crown,
-  LayoutList,
-  Lock,
-  MapPin,
-  Megaphone,
-  Newspaper,
-  Radio,
-  Users,
-  Video,
-} from 'lucide-react'
+import { CalendarDays, Crown, Lock, MapPin, Megaphone, Radio, Trophy, Video } from 'lucide-react'
 import { StreamWithOverlay } from '@/components/public-stream/StreamWithOverlay'
-import type { ThemePreset } from '@/lib/leagueTheme'
+import { contrastTextForAccent, type ThemePreset } from '@/lib/leagueTheme'
 import { fanStatLabelForTemplate, headlineFanStatsForTemplate, publicFanStatFootnoteForTemplate } from '@/lib/public-fan-stat-labels'
 import { PUBLIC_PRIMARY_STAT_ORDER, normalizePublicPrimaryStatKeys, type PublicPrimaryStatKey } from '@/lib/public-primary-stats'
 import { normalizeSportTemplateId } from '@/lib/sport-templates'
 import {
   PUBLIC_LOCKED_PRO_ENTERPRISE_ARIA,
   PUBLIC_LOCKED_PRO_ENTERPRISE_BADGE,
+  PUBLIC_LOCKED_PRO_ENTERPRISE_BADGE_TITLE,
   PUBLIC_STREAM_HUB_UPSELL,
 } from '@/lib/public-plan-copy'
 import type { PlayerTotalsRow, PublicTeamTab, TeamPayload } from './team-page-types'
@@ -581,7 +570,7 @@ export function PublicTeamTabPanels({
                 color: preset.muted,
               }}
             >
-              Enterprise: full season stat grid (same order as the public stream box score).
+              Enterprise: full season stat grid (same column order as the league Stream tab).
             </span>
           ) : null}
           {includeStats && fanStatFootnote ? (
@@ -836,7 +825,7 @@ export function PublicTeamTabPanels({
             </thead>
             <tbody>
               {recent_games.map((g, i) => (
-                <tr key={`${g.scheduled_at}-${i}`} style={{ borderTop: `1px solid ${preset.surfaceBorder}`, color: preset.heading }}>
+                <tr key={g.game_id || `${g.scheduled_at}-${i}`} style={{ borderTop: `1px solid ${preset.surfaceBorder}`, color: preset.heading }}>
                   <td style={{ padding: '12px 14px', color: preset.muted }}>
                     {g.scheduled_at
                       ? new Date(g.scheduled_at).toLocaleDateString(undefined, {
@@ -862,73 +851,151 @@ export function PublicTeamTabPanels({
     )
   }
 
-  const tabItems = [
-    { id: 'overview' as const, label: 'Overview', icon: LayoutList },
-    {
-      id: 'stream' as const,
-      label: 'Stream',
-      icon: proLike ? Video : Lock,
-      suffix: !proLike ? ` · ${PUBLIC_LOCKED_PRO_ENTERPRISE_BADGE}` : '',
-    },
-    { id: 'news' as const, label: 'News', icon: Newspaper },
-    { id: 'schedule' as const, label: 'Schedule', icon: CalendarDays },
-    { id: 'roster' as const, label: 'Roster', icon: Users },
-    {
-      id: 'stats' as const,
-      label: tier === 'basic' ? 'Stats' : 'Stats',
-      icon: tier === 'basic' ? Lock : BarChart3,
-      suffix: tier === 'basic' ? ' · Pro' : '',
-    },
-  ]
+  const poster = portalOriginalLayout
+  const tabBarMaxWidth = poster ? 'min(1040px, 100%)' : '920px'
+
+  const teamTabsForBar = (
+    [
+      { id: 'overview' as const, label: 'Overview' },
+      { id: 'stream' as const, label: 'Stream' },
+      { id: 'news' as const, label: 'News' },
+      { id: 'schedule' as const, label: 'Schedule' },
+      { id: 'roster' as const, label: 'Roster' },
+      { id: 'stats' as const, label: 'Stats' },
+    ] as const
+  ).map((t) => ({
+    ...t,
+    locked: (t.id === 'stream' && !proLike) || (t.id === 'stats' && tier === 'basic'),
+  }))
 
   return (
     <>
-      <div
+      <nav
+        aria-label="Team sections"
         style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: portalOriginalLayout ? '10px' : '8px',
-          marginBottom: '18px',
-          justifyContent: 'center',
-          padding: portalOriginalLayout ? '4px 0 8px' : undefined,
-          borderBottom: portalOriginalLayout ? `2px solid ${preset.surfaceBorder}` : undefined,
+          position: 'sticky',
+          top: 0,
+          zIndex: 45,
+          background: poster ? preset.surfaceBg : preset.pageBg,
+          backdropFilter: poster ? 'saturate(160%) blur(12px)' : undefined,
+          WebkitBackdropFilter: poster ? 'saturate(160%) blur(12px)' : undefined,
+          borderBottom: `1px solid ${preset.surfaceBorder}`,
+          boxShadow: poster ? '0 2px 16px -8px rgba(0,0,0,0.08)' : '0 8px 24px -18px rgba(0,0,0,0.18)',
+          marginBottom: '22px',
+          marginLeft: '-20px',
+          marginRight: '-20px',
+          width: 'calc(100% + 40px)',
         }}
       >
-        {tabItems.map(({ id, label, icon: Icon, suffix }) => {
-          const active = publicTab === id
-          const streamLocked = id === 'stream' && !proLike
-          return (
-            <button
-              key={id}
-              type="button"
-              aria-label={streamLocked ? `${label} (${PUBLIC_LOCKED_PRO_ENTERPRISE_ARIA})` : undefined}
-              onClick={() => setPublicTabQuery(id)}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: portalOriginalLayout ? '9px 16px' : '8px 14px',
-                borderRadius: portalOriginalLayout ? '2px' : '999px',
-                border: portalOriginalLayout
-                  ? `2px solid ${active ? preset.accent : preset.surfaceBorder}`
-                  : `1.5px solid ${active ? preset.accent : preset.surfaceBorder}`,
-                background: active ? preset.accentSoftBg : preset.surfaceBg,
-                color: active ? preset.heading : preset.body,
-                fontSize: portalOriginalLayout ? '11px' : '12px',
-                fontWeight: 700,
-                letterSpacing: portalOriginalLayout ? '0.08em' : undefined,
-                textTransform: portalOriginalLayout ? 'uppercase' : undefined,
-                cursor: 'pointer',
-                fontFamily: portalOriginalLayout && headingFontFamily ? headingFontFamily : 'inherit',
-              }}
-            >
-              <Icon size={14} aria-hidden />
-              {label}
-              {suffix ?? ''}
-            </button>
-          )
-        })}
-      </div>
+        <div
+          style={{
+            maxWidth: tabBarMaxWidth,
+            margin: '0 auto',
+            padding: poster ? '12px 12px 14px' : '0 8px 2px',
+            display: 'flex',
+            justifyContent: 'center',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              justifyContent: 'center',
+              gap: poster ? '6px' : '2px',
+              rowGap: poster ? '6px' : '0',
+              background: poster ? preset.pageBg : undefined,
+              padding: poster ? '5px' : undefined,
+              borderRadius: poster ? '999px' : undefined,
+              border: poster ? `1px solid ${preset.surfaceBorder}` : undefined,
+            }}
+          >
+            {teamTabsForBar.map((t) => {
+              const isActive = publicTab === t.id
+              const tabLocked = t.locked
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setPublicTabQuery(t.id)}
+                  aria-current={isActive ? 'page' : undefined}
+                  aria-label={tabLocked ? `${t.label} (${PUBLIC_LOCKED_PRO_ENTERPRISE_ARIA})` : undefined}
+                  style={{
+                    flex: '0 0 auto',
+                    padding: poster ? '9px 18px' : '14px 14px',
+                    fontSize: '13px',
+                    fontWeight: poster ? 600 : 800,
+                    letterSpacing: poster ? '0.01em' : '0.02em',
+                    textTransform: 'none',
+                    opacity: tabLocked && !isActive ? 0.88 : 1,
+                    ...(poster
+                      ? (() => {
+                          const c = isActive ? preset.accent : 'transparent'
+                          return {
+                            borderTopWidth: '1px',
+                            borderRightWidth: '1px',
+                            borderBottomWidth: '1px',
+                            borderLeftWidth: '1px',
+                            borderTopStyle: 'solid' as const,
+                            borderRightStyle: 'solid' as const,
+                            borderBottomStyle: 'solid' as const,
+                            borderLeftStyle: 'solid' as const,
+                            borderTopColor: c,
+                            borderRightColor: c,
+                            borderBottomColor: c,
+                            borderLeftColor: c,
+                          }
+                        })()
+                      : {
+                          borderTop: 'none',
+                          borderLeft: 'none',
+                          borderRight: 'none',
+                          borderBottom: isActive ? `3px solid ${preset.accent}` : '3px solid transparent',
+                        }),
+                    borderRadius: poster ? '999px' : undefined,
+                    background: poster
+                      ? isActive
+                        ? preset.accent
+                        : 'transparent'
+                      : 'transparent',
+                    color: poster
+                      ? isActive
+                        ? contrastTextForAccent(preset.accent)
+                        : preset.body
+                      : isActive
+                        ? preset.heading
+                        : preset.muted,
+                    cursor: 'pointer',
+                    fontFamily: poster && headingFontFamily ? headingFontFamily : 'inherit',
+                    boxShadow: poster && isActive ? '0 4px 14px -4px rgba(0,0,0,0.2)' : undefined,
+                  }}
+                >
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', justifyContent: 'center' }}>
+                    {t.label}
+                    {tabLocked ? (
+                      <span
+                        title={PUBLIC_LOCKED_PRO_ENTERPRISE_BADGE_TITLE}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '3px',
+                          fontSize: '9px',
+                          fontWeight: 800,
+                          letterSpacing: '0.02em',
+                          textTransform: 'none',
+                          color: poster && isActive ? 'rgba(255,255,255,0.92)' : preset.accent,
+                        }}
+                      >
+                        <Lock size={12} strokeWidth={2.5} aria-hidden />
+                        {PUBLIC_LOCKED_PRO_ENTERPRISE_BADGE}
+                      </span>
+                    ) : null}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      </nav>
 
       {publicTab === 'overview' ? (
         <>
@@ -945,7 +1012,7 @@ export function PublicTeamTabPanels({
           ) : null}
           {liveGameId ? (
             <Link
-              href={`/league/${encodeURIComponent(slug)}?tab=stream&game=${encodeURIComponent(liveGameId)}`}
+              href={`/league/${encodeURIComponent(slug)}/teams/${encodeURIComponent(team.id)}?tab=stream`}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -963,7 +1030,7 @@ export function PublicTeamTabPanels({
               }}
             >
               <Radio size={20} aria-hidden />
-              {proLike ? 'Watch live' : 'League stream & box score'}
+              {proLike ? 'Watch live' : 'League stream'}
             </Link>
           ) : watchHref ? (
             <a
@@ -1084,6 +1151,47 @@ export function PublicTeamTabPanels({
       {publicTab === 'stream' ? (
         proLike ? (
           <div>
+            {last_game ? (
+              <div
+                style={{
+                  marginBottom: '16px',
+                  background: preset.surfaceBg,
+                  border: `1px solid ${preset.surfaceBorder}`,
+                  borderRadius: cardRadius,
+                  padding: '14px 16px',
+                  boxShadow: '0 6px 16px -12px rgba(0,0,0,0.28)',
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: '11px',
+                    letterSpacing: '0.06em',
+                    textTransform: 'uppercase',
+                    fontWeight: 800,
+                    color: preset.muted,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                  }}
+                >
+                  <Trophy size={14} aria-hidden style={{ color: preset.accent }} />
+                  Last game
+                </div>
+                <div style={{ marginTop: '6px', fontSize: '17px', fontWeight: 800, color: preset.heading }}>
+                  <span style={{ color: last_game.won ? '#15803d' : '#b91c1c' }}>{last_game.won ? 'W' : 'L'}</span>{' '}
+                  {last_game.team_points}-{last_game.opp_points} vs {last_game.opponent_name}
+                </div>
+                <div style={{ marginTop: '4px', fontSize: '13px', color: preset.body }}>
+                  {last_game.scheduled_at
+                    ? new Date(last_game.scheduled_at).toLocaleDateString(undefined, {
+                        weekday: 'short',
+                        month: 'short',
+                        day: 'numeric',
+                      })
+                    : 'Date TBD'}
+                </div>
+              </div>
+            ) : null}
             <div
               style={{
                 display: 'flex',
@@ -1180,7 +1288,7 @@ export function PublicTeamTabPanels({
             <Lock size={28} color={preset.accent} aria-hidden />
             <p style={{ margin: '12px 0 0', fontSize: '16px', fontWeight: 800, color: preset.heading }}>Stats are a Pro feature</p>
             <p style={{ margin: '8px 0 0', fontSize: '14px', color: preset.muted, lineHeight: 1.5, maxWidth: '320px' }}>
-              Unlock five headline season totals, team record, league rank, and last-game teasers on your public team page.
+              Unlock five headline season totals, team record, league rank, and the last-game recap on the <strong style={{ color: preset.body }}>Stream</strong> tab.
             </p>
             <Link
               href="/dashboard/settings"
@@ -1210,7 +1318,8 @@ export function PublicTeamTabPanels({
               <strong style={{ color: preset.heading }}>
                 {last_game.won ? 'W' : 'L'} {last_game.team_points}-{last_game.opp_points}
               </strong>{' '}
-              vs {last_game.opponent_name}
+              vs {last_game.opponent_name}.{' '}
+              <span style={{ color: preset.muted }}>The same recap lives on the Stream tab.</span>
             </p>
           ) : null}
           {tier === 'enterprise' ? (
@@ -1230,7 +1339,7 @@ export function PublicTeamTabPanels({
                 Full game log is Enterprise
               </div>
               <p style={{ margin: '8px 0 0', fontSize: '13px', color: preset.muted, lineHeight: 1.45 }}>
-                Pro shows season totals and the last result above. Upgrade to Enterprise for a complete recent games table and extra stat columns.
+                Pro shows season totals here; the last result recap sits on the <strong style={{ color: preset.body }}>Stream</strong> tab. Upgrade to Enterprise for a complete recent games table and extra stat columns.
               </p>
               <Link href="/dashboard/settings" style={{ display: 'inline-block', marginTop: '12px', fontWeight: 700, color: preset.accent, fontSize: '13px' }}>
                 Compare plans →
