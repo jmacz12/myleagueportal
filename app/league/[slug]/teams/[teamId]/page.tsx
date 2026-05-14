@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useParams, usePathname, useRouter } from 'next/navigation'
-import { ChevronLeft, Settings2, Trophy } from 'lucide-react'
+import { CalendarDays, ChevronLeft, Settings2, Trophy } from 'lucide-react'
 import { LeagueTeamManagePanel } from '@/components/league-team-manage-panel'
 import { PRESET_PORTAL_ORIGINAL_ID, publicHeroThemeFromPreset, resolveThemePreset } from '@/lib/leagueTheme'
 import { getPublicThemeInputsForOrg } from '@/lib/public-league-branding'
@@ -266,7 +266,7 @@ export default function LeaguePublicTeamPage() {
     )
   }
 
-  const { organization: org, team, roster, season_record, league_rank, league_team_count, last_game } = data
+  const { organization: org, team, roster, season_record, league_rank, league_team_count, last_game, next_game } = data
   const teamStripe = team.color || preset.accent
 
   let watchHref: string | null = null
@@ -519,20 +519,104 @@ export default function LeaguePublicTeamPage() {
               </span>
             ) : null}
           </div>
-          {proLike && last_game ? (
-            <p style={{ color: heroTheme.heroSubtitle, fontSize: '13px', margin: '12px 0 0', lineHeight: 1.45 }}>
-              Last final:{' '}
-              <strong style={{ color: heroTheme.heroTitle }}>
-                {last_game.won ? 'W' : 'L'} {last_game.team_points}-{last_game.opp_points}
-              </strong>{' '}
-              vs {last_game.opponent_name}
-              {last_game.scheduled_at
-                ? ` · ${new Date(last_game.scheduled_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
-                : ''}
-              <span style={{ display: 'block', marginTop: '4px', fontSize: '12px', fontWeight: 600, opacity: 0.95 }}>
-                Full recap card is on this team&apos;s Stream tab.
-              </span>
-            </p>
+          {proLike && (last_game || next_game) ? (
+            <div style={{ marginTop: '18px', display: 'flex', flexDirection: 'column', gap: '10px', maxWidth: '520px' }}>
+              {last_game ? (
+                <Link
+                  href={`/league/${encodeURIComponent(slug)}/teams/${encodeURIComponent(teamId)}?tab=stream`}
+                  style={{
+                    display: 'block',
+                    textDecoration: 'none',
+                    padding: '14px 16px',
+                    borderRadius: '14px',
+                    border: '1px solid rgba(255,255,255,0.22)',
+                    background: 'rgba(255,255,255,0.08)',
+                    color: heroTheme.heroTitle,
+                    boxShadow: '0 12px 32px -22px rgba(0,0,0,0.35)',
+                  }}
+                >
+                  <span
+                    style={{
+                      display: 'block',
+                      fontSize: '10px',
+                      fontWeight: 900,
+                      letterSpacing: '0.1em',
+                      textTransform: 'uppercase',
+                      color: heroTheme.heroSubtitle,
+                      marginBottom: '6px',
+                    }}
+                  >
+                    Last result
+                  </span>
+                  <span style={{ fontSize: '16px', fontWeight: 900, letterSpacing: '-0.02em', lineHeight: 1.25 }}>
+                    <span style={{ color: last_game.won ? '#86efac' : '#fca5a5' }}>{last_game.won ? 'W' : 'L'}</span>{' '}
+                    {last_game.team_points}–{last_game.opp_points}{' '}
+                    <span style={{ color: heroTheme.heroSubtitle, fontWeight: 700 }}>vs {last_game.opponent_name}</span>
+                  </span>
+                  {last_game.scheduled_at ? (
+                    <span style={{ display: 'block', marginTop: '6px', fontSize: '12px', fontWeight: 600, color: heroTheme.heroSubtitle }}>
+                      {new Date(last_game.scheduled_at).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+                    </span>
+                  ) : null}
+                  <span style={{ display: 'block', marginTop: '10px', fontSize: '12px', fontWeight: 800, color: heroTheme.heroTitle, opacity: 0.95 }}>
+                    Stream tab · box score →
+                  </span>
+                </Link>
+              ) : null}
+              {next_game ? (
+                <Link
+                  href={`/league/${encodeURIComponent(slug)}/teams/${encodeURIComponent(teamId)}?tab=schedule`}
+                  style={{
+                    display: 'block',
+                    textDecoration: 'none',
+                    padding: '14px 16px',
+                    borderRadius: '14px',
+                    border: '1px solid rgba(255,255,255,0.18)',
+                    background: 'rgba(255,255,255,0.06)',
+                    color: heroTheme.heroTitle,
+                  }}
+                >
+                  <span
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      fontSize: '10px',
+                      fontWeight: 900,
+                      letterSpacing: '0.1em',
+                      textTransform: 'uppercase',
+                      color: heroTheme.heroSubtitle,
+                      marginBottom: '6px',
+                    }}
+                  >
+                    <CalendarDays size={14} aria-hidden style={{ opacity: 0.9 }} />
+                    Next game
+                  </span>
+                  <span style={{ fontSize: '15px', fontWeight: 900, letterSpacing: '-0.02em', lineHeight: 1.3 }}>
+                    {team.name} <span style={{ color: heroTheme.heroSubtitle, fontWeight: 700 }}>vs</span> {next_game.opponent_name}
+                  </span>
+                  {next_game.scheduled_at ? (
+                    <span style={{ display: 'block', marginTop: '6px', fontSize: '13px', fontWeight: 600, color: heroTheme.heroSubtitle }}>
+                      {new Date(next_game.scheduled_at).toLocaleString(undefined, {
+                        weekday: 'short',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: 'numeric',
+                        minute: '2-digit',
+                      })}
+                    </span>
+                  ) : null}
+                  {next_game.location ? (
+                    <span style={{ display: 'block', marginTop: '6px', fontSize: '12px', color: heroTheme.heroSubtitle, lineHeight: 1.4 }}>
+                      {next_game.location}
+                    </span>
+                  ) : null}
+                  <span style={{ display: 'block', marginTop: '10px', fontSize: '12px', fontWeight: 800, color: heroTheme.heroTitle, opacity: 0.95 }}>
+                    Schedule tab →
+                  </span>
+                </Link>
+              ) : null}
+            </div>
           ) : null}
         </div>
       </div>

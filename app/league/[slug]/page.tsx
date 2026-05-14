@@ -909,9 +909,9 @@ function LeagueHomeFeaturedGameCard({
             textTransform: 'uppercase',
             padding: '4px 10px',
             borderRadius: '999px',
-            border: '1px solid rgba(234,88,12,0.35)',
-            color: '#c2410c',
-            background: 'rgba(255,237,213,0.85)',
+            border: `1px solid ${preset.accent}`,
+            color: contrastTextForAccent(preset.accent),
+            background: preset.accent,
             flexShrink: 0,
           }}
         >
@@ -2495,50 +2495,54 @@ function LeagueHomeContent() {
             </div>
 
             <div style={{ marginBottom: '26px' }}>
-              {streamLive ? (
+              {isProLike && streamLive ? (
                 <Link
                   href={leagueSeasonGamePublicHref(slug, streamLive.gameId)}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    gap: '12px',
+                    gap: '14px',
                     flexWrap: 'wrap',
                     marginBottom: '16px',
-                    padding: '12px 16px',
-                    borderRadius: '12px',
+                    padding: '16px 18px',
+                    borderRadius: '16px',
                     textDecoration: 'none',
-                    background: 'linear-gradient(90deg, rgba(220,38,38,0.12) 0%, rgba(220,38,38,0.04) 100%)',
-                    border: `1px solid rgba(220,38,38,0.35)`,
+                    background: preset.surfaceBg,
+                    border: `1px solid ${preset.surfaceBorder}`,
+                    boxShadow: `0 0 0 1px ${preset.accent}33, 0 14px 36px -24px rgba(0,0,0,0.25)`,
                     color: preset.heading,
                   }}
                 >
-                  <span style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: 0, flex: '1 1 200px' }}>
+                  <span style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: 0, flex: '1 1 200px' }}>
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                       <span
                         style={{
                           fontSize: '10px',
                           fontWeight: 900,
                           letterSpacing: '0.12em',
-                          color: '#fff',
-                          background: '#dc2626',
-                          padding: '4px 8px',
-                          borderRadius: '6px',
+                          color: contrastTextForAccent(preset.accent),
+                          background: preset.accent,
+                          padding: '5px 10px',
+                          borderRadius: '8px',
                         }}
                       >
                         LIVE
                       </span>
-                      <span style={{ fontSize: '14px', fontWeight: 800 }}>
-                        {streamLive.homeName || 'Home'} vs {streamLive.awayName || 'Away'}
+                      <span style={{ fontSize: '15px', fontWeight: 900, letterSpacing: '-0.02em' }}>
+                        {streamLive.awayName || 'Away'} <span style={{ color: preset.muted, fontWeight: 800 }}>@</span>{' '}
+                        {streamLive.homeName || 'Home'}
                       </span>
                     </span>
                     {streamLiveTeaserLine ? (
-                      <span style={{ fontSize: '13px', fontWeight: 800, color: preset.body, letterSpacing: '-0.01em' }}>
+                      <span style={{ fontSize: '14px', fontWeight: 800, color: preset.body, letterSpacing: '-0.01em', fontVariantNumeric: 'tabular-nums' }}>
                         {streamLiveTeaserLine}
                       </span>
-                    ) : null}
+                    ) : (
+                      <span style={{ fontSize: '13px', fontWeight: 700, color: preset.muted }}>Open the Stream tab for live box score and video.</span>
+                    )}
                   </span>
-                  <span style={{ fontSize: '13px', fontWeight: 800, color: preset.accent, flexShrink: 0 }}>Watch →</span>
+                  <span style={{ fontSize: '13px', fontWeight: 800, color: preset.accent, flexShrink: 0 }}>Stream →</span>
                 </Link>
               ) : null}
 
@@ -2934,9 +2938,9 @@ function LeagueHomeContent() {
                                 fontWeight: 900,
                                 letterSpacing: '0.04em',
                                 textTransform: 'uppercase',
-                                color: '#c2410c',
-                                background: 'rgba(255,237,213,0.9)',
-                                border: '1px solid rgba(234,88,12,0.35)',
+                                color: contrastTextForAccent(preset.accent),
+                                background: preset.accent,
+                                border: `1px solid ${preset.accent}`,
                                 borderRadius: '999px',
                                 padding: '3px 8px',
                                 marginLeft: '8px',
