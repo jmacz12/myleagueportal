@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { fetchOrganizationForPublicJoin, normalizeJoinSlugParam } from '@/lib/join-public-org'
 import { computeStandingsMap, type SeasonGameRow } from '@/lib/public-team-season-view'
@@ -9,7 +9,7 @@ const supabaseAdmin = createClient(
 )
 
 export async function GET(
-  _req: Request,
+  req: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const slug = normalizeJoinSlugParam((await params).slug)
@@ -17,12 +17,18 @@ export async function GET(
   const org = await fetchOrganizationForPublicJoin(supabaseAdmin, slug)
   if (!org?.id) return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
 
+  const seasonIdFilter = req.nextUrl.searchParams.get('season_id')?.trim() || null
+
   const { data: teams } = await supabaseAdmin
     .from('teams')
     .select('id, name, season_id')
     .eq('organization_id', org.id)
 
-  const teamRows = teams || []
+  let teamRows = teams || []
+  if (seasonIdFilter) {
+    teamRows = teamRows.filter((t) => String(t.season_id || '') === seasonIdFilter)
+  }
+
   const teamIds = teamRows.map((t) => t.id)
   const seasonIds = Array.from(new Set(teamRows.map((t) => t.season_id).filter(Boolean)))
   if (teamIds.length === 0 || seasonIds.length === 0) {
@@ -33,11 +39,16 @@ export async function GET(
 
   const { data: games } = await supabaseAdmin
     .from('games')
-    .select('id, home_team_id, away_team_id, home_score, away_score, status, scheduled_at')
+    .select('id, home_team_id, away_team_id, home_score, away_score, status, scheduled_at, season_id')
     .eq('organization_id', org.id)
     .in('season_id', seasonIds)
 
-  const standings = computeStandingsMap(teamIds, (games || []) as SeasonGameRow[])
+  let gameRows = (games || []) as (SeasonGameRow & { season_id?: string })[]
+  if (seasonIdFilter) {
+    gameRows = gameRows.filter((g) => String(g.season_id || '') === seasonIdFilter)
+  }
+
+  const standings = computeStandingsMap(teamIds, gameRows as SeasonGameRow[])
   const rows = teamRows.map((t) => {
     const rec = standings.get(t.id) || { wins: 0, losses: 0 }
     const played = rec.wins + rec.losses
@@ -50,7 +61,14 @@ export async function GET(
     return a.team_name.localeCompare(b.team_name)
   })
 
-  const finalGameIds = (games || []).filter((g) => g.status === 'final').map((g) => g.id)
+  const finalGameIds = gameRows
+    .filter((g) => {
+      if (g.status !== 'final') return false
+      const hs = g.home_score
+      const ascr = g.away_score
+      return typeof hs === 'number' && typeof ascr === 'number'
+    })
+    .map((g) => g.id)
   let leaders: Array<{ player_name: string; stat: string; total: number }> = []
   if (finalGameIds.length > 0) {
     const [{ data: stats }, { data: players }] = await Promise.all([
@@ -87,8 +105,13 @@ export async function GET(
     )
   }
 
-  const gameResults = (games || [])
-    .filter((g) => g.status === 'final' && g.scheduled_at)
+  const gameResults = gameRows
+    .filter((g) => {
+      if (g.status !== 'final' || !g.scheduled_at) return false
+      const hs = g.home_score
+      const ascr = g.away_score
+      return typeof hs === 'number' && typeof ascr === 'number'
+    })
     .sort((a, b) => new Date(b.scheduled_at as string).getTime() - new Date(a.scheduled_at as string).getTime())
     .slice(0, 150)
     .map((g) => {

@@ -192,6 +192,47 @@ function normalizeLeagueGameResults(raw: unknown): LeagueGameResultRow[] {
   return out
 }
 
+interface LeagueStandingDisplayRow {
+  row: LeagueStandingRow
+  rank: number
+  gp: number
+  gbDisplay: string
+  pctDisplay: string
+}
+
+/** Rank with ties (same W–L–PCT share a rank). GB vs first place in sort order. */
+function buildLeagueStandingsDisplayRows(rows: LeagueStandingRow[]): LeagueStandingDisplayRow[] {
+  if (rows.length === 0) return []
+  const leader = rows[0]!
+  const out: LeagueStandingDisplayRow[] = []
+  let rank = 1
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]!
+    if (i > 0) {
+      const prev = rows[i - 1]!
+      const tied = row.pct === prev.pct && row.wins === prev.wins && row.losses === prev.losses
+      if (!tied) rank = i + 1
+    }
+    const gp = row.wins + row.losses
+    const pctDisplay = gp === 0 ? '—' : row.pct.toFixed(3)
+
+    let gbDisplay = '—'
+    if (i > 0) {
+      const leaderGp = leader.wins + leader.losses
+      const rowGp = row.wins + row.losses
+      if (leaderGp > 0 || rowGp > 0) {
+        const raw = (leader.wins - row.wins + (row.losses - leader.losses)) / 2
+        if (raw > 0) {
+          gbDisplay = Number.isInteger(raw) ? String(raw) : raw.toFixed(1)
+        }
+      }
+    }
+
+    out.push({ row, rank, gp, gbDisplay, pctDisplay })
+  }
+  return out
+}
+
 function LeagueSiteSections({
   site,
   preset,
@@ -1357,6 +1398,8 @@ function LeagueHomeContent() {
     [streamLive]
   )
 
+  const standingsDisplayRows = useMemo(() => buildLeagueStandingsDisplayRows(standingsRows), [standingsRows])
+
   const [stickyVisible, setStickyVisible] = useState(false)
   const [canManageSite, setCanManageSite] = useState(false)
   const [siteAccessRole, setSiteAccessRole] = useState<'owner' | 'editor' | null>(null)
@@ -1436,10 +1479,14 @@ function LeagueHomeContent() {
           return
         }
 
+        const seasonQ =
+          hubJson.competitiveSeason && typeof hubJson.competitiveSeason.id === 'string'
+            ? `?season_id=${encodeURIComponent(hubJson.competitiveSeason.id)}`
+            : ''
         const [teamsRes, sesRes, standingsRes] = await Promise.all([
           fetch(`/api/join/${slug}/teams`),
           fetch(`/api/join/${slug}/sessions`),
-          fetch(`/api/join/${slug}/standings`),
+          fetch(`/api/join/${slug}/standings${seasonQ}`),
         ])
         if (cancelled) return
 
@@ -3177,6 +3224,11 @@ function LeagueHomeContent() {
                 >
                   Standings
                 </h2>
+                {competitiveSeason ? (
+                  <p style={{ margin: '-4px 0 16px', fontSize: '13px', color: preset.muted, lineHeight: 1.45, maxWidth: '640px' }}>
+                    Rankings and game history use <strong style={{ color: preset.body }}>{competitiveSeason.name}</strong> only—the season this league highlights for registration—so older seasons are not mixed into this table.
+                  </p>
+                ) : null}
                 <div
                   role="tablist"
                   aria-label="Standings sections"
@@ -3234,7 +3286,7 @@ function LeagueHomeContent() {
                 {standingsInnerTab === 'overview' ? (
                   <>
                     <p style={{ margin: '0 0 20px', fontSize: '14px', color: preset.muted, lineHeight: 1.55, maxWidth: '560px' }}>
-                      When games are recorded, league standings and stat leaders can be highlighted here for fans and players.
+                      Ties share the same place number. <strong style={{ color: preset.body }}>GB</strong> is games behind the first-place team (— when even or no games yet).
                     </p>
                     {standingsRows.length > 0 ? (
                       <div
@@ -3245,35 +3297,49 @@ function LeagueHomeContent() {
                           overflow: 'hidden',
                         }}
                       >
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
-                          <thead>
-                            <tr style={{ background: preset.accentSoftBg, color: preset.body, textAlign: 'left' }}>
-                              <th style={{ padding: '10px 12px', fontWeight: 800 }}>#</th>
-                              <th style={{ padding: '10px 12px', fontWeight: 800 }}>Team</th>
-                              <th style={{ padding: '10px 12px', fontWeight: 800, textAlign: 'center' }}>W</th>
-                              <th style={{ padding: '10px 12px', fontWeight: 800, textAlign: 'center' }}>L</th>
-                              <th style={{ padding: '10px 12px', fontWeight: 800, textAlign: 'center' }}>PCT</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {standingsRows.map((row, idx) => (
-                              <tr key={row.team_id} style={{ borderTop: `1px solid ${preset.surfaceBorder}` }}>
-                                <td style={{ padding: '10px 12px', color: preset.muted }}>{idx + 1}</td>
-                                <td style={{ padding: '10px 12px', fontWeight: 700 }}>
-                                  <Link
-                                    href={`/league/${slug}/teams/${row.team_id}`}
-                                    style={{ color: preset.heading, textDecoration: 'none', fontWeight: 700 }}
-                                  >
-                                    {row.team_name}
-                                  </Link>
-                                </td>
-                                <td style={{ padding: '10px 12px', textAlign: 'center', color: preset.body }}>{row.wins}</td>
-                                <td style={{ padding: '10px 12px', textAlign: 'center', color: preset.body }}>{row.losses}</td>
-                                <td style={{ padding: '10px 12px', textAlign: 'center', color: preset.body }}>{row.pct.toFixed(3)}</td>
+                        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                          <table style={{ width: '100%', minWidth: '520px', borderCollapse: 'collapse', fontSize: '14px' }}>
+                            <thead>
+                              <tr style={{ background: preset.accentSoftBg, color: preset.body, textAlign: 'left' }}>
+                                <th style={{ padding: '10px 12px', fontWeight: 800, whiteSpace: 'nowrap' }} title="Place (ties share a number)">
+                                  #
+                                </th>
+                                <th style={{ padding: '10px 12px', fontWeight: 800 }}>Team</th>
+                                <th style={{ padding: '10px 12px', fontWeight: 800, textAlign: 'center', whiteSpace: 'nowrap' }} title="Games played">
+                                  GP
+                                </th>
+                                <th style={{ padding: '10px 12px', fontWeight: 800, textAlign: 'center' }}>W</th>
+                                <th style={{ padding: '10px 12px', fontWeight: 800, textAlign: 'center' }}>L</th>
+                                <th style={{ padding: '10px 12px', fontWeight: 800, textAlign: 'center', whiteSpace: 'nowrap' }} title="Winning percentage">
+                                  PCT
+                                </th>
+                                <th style={{ padding: '10px 12px', fontWeight: 800, textAlign: 'center', whiteSpace: 'nowrap' }} title="Games behind first place">
+                                  GB
+                                </th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                            </thead>
+                            <tbody>
+                              {standingsDisplayRows.map(({ row, rank, gp, gbDisplay, pctDisplay }) => (
+                                <tr key={row.team_id} style={{ borderTop: `1px solid ${preset.surfaceBorder}` }}>
+                                  <td style={{ padding: '10px 12px', color: preset.muted, fontVariantNumeric: 'tabular-nums' }}>{rank}</td>
+                                  <td style={{ padding: '10px 12px', fontWeight: 700 }}>
+                                    <Link
+                                      href={`/league/${slug}/teams/${row.team_id}`}
+                                      style={{ color: preset.heading, textDecoration: 'none', fontWeight: 700 }}
+                                    >
+                                      {row.team_name}
+                                    </Link>
+                                  </td>
+                                  <td style={{ padding: '10px 12px', textAlign: 'center', color: preset.body, fontVariantNumeric: 'tabular-nums' }}>{gp}</td>
+                                  <td style={{ padding: '10px 12px', textAlign: 'center', color: preset.body, fontVariantNumeric: 'tabular-nums' }}>{row.wins}</td>
+                                  <td style={{ padding: '10px 12px', textAlign: 'center', color: preset.body, fontVariantNumeric: 'tabular-nums' }}>{row.losses}</td>
+                                  <td style={{ padding: '10px 12px', textAlign: 'center', color: preset.body, fontVariantNumeric: 'tabular-nums' }}>{pctDisplay}</td>
+                                  <td style={{ padding: '10px 12px', textAlign: 'center', color: preset.muted, fontVariantNumeric: 'tabular-nums' }}>{gbDisplay}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
                     ) : (
                       <div
@@ -3318,7 +3384,7 @@ function LeagueHomeContent() {
                 ) : (
                   <>
                     <p style={{ margin: '0 0 20px', fontSize: '14px', color: preset.muted, lineHeight: 1.55, maxWidth: '560px' }}>
-                      Final scores from this season&apos;s league games (newest first). Tap a row for the full box score on the Stream tab.
+                      Final scores with both teams tallied (newest first). Open a row for the full public recap on the <strong style={{ color: preset.body }}>Stream</strong> tab.
                     </p>
                     {gameResults.length === 0 ? (
                       <div
@@ -3340,9 +3406,7 @@ function LeagueHomeContent() {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                         {gameResults.map((g) => {
                           const local = formatDropInSessionLocal(g.scheduled_at, org.league_timezone)
-                          const hasScore =
-                            typeof g.away_score === 'number' && typeof g.home_score === 'number'
-                          const scoreLine = hasScore ? `${g.away_score}–${g.home_score}` : 'Final — see box score'
+                          const scoreLine = `${g.away_score}–${g.home_score}`
                           return (
                             <Link
                               key={g.game_id}
@@ -3366,7 +3430,7 @@ function LeagueHomeContent() {
                                 {g.away_team_name} @ {g.home_team_name}
                               </p>
                               <p style={{ margin: 0, fontSize: '18px', fontWeight: 900, color: preset.heading }}>{scoreLine}</p>
-                              <p style={{ margin: '10px 0 0', fontSize: '12px', fontWeight: 800, color: preset.accent }}>Box score →</p>
+                              <p style={{ margin: '10px 0 0', fontSize: '12px', fontWeight: 800, color: preset.accent }}>Stream tab →</p>
                             </Link>
                           )
                         })}
