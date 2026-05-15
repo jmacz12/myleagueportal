@@ -27,6 +27,16 @@ const allNavItems: { href: string; label: string; Icon: LucideIcon }[] = [
   { href: '/dashboard/settings', label: 'Settings', Icon: Settings },
 ]
 
+type DashboardOrgAccess =
+  | {
+      role: 'owner' | 'editor'
+      name: string
+      slug: string
+      logoUrl: string | null
+    }
+  | null
+  | undefined
+
 export default function DashboardLayout({
   children,
 }: {
@@ -34,15 +44,31 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname()
   const router = useRouter()
-  const [access, setAccess] = useState<{ role: 'owner' | 'editor' } | null | undefined>(undefined)
+  const [access, setAccess] = useState<DashboardOrgAccess>(undefined)
 
   useEffect(() => {
     let cancelled = false
     fetch('/api/me/org-access')
       .then((r) => r.json())
-      .then((d) => {
+      .then((d: { access?: { role: string; name?: string; slug?: string; logoUrl?: string | null } }) => {
         if (cancelled) return
-        setAccess(d.access ?? null)
+        const a = d.access
+        if (!a || (a.role !== 'owner' && a.role !== 'editor')) {
+          setAccess(null)
+          return
+        }
+        const name = typeof a.name === 'string' ? a.name.trim() : ''
+        const slug = typeof a.slug === 'string' ? a.slug.trim() : ''
+        if (!name || !slug) {
+          setAccess(null)
+          return
+        }
+        setAccess({
+          role: a.role,
+          name,
+          slug,
+          logoUrl: typeof a.logoUrl === 'string' && a.logoUrl.trim() ? a.logoUrl.trim() : null,
+        })
       })
       .catch(() => {
         if (!cancelled) setAccess(null)
@@ -71,6 +97,12 @@ export default function DashboardLayout({
     return pathname.startsWith(href)
   }
 
+  const showWelcomeStrip =
+    Boolean(access?.name) && pathname !== '/dashboard' && pathname.startsWith('/dashboard')
+
+  const sidebarLoaded = access !== undefined
+  const leagueLogoUrl = access?.logoUrl ?? null
+
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-base)' }}>
 
@@ -88,45 +120,64 @@ export default function DashboardLayout({
         zIndex: 40,
       }}>
 
-        {/* Logo */}
+        {/* League + product mark */}
         <div style={{
           padding: '20px 16px 18px',
           borderBottom: '0.5px solid var(--sidebar-border)',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
             <div style={{
-              width: '28px',
-              height: '28px',
+              width: '36px',
+              height: '36px',
+              borderRadius: '8px',
+              overflow: 'hidden',
+              flexShrink: 0,
               background: 'var(--logo-bg)',
-              borderRadius: '6px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              flexShrink: 0,
+              border: '0.5px solid var(--sidebar-border)',
             }}>
-              <span style={{
-                fontSize: '10px',
-                fontWeight: '800',
-                color: 'var(--btn-primary-text)',
-                letterSpacing: '0.06em',
-              }}>ML</span>
+              {sidebarLoaded && leagueLogoUrl ? (
+                <img
+                  src={leagueLogoUrl}
+                  alt=""
+                  width={36}
+                  height={36}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              ) : (
+                <span style={{
+                  fontSize: '11px',
+                  fontWeight: '800',
+                  color: 'var(--btn-primary-text)',
+                  letterSpacing: '0.06em',
+                }}>ML</span>
+              )}
             </div>
-            <div>
+            <div style={{ minWidth: 0, flex: 1 }}>
               <div style={{
-                fontSize: '12px',
+                fontSize: '13px',
                 fontWeight: '800',
                 color: 'var(--sidebar-text-active)',
-                letterSpacing: '0.02em',
+                letterSpacing: '0.01em',
+                lineHeight: 1.25,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
               }}>
-                MyLeaguePortal
+                {sidebarLoaded && access ? access.name : 'MyLeaguePortal'}
               </div>
               <div style={{
                 fontSize: '9px',
                 color: 'var(--sidebar-text)',
                 letterSpacing: '0.06em',
                 textTransform: 'uppercase',
+                marginTop: '4px',
               }}>
-                League Management
+                {sidebarLoaded && access ? 'League dashboard' : 'League Management'}
               </div>
             </div>
           </div>
@@ -188,10 +239,23 @@ export default function DashboardLayout({
           flex: 1,
           marginLeft: '220px',
           padding: '32px 36px',
-          background: 'var(--bg-base)',
+          backgroundColor: 'var(--bg-base)',
+          backgroundImage:
+            'radial-gradient(ellipse 120% 55% at 50% -12%, color-mix(in srgb, var(--accent-muted) 55%, transparent), transparent 72%)',
           minHeight: '100vh',
         }}
       >
+        {showWelcomeStrip && access ? (
+          <p style={{
+            margin: '0 0 20px',
+            fontSize: '13px',
+            color: 'var(--text-muted)',
+            lineHeight: 1.45,
+          }}>
+            Welcome back — you&apos;re managing{' '}
+            <strong style={{ color: 'var(--text-secondary)', fontWeight: 700 }}>{access.name}</strong>
+          </p>
+        ) : null}
         {children}
       </main>
 

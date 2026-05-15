@@ -1,6 +1,7 @@
 import { auth } from '@clerk/nextjs/server'
 import { createClient } from '@supabase/supabase-js'
 import Link from 'next/link'
+import { CalendarClock } from 'lucide-react'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -31,6 +32,46 @@ export default async function DashboardPage() {
     .select('*', { count: 'exact', head: true })
     .eq('organization_id', org?.id)
 
+  let nextGameStrip: { href: string; title: string; when: string } | null = null
+  if (org?.id) {
+    const { data: nextGame } = await supabaseAdmin
+      .from('games')
+      .select('id, scheduled_at, status, home_team_id, away_team_id')
+      .eq('organization_id', org.id)
+      .not('scheduled_at', 'is', null)
+      .in('status', ['scheduled', 'live'])
+      .gte('scheduled_at', new Date().toISOString())
+      .order('scheduled_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+
+    if (nextGame?.scheduled_at) {
+      const ids = [nextGame.home_team_id, nextGame.away_team_id].filter(Boolean) as string[]
+      const nameBy = new Map<string, string>()
+      if (ids.length) {
+        const { data: teamRows } = await supabaseAdmin.from('teams').select('id,name').in('id', ids)
+        for (const row of teamRows ?? []) {
+          if (row.id && typeof row.name === 'string') nameBy.set(row.id, row.name)
+        }
+      }
+      const away = nextGame.away_team_id ? nameBy.get(nextGame.away_team_id) ?? 'Away' : 'Away'
+      const home = nextGame.home_team_id ? nameBy.get(nextGame.home_team_id) ?? 'Home' : 'Home'
+      const dt = new Date(nextGame.scheduled_at)
+      const when = dt.toLocaleString(undefined, {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+      })
+      nextGameStrip = {
+        href: '/dashboard/games',
+        title: `${away} @ ${home}`,
+        when,
+      }
+    }
+  }
+
   return (
     <div style={{ maxWidth: '860px' }}>
       {/* Header */}
@@ -44,9 +85,53 @@ export default async function DashboardPage() {
           </span>
         </div>
         <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-          Welcome back — here&apos;s your league at a glance
+          Here&apos;s your league at a glance
         </p>
       </div>
+
+      {nextGameStrip ? (
+        <Link
+          href={nextGameStrip.href}
+          className="card"
+          style={{
+            marginBottom: '20px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '14px',
+            textDecoration: 'none',
+            color: 'inherit',
+          }}
+        >
+          <div
+            style={{
+              width: '44px',
+              height: '44px',
+              borderRadius: '10px',
+              background: 'var(--accent-muted)',
+              color: 'var(--accent)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+            aria-hidden
+          >
+            <CalendarClock size={22} strokeWidth={2} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '4px' }}>
+              Next game
+            </div>
+            <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '2px' }}>
+              {nextGameStrip.title}
+            </div>
+            <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{nextGameStrip.when}</div>
+          </div>
+          <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent)', flexShrink: 0 }}>
+            Games →
+          </span>
+        </Link>
+      ) : null}
 
       {/* Stats */}
       <div className="stats-grid" style={{
@@ -75,10 +160,7 @@ export default async function DashboardPage() {
       {org?.slug && (
         <div className="card" style={{ marginBottom: '20px' }}>
           <div style={{ marginBottom: '10px' }}>
-            <span className="label">Player Registration Link</span>
-            <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-              Share this link so players can register for your league
-            </p>
+            <span className="label">Player registration link</span>
           </div>
           <div style={{
             background: 'var(--bg-elevated)',
@@ -112,25 +194,6 @@ export default async function DashboardPage() {
           </div>
         </div>
       )}
-
-      {/* Quick Actions */}
-      <div className="card">
-        <span className="label" style={{ display: 'block', marginBottom: '14px' }}>Quick Actions</span>
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-          <Link href="/dashboard/seasons" style={{ textDecoration: 'none' }}>
-            <button className="btn-secondary">Seasons</button>
-          </Link>
-          <Link href="/dashboard/teams" style={{ textDecoration: 'none' }}>
-            <button className="btn-secondary">Teams</button>
-          </Link>
-          <Link href="/dashboard/players" style={{ textDecoration: 'none' }}>
-            <button className="btn-secondary">Players</button>
-          </Link>
-          <Link href="/dashboard/settings" style={{ textDecoration: 'none' }}>
-            <button className="btn-secondary">Settings</button>
-          </Link>
-        </div>
-      </div>
     </div>
   )
 }

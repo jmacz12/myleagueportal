@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useState, useEffect, useMemo } from 'react'
+import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { ImagePlus, Loader2 } from 'lucide-react'
 import ThemeSelector from './ThemeSelector'
 import { contrastTextForAccent, resolveLeagueThemeChoice } from '@/lib/leagueTheme'
@@ -61,8 +61,20 @@ interface WaiverData {
   content: string
 }
 
-export default function SettingsPage() {
+const SETTINGS_TAB_IDS = ['plan', 'league', 'domain', 'waivers'] as const
+type SettingsMainTab = (typeof SETTINGS_TAB_IDS)[number]
+
+function SettingsPageClient() {
   const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const tabFromUrl = searchParams.get('tab')
+  const settingsMainTab: SettingsMainTab = SETTINGS_TAB_IDS.includes(tabFromUrl as SettingsMainTab)
+    ? (tabFromUrl as SettingsMainTab)
+    : 'league'
+  const selectSettingsTab = (tab: SettingsMainTab) => {
+    router.replace(`${pathname}?tab=${tab}`, { scroll: false })
+  }
   const [settings, setSettings] = useState<OrgSettings | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -600,6 +612,62 @@ export default function SettingsPage() {
         <p className="page-subtitle">Manage your league profile and subscription</p>
       </div>
 
+      <div
+        role="tablist"
+        aria-label="Settings sections"
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '0',
+          marginBottom: '16px',
+          borderBottom: '0.5px solid var(--border)',
+        }}
+      >
+        {(
+          [
+            { id: 'plan' as const, label: 'Plan' },
+            { id: 'league' as const, label: 'League & appearance' },
+            { id: 'domain' as const, label: 'Custom domain' },
+            { id: 'waivers' as const, label: 'Waivers' },
+          ] as const
+        ).map((tab) => {
+          const selected = settingsMainTab === tab.id
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={selected}
+              id={`settings-main-tab-${tab.id}`}
+              aria-controls={`settings-main-panel-${tab.id}`}
+              onClick={() => selectSettingsTab(tab.id)}
+              style={{
+                position: 'relative',
+                padding: '12px 14px 14px',
+                marginBottom: '-0.5px',
+                fontSize: '13px',
+                fontWeight: selected ? 800 : 600,
+                fontFamily: 'inherit',
+                border: 'none',
+                background: 'transparent',
+                color: selected ? 'var(--text-primary)' : 'var(--text-muted)',
+                cursor: 'pointer',
+                borderBottom: selected ? '2px solid var(--accent)' : '2px solid transparent',
+                transition: 'color 0.12s',
+              }}
+            >
+              {tab.label}
+            </button>
+          )
+        })}
+      </div>
+
+      {settingsMainTab === 'plan' && (
+        <div
+          id="settings-main-panel-plan"
+          role="tabpanel"
+          aria-labelledby="settings-main-tab-plan"
+        >
       {/* Current Plan */}
       <div className="card" style={{ marginBottom: '16px' }}>
         <span className="label">Current Plan</span>
@@ -636,7 +704,15 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
+        </div>
+      )}
 
+      {settingsMainTab === 'league' && (
+        <div
+          id="settings-main-panel-league"
+          role="tabpanel"
+          aria-labelledby="settings-main-tab-league"
+        >
       {/* League Profile */}
       <div className="card" style={{ marginBottom: '16px' }}>
         <span className="label" style={{ display: 'block', marginBottom: '16px' }}>League Profile</span>
@@ -947,12 +1023,6 @@ export default function SettingsPage() {
         </form>
       </div>
 
-      <CustomDomainPanel
-        plan={settings?.plan || 'basic'}
-        slug={form.slug}
-        onVerifiedHostname={setVerifiedFanHostname}
-      />
-
       {/* Theme */}
       <div className="card" style={{ marginBottom: '16px' }}>
         <div style={{ marginBottom: '16px' }}>
@@ -961,7 +1031,30 @@ export default function SettingsPage() {
         </div>
         <ThemeSelector plan={settings?.plan || 'basic'} />
       </div>
+        </div>
+      )}
 
+      {settingsMainTab === 'domain' && (
+        <div
+          id="settings-main-panel-domain"
+          role="tabpanel"
+          aria-labelledby="settings-main-tab-domain"
+          style={{ marginBottom: '16px' }}
+        >
+      <CustomDomainPanel
+        plan={settings?.plan || 'basic'}
+        slug={form.slug}
+        onVerifiedHostname={setVerifiedFanHostname}
+      />
+        </div>
+      )}
+
+      {settingsMainTab === 'waivers' && (
+        <div
+          id="settings-main-panel-waivers"
+          role="tabpanel"
+          aria-labelledby="settings-main-tab-waivers"
+        >
       {/* Waiver */}
       <div className="card" style={{ marginBottom: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: activeWaiverTab ? '16px' : '0' }}>
@@ -1055,6 +1148,8 @@ export default function SettingsPage() {
           </div>
         )}
       </div>
+        </div>
+      )}
 
       {/* Danger Zone */}
       <div style={{ background: 'var(--bg-surface)', border: '0.5px solid #fecaca', borderRadius: '12px', padding: '20px 24px' }}>
@@ -1135,5 +1230,17 @@ export default function SettingsPage() {
       </div>
 
     </div>
+  )
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>Loading settings...</div>
+      }
+    >
+      <SettingsPageClient />
+    </Suspense>
   )
 }

@@ -1390,6 +1390,7 @@ function LeagueHomeContent() {
   const [lastFinalGame, setLastFinalGame] = useState<LeagueFeaturedGamePayload | null>(null)
   const [expandedScheduleCluster, setExpandedScheduleCluster] = useState<Record<string, boolean>>({})
   const [standingsRows, setStandingsRows] = useState<LeagueStandingRow[]>([])
+  const [standingsDataError, setStandingsDataError] = useState(false)
   const [gameResults, setGameResults] = useState<LeagueGameResultRow[]>([])
   const [standingsInnerTab, setStandingsInnerTab] = useState<LeagueStandingsInnerTab>('overview')
   const [leadersRows, setLeadersRows] = useState<LeagueLeaderRow[]>([])
@@ -1400,6 +1401,11 @@ function LeagueHomeContent() {
   )
 
   const standingsDisplayRows = useMemo(() => buildLeagueStandingsDisplayRows(standingsRows), [standingsRows])
+
+  const standingsTableAllUnplayed = useMemo(
+    () => standingsRows.length > 0 && standingsRows.every((r) => r.wins + r.losses === 0),
+    [standingsRows]
+  )
 
   const STANDINGS_HISTORY_PAGE_SIZE = 5
   const [standingsHistoryExpanded, setStandingsHistoryExpanded] = useState(false)
@@ -1456,6 +1462,7 @@ function LeagueHomeContent() {
     let cancelled = false
     async function load() {
       setLoading(true)
+      setStandingsDataError(false)
       setNotFound(false)
       try {
         const hubRes = await fetch(`/api/join/${slug}/hub`)
@@ -1566,9 +1573,16 @@ function LeagueHomeContent() {
             ? lf
             : null
         )
-        setStandingsRows(Array.isArray(standingsJson.standings) ? standingsJson.standings : [])
-        setGameResults(normalizeLeagueGameResults(standingsJson.gameResults))
-        setLeadersRows(Array.isArray(standingsJson.leaders) ? standingsJson.leaders : [])
+        setStandingsDataError(!standingsRes.ok)
+        if (standingsRes.ok) {
+          setStandingsRows(Array.isArray(standingsJson.standings) ? standingsJson.standings : [])
+          setGameResults(normalizeLeagueGameResults(standingsJson.gameResults))
+          setLeadersRows(Array.isArray(standingsJson.leaders) ? standingsJson.leaders : [])
+        } else {
+          setStandingsRows([])
+          setGameResults([])
+          setLeadersRows([])
+        }
         setStreamLive(parseJoinStreamLivePayload(streamJson?.live))
       } catch {
         if (!cancelled) {
@@ -1631,7 +1645,7 @@ function LeagueHomeContent() {
       cancelled = true
       void supabase.removeChannel(channel)
     }
-  }, [hub?.organization?.id, hub?.organization?.plan, refreshStreamLive])
+  }, [hub?.organization, refreshStreamLive])
 
   /** Also listen on the active live game so stat taps (player_game_stats) refresh immediately. */
   useEffect(() => {
@@ -1660,7 +1674,7 @@ function LeagueHomeContent() {
       cancelled = true
       void supabase.removeChannel(channel)
     }
-  }, [streamLive?.gameId, refreshStreamLive, hub?.organization?.plan])
+  }, [hub?.organization, streamLive?.gameId, refreshStreamLive])
 
   useEffect(() => {
     if (!hub?.organization || !isProOrEnterprise(hub.organization.plan)) return
@@ -1669,7 +1683,7 @@ function LeagueHomeContent() {
       void refreshStreamLive()
     }, 2000)
     return () => window.clearInterval(id)
-  }, [activeTab, streamLive?.gameId, refreshStreamLive, hub?.organization?.plan])
+  }, [activeTab, streamLive?.gameId, refreshStreamLive, hub?.organization])
 
   useEffect(() => {
     let cancelled = false
@@ -2415,7 +2429,7 @@ function LeagueHomeContent() {
                         transition: 'transform 0.15s ease, box-shadow 0.15s ease',
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
                         <div
                           style={{
                             width: '42px',
@@ -2435,9 +2449,6 @@ function LeagueHomeContent() {
                           <div style={{ fontSize: '12px', color: preset.accent, fontWeight: 700 }}>{registrationStatusLabel}</div>
                         </div>
                       </div>
-                      <p style={{ margin: '0 0 20px', color: preset.body, fontSize: '14px', lineHeight: 1.5 }}>
-                        Register your spot for the active season and get league-ready.
-                      </p>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: preset.accent, fontWeight: 700, fontSize: '14px' }}>
                         <span>Register now</span>
                         <ChevronRight size={18} />
@@ -2460,7 +2471,7 @@ function LeagueHomeContent() {
                       transition: 'transform 0.15s ease, box-shadow 0.15s ease',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
                       <div
                         style={{
                           width: '42px',
@@ -2482,9 +2493,6 @@ function LeagueHomeContent() {
                         </div>
                       </div>
                     </div>
-                    <p style={{ margin: '0 0 20px', color: preset.body, fontSize: '14px', lineHeight: 1.5 }}>
-                      Browse upcoming pickup sessions and reserve your spot quickly.
-                    </p>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: preset.heading, fontWeight: 700, fontSize: '14px' }}>
                       <span>View schedule</span>
                       <ChevronRight size={18} />
@@ -3243,8 +3251,32 @@ function LeagueHomeContent() {
                 </h2>
                 {competitiveSeason ? (
                   <p style={{ margin: '-4px 0 16px', fontSize: '13px', color: preset.muted, lineHeight: 1.45, maxWidth: '640px' }}>
-                    Rankings and game history use <strong style={{ color: preset.body }}>{competitiveSeason.name}</strong> only—the season this league highlights for registration—so older seasons are not mixed into this table.
+                    These standings use <strong style={{ color: preset.body }}>{competitiveSeason.name}</strong> only (the season open for sign-up). Past seasons are not mixed in.
                   </p>
+                ) : null}
+                {standingsDataError ? (
+                  <div
+                    role="alert"
+                    style={{
+                      marginBottom: '18px',
+                      padding: '14px 16px',
+                      borderRadius: '12px',
+                      border: `1px solid ${preset.surfaceBorder}`,
+                      background: preset.accentSoftBg,
+                      display: 'flex',
+                      gap: '12px',
+                      alignItems: 'flex-start',
+                      maxWidth: '640px',
+                    }}
+                  >
+                    <Info size={20} strokeWidth={2} style={{ color: preset.accent, flexShrink: 0, marginTop: '2px' }} aria-hidden />
+                    <div style={{ minWidth: 0 }}>
+                      <p style={{ margin: 0, fontSize: '14px', fontWeight: 800, color: preset.heading }}>Couldn&apos;t load standings</p>
+                      <p style={{ margin: '6px 0 0', fontSize: '13px', color: preset.muted, lineHeight: 1.5 }}>
+                        Refresh the page and try again.
+                      </p>
+                    </div>
+                  </div>
                 ) : null}
                 <div
                   role="tablist"
@@ -3313,9 +3345,25 @@ function LeagueHomeContent() {
                       }}
                     >
                       <p style={{ margin: 0, fontSize: '13px', color: preset.muted, lineHeight: 1.55 }}>
-                        Tied teams share the same rank. <strong style={{ color: preset.body }}>GB</strong> is games behind first place (shown as — when tied for first or before any games).
+                        Teams with the same record share a rank. <strong style={{ color: preset.body }}>GB</strong> means games behind first place. A dash (—) means tied for first or no games played yet.
                       </p>
                     </div>
+                    {standingsTableAllUnplayed ? (
+                      <div
+                        style={{
+                          margin: '0 0 18px',
+                          padding: '12px 14px',
+                          borderRadius: '12px',
+                          border: `1px dashed ${preset.surfaceBorder}`,
+                          background: preset.surfaceBg,
+                          maxWidth: '640px',
+                        }}
+                      >
+                        <p style={{ margin: 0, fontSize: '13px', color: preset.body, lineHeight: 1.55 }}>
+                          No games are final yet. Everyone is still <strong style={{ color: preset.heading }}>0–0</strong>. Win % and games-behind fill in after the first finished game.
+                        </p>
+                      </div>
+                    ) : null}
                     {standingsRows.length > 0 ? (
                       <div
                         style={{
@@ -3455,9 +3503,9 @@ function LeagueHomeContent() {
                         }}
                       >
                         <BarChart3 size={36} strokeWidth={1.5} style={{ color: preset.accent, margin: '0 auto 14px' }} aria-hidden />
-                        <p style={{ margin: 0, fontSize: '16px', fontWeight: 900, color: preset.heading, letterSpacing: '-0.02em' }}>Standings go live with game results</p>
+                        <p style={{ margin: 0, fontSize: '16px', fontWeight: 900, color: preset.heading, letterSpacing: '-0.02em' }}>No games recorded yet</p>
                         <p style={{ margin: '10px 0 0', fontSize: '14px', color: preset.muted, lineHeight: 1.55, maxWidth: '420px', marginLeft: 'auto', marginRight: 'auto' }}>
-                          Your organizer records scores from the dashboard; this hub will fill in as that data rolls out.
+                          After the organizer saves final scores, this table fills in.
                         </p>
                       </div>
                     )}
@@ -3510,7 +3558,7 @@ function LeagueHomeContent() {
                       }}
                     >
                       <p style={{ margin: 0, fontSize: '13px', color: preset.muted, lineHeight: 1.55 }}>
-                        Final scores with both teams tallied, newest first. Open a game for the full recap on the <strong style={{ color: preset.body }}>Stream</strong> tab.
+                        Finished games, newest first. Tap a game to open scores on the <strong style={{ color: preset.body }}>Stream</strong> tab.
                       </p>
                     </div>
                     {gameResults.length === 0 ? (
@@ -3762,21 +3810,21 @@ function LeagueHomeContent() {
                 })}
               </div>
             ) : (
-              <p
+              <div
                 style={{
-                  fontSize: '13px',
-                  color: preset.body,
-                  margin: '0 0 8px',
-                  lineHeight: 1.5,
-                  background: preset.surfaceBg,
-                  border: `1px dashed ${preset.surfaceBorder}`,
-                  borderRadius: '12px',
-                  padding: '14px',
+                  padding: '36px 24px',
                   textAlign: 'center',
+                  background: preset.surfaceBg,
+                  borderRadius: '16px',
+                  border: `1px solid ${preset.surfaceBorder}`,
                 }}
               >
-                Team pages will appear here once your organizer adds teams.
-              </p>
+                <Users size={36} strokeWidth={1.25} style={{ color: preset.accent, marginBottom: '12px' }} aria-hidden />
+                <p style={{ color: preset.heading, fontWeight: 800, margin: 0, fontSize: '16px' }}>No teams yet</p>
+                <p style={{ color: preset.muted, fontSize: '14px', margin: '8px 0 0', lineHeight: 1.55, maxWidth: '420px', marginLeft: 'auto', marginRight: 'auto' }}>
+                  Team cards will show up here once your organizer adds teams to this league.
+                </p>
+              </div>
             )}
           </div>
         ) : null}

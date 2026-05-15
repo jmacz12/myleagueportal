@@ -64,10 +64,6 @@ export async function buildPublicTeamSeasonExtras(
     leader_badges: null as Record<string, Partial<Record<TeamPageStatKey, true>>> | null,
   }
 
-  if (params.tier === 'basic') {
-    return empty
-  }
-
   const primaryStatKeys = normalizePublicPrimaryStatKeys(params.publicPrimaryStatKeys)
 
   const [{ data: teamsInSeason }, { data: seasonGames }] = await Promise.all([
@@ -94,6 +90,35 @@ export async function buildPublicTeamSeasonExtras(
 
   const standings = computeStandingsMap(teamIds, games)
   empty.league_rank = rankTeamInSeason(params.teamId, teamIds, standings)
+
+  const now = Date.now()
+  const upcomingForTeam = games
+    .filter((g) => {
+      if (g.home_team_id !== params.teamId && g.away_team_id !== params.teamId) return false
+      if (!g.scheduled_at) return false
+      if (g.status === 'final') return false
+      const ts = new Date(g.scheduled_at).getTime()
+      return Number.isFinite(ts) && ts >= now
+    })
+    .sort((a, b) => new Date(a.scheduled_at || 0).getTime() - new Date(b.scheduled_at || 0).getTime())
+  if (upcomingForTeam.length > 0) {
+    const g = upcomingForTeam[0]
+    const isHome = g.home_team_id === params.teamId
+    const oppId = isHome ? g.away_team_id : g.home_team_id
+    empty.next_game = {
+      scheduled_at: g.scheduled_at,
+      opponent_name: oppId ? nameById.get(oppId) || 'Opponent' : 'Opponent',
+      location: g.location ?? null,
+    }
+  }
+
+  if (params.tier === 'basic') {
+    // Schedule-only for Basic fans — keep wins/losses/rank off the public payload (hero still gates pills on tier).
+    empty.season_record = { wins: 0, losses: 0 }
+    empty.league_rank = null
+    empty.league_team_count = 0
+    return empty
+  }
 
   const rosterSet = new Set(params.rosterPlayerIds)
   const teamFinalGames = games.filter(
@@ -134,27 +159,6 @@ export async function buildPublicTeamSeasonExtras(
   const views = sortedTeamGames.map(viewForGame).filter((v): v is PublicTeamLastGameView => v !== null)
   empty.last_game = views[0] ?? null
   empty.recent_games = params.tier === 'enterprise' ? views.slice(0, 5) : null
-
-  const now = Date.now()
-  const upcoming = games
-    .filter((g) => {
-      if (g.home_team_id !== params.teamId && g.away_team_id !== params.teamId) return false
-      if (!g.scheduled_at) return false
-      if (g.status === 'final') return false
-      const ts = new Date(g.scheduled_at).getTime()
-      return Number.isFinite(ts) && ts >= now
-    })
-    .sort((a, b) => new Date(a.scheduled_at || 0).getTime() - new Date(b.scheduled_at || 0).getTime())
-  if (upcoming.length > 0) {
-    const g = upcoming[0]
-    const isHome = g.home_team_id === params.teamId
-    const oppId = isHome ? g.away_team_id : g.home_team_id
-    empty.next_game = {
-      scheduled_at: g.scheduled_at,
-      opponent_name: oppId ? nameById.get(oppId) || 'Opponent' : 'Opponent',
-      location: g.location ?? null,
-    }
-  }
 
   if (teamSeasonFinalIds.size === 0 || rosterSet.size === 0) {
     const totalsEmpty: Record<string, PlayerStatTotals> = {}

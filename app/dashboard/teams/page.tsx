@@ -229,6 +229,10 @@ export default function TeamsPage() {
           <p className="page-subtitle">
             {teams.length} team{teams.length !== 1 ? 's' : ''} across {seasons.length} season{seasons.length !== 1 ? 's' : ''}
           </p>
+          <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '8px 0 0', lineHeight: 1.45, maxWidth: '520px' }}>
+            Public team pages use the same tabs fans see (Overview through Stats). Open a team&apos;s public page, then{' '}
+            <strong>Manage team</strong>, for stream, news, schedule, logo, and jersey polls.
+          </p>
         </div>
         <button
           onClick={() => setShowForm(!showForm)}
@@ -242,18 +246,18 @@ export default function TeamsPage() {
 
       <div
         role="tablist"
-        aria-label="Teams and jersey polls"
+        aria-label="Team list and jersey polls"
         style={{
           display: 'flex',
           gap: '0',
-          marginBottom: '18px',
+          marginBottom: '12px',
           borderBottom: '0.5px solid var(--border)',
         }}
       >
         {(
           [
             { id: 'overview' as const, label: 'Overview' },
-            { id: 'jersey' as const, label: 'Jersey number polls' },
+            { id: 'jersey' as const, label: 'Jersey polls' },
           ] as const
         ).map((tab) => {
           const selected = teamsMainTab === tab.id
@@ -291,7 +295,7 @@ export default function TeamsPage() {
         <div id="teams-main-panel-overview" role="tabpanel" aria-labelledby="teams-main-tab-overview">
           {!canManageTeams ? (
             <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '12px' }}>
-              Editor access: open each team’s public page and use <strong>Manage team</strong> (top right) for logo, jersey polls, news, and calendar. Team create/delete stays owner-only.
+              Editors: use each team&apos;s <strong>Manage team</strong> on the public page for logo, polls, news, and schedule. Only the owner can add or delete teams here.
             </p>
           ) : null}
 
@@ -389,7 +393,7 @@ export default function TeamsPage() {
               Team standings
             </div>
             <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 14px', lineHeight: 1.5 }}>
-              Ordered by roster size for the current season filter (same as the teams list). Wins, losses, and league rankings will layer in here next.
+              Sorted by how many players are on each roster (same order as the list below). Wins and losses for fans live on your public league page under <strong>Standings</strong>.
             </p>
             {standingsRows.length === 0 ? (
               <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>No teams in this view yet.</p>
@@ -436,33 +440,6 @@ export default function TeamsPage() {
                 ))}
               </ol>
             )}
-          </div>
-
-          <div
-            style={{
-              marginBottom: '16px',
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: '12px',
-              alignItems: 'center',
-            }}
-          >
-            <button
-              type="button"
-              className="btn-primary"
-              style={{ fontSize: '13px', padding: '10px 18px', fontWeight: 700 }}
-              onClick={() => {
-                setTeamsMainTab('jersey')
-                if (orgPlan === 'pro' || orgPlan === 'enterprise') setJerseySectionTab('start')
-              }}
-            >
-              Jersey number request
-            </button>
-            <span style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: 1.45, maxWidth: '420px' }}>
-              {orgPlan === 'pro' || orgPlan === 'enterprise'
-                ? 'Switches to Jersey number polls so you can open a poll and share the player link.'
-                : 'Opens the jersey tab. Polls are available on Pro and Enterprise.'}
-            </span>
           </div>
 
       {/* New Team Form */}
@@ -630,7 +607,7 @@ export default function TeamsPage() {
             <div className="card">
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
                 <Shirt size={20} strokeWidth={2} aria-hidden style={{ color: 'var(--accent)' }} />
-                <div style={{ fontWeight: 800, fontSize: '15px', color: 'var(--text-primary)' }}>Jersey number polls</div>
+                <div style={{ fontWeight: 800, fontSize: '15px', color: 'var(--text-primary)' }}>Jersey polls</div>
               </div>
               <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '0 0 14px', lineHeight: 1.5 }}>{JERSEY_POLL_PRO_REQUIRED_MESSAGE}</p>
               <Link href="/dashboard/settings" className="btn-primary" style={{ fontSize: '13px', padding: '10px 16px', textDecoration: 'none', display: 'inline-block', width: 'fit-content' }}>
@@ -641,11 +618,10 @@ export default function TeamsPage() {
             <div className="card">
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
                 <Shirt size={20} strokeWidth={2} aria-hidden style={{ color: 'var(--accent)' }} />
-                <div style={{ fontWeight: 800, fontSize: '15px', color: 'var(--text-primary)' }}>Jersey number polls</div>
+                <div style={{ fontWeight: 800, fontSize: '15px', color: 'var(--text-primary)' }}>Jersey polls</div>
               </div>
               <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 12px', lineHeight: 1.5 }}>
-                See every roster player, who has picked a number, and who has not. Open polls from <strong>Start a poll</strong> or the public team page →{' '}
-                <strong>Manage team</strong> → <strong>Logo &amp; poll</strong>. First save wins on each number.
+                Who picked a number and who has not. Start here with <strong>Start a poll</strong>, or on the public team page use <strong>Manage team</strong> → <strong>Logo &amp; poll</strong>. First pick on a number wins.
               </p>
               {seasonFilterPills ? (
                 <div style={{ marginBottom: '4px' }}>

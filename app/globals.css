@@ -150,6 +150,20 @@ body {
   transition: background 0.2s, border-color 0.2s;
 }
 
+/* Slightly richer depth on organizer dashboard only */
+.dashboard-main .card,
+.dashboard-main .card-sm {
+  box-shadow:
+    0 1px 2px color-mix(in srgb, var(--text-primary) 7%, transparent),
+    0 10px 28px color-mix(in srgb, var(--text-primary) 5%, transparent);
+}
+
+.dashboard-main .stat-card {
+  box-shadow:
+    0 1px 2px color-mix(in srgb, var(--text-primary) 7%, transparent),
+    0 10px 28px color-mix(in srgb, var(--text-primary) 5%, transparent);
+}
+
 /* ================================
    BUTTONS
 ================================ */

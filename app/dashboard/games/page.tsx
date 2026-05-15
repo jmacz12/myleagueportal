@@ -13,7 +13,6 @@ export default function GamesPage() {
       {/* Header */}
       <div style={{ marginBottom: '24px' }}>
         <h1 className="page-title">Games & Sessions</h1>
-        <p className="page-subtitle">League games, drop-ins, and scores</p>
       </div>
 
       {/* Tab switcher */}

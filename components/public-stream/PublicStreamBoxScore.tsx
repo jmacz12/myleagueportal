@@ -3,10 +3,11 @@
 /**
  * Full public box score for a single game. Data is read from `player_game_stats` — the same rows
  * the organizer updates from **Dashboard → Games → scoring** (PATCH `/api/games/[gameId]/stats`).
- * Supabase Realtime + short polling while the game is live keep the Stream tab aligned with the scorer.
+ * Supabase Realtime (debounced) + adaptive polling while the game is live keep the Stream tab aligned with the scorer.
+ * When Realtime is subscribed, polling backs up on a slower interval; if the channel fails (e.g. RLS), polling tightens.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { formatSecondsAsMinSec } from '@/lib/game-lineup-minutes'
 import {
@@ -101,6 +102,8 @@ export function PublicStreamBoxScore({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [lockedSheet, setLockedSheet] = useState<{ label: string } | null>(null)
+  const [realtimeChannelOk, setRealtimeChannelOk] = useState(false)
+  const realtimeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/public/games/${encodeURIComponent(gameId)}/box-score`, {
@@ -126,33 +129,50 @@ export function PublicStreamBoxScore({
     setLoading(false)
   }, [gameId])
 
+  const scheduleRealtimeReload = useCallback(() => {
+    if (realtimeDebounceRef.current) clearTimeout(realtimeDebounceRef.current)
+    realtimeDebounceRef.current = setTimeout(() => {
+      realtimeDebounceRef.current = null
+      void load()
+    }, 220)
+  }, [load])
+
   useEffect(() => {
     if (!gameId) return
+    setRealtimeChannelOk(false)
     void load()
     const channel = supabase
       .channel(`public-box-score-${gameId}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'games', filter: `id=eq.${gameId}` },
-        () => void load()
+        () => scheduleRealtimeReload()
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'player_game_stats', filter: `game_id=eq.${gameId}` },
-        () => void load()
+        () => scheduleRealtimeReload()
       )
-      .subscribe()
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') setRealtimeChannelOk(true)
+        else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') setRealtimeChannelOk(false)
+      })
     return () => {
+      if (realtimeDebounceRef.current) {
+        clearTimeout(realtimeDebounceRef.current)
+        realtimeDebounceRef.current = null
+      }
       void supabase.removeChannel(channel)
     }
-  }, [gameId, load])
+  }, [gameId, load, scheduleRealtimeReload])
 
   useEffect(() => {
     if (!gameId || !payload?.game) return
     if (payload.game.status !== 'live') return
-    const id = window.setInterval(() => void load(), 1000)
+    const pollMs = realtimeChannelOk ? 2800 : 1000
+    const id = window.setInterval(() => void load(), pollMs)
     return () => window.clearInterval(id)
-  }, [gameId, payload?.game, load])
+  }, [gameId, payload?.game, payload?.game?.status, realtimeChannelOk, load])
 
   const { homeStats, awayStats } = useMemo(() => {
     if (!payload?.game) return { homeStats: [] as GameStatRow[], awayStats: [] as GameStatRow[] }

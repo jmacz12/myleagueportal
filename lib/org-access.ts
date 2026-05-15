@@ -13,6 +13,7 @@ export type OrgAccess = {
     id: string
     slug: string
     name: string
+    logo_url: string | null
   }
   role: OrgAccessRole
 }
@@ -26,14 +27,21 @@ export async function getOrgAccessForOrganization(
 
   const { data: org } = await supabaseAdmin
     .from('organizations')
-    .select('id, slug, name, clerk_user_id')
+    .select('id, slug, name, logo_url, clerk_user_id')
     .eq('id', organizationId)
     .maybeSingle()
 
   if (!org) return null
 
+  const orgRow = {
+    id: org.id,
+    slug: org.slug,
+    name: org.name,
+    logo_url: typeof org.logo_url === 'string' && org.logo_url.trim() ? org.logo_url.trim() : null,
+  }
+
   if (org.clerk_user_id === userId) {
-    return { organization: { id: org.id, slug: org.slug, name: org.name }, role: 'owner' }
+    return { organization: orgRow, role: 'owner' }
   }
 
   const { data: editorRow } = await supabaseAdmin
@@ -44,7 +52,7 @@ export async function getOrgAccessForOrganization(
     .maybeSingle()
 
   if (editorRow?.organization_id) {
-    return { organization: { id: org.id, slug: org.slug, name: org.name }, role: 'editor' }
+    return { organization: orgRow, role: 'editor' }
   }
 
   return null
@@ -82,12 +90,20 @@ export async function getOrgAccessForClerkUser(userId: string | null | undefined
 
   const { data: owned } = await supabaseAdmin
     .from('organizations')
-    .select('id, slug, name')
+    .select('id, slug, name, logo_url')
     .eq('clerk_user_id', userId)
     .maybeSingle()
 
   if (owned) {
-    return { organization: owned, role: 'owner' }
+    return {
+      organization: {
+        id: owned.id,
+        slug: owned.slug,
+        name: owned.name,
+        logo_url: typeof owned.logo_url === 'string' && owned.logo_url.trim() ? owned.logo_url.trim() : null,
+      },
+      role: 'owner',
+    }
   }
 
   const { data: editorRows } = await supabaseAdmin
@@ -101,12 +117,20 @@ export async function getOrgAccessForClerkUser(userId: string | null | undefined
 
   const { data: org } = await supabaseAdmin
     .from('organizations')
-    .select('id, slug, name')
+    .select('id, slug, name, logo_url')
     .eq('id', editorRow.organization_id)
     .single()
 
   if (!org) return null
-  return { organization: org, role: 'editor' }
+  return {
+    organization: {
+      id: org.id,
+      slug: org.slug,
+      name: org.name,
+      logo_url: typeof org.logo_url === 'string' && org.logo_url.trim() ? org.logo_url.trim() : null,
+    },
+    role: 'editor',
+  }
 }
 
 export type DashboardOwnerOrgGate =

@@ -69,15 +69,13 @@ export function evaluateLeagueIdentityChange(params: {
     if (slugChanged) {
       return {
         ok: false,
-        error:
-          'Custom registration URLs are a Pro feature. Upgrade to change your league URL, or keep your current link.',
+        error: 'On Basic your signup link stays as-is. Upgrade to Pro to change it.',
       }
     }
     if (nameChanged && count >= 1) {
       return {
         ok: false,
-        error:
-          'Basic includes one league name change for the life of your league. Upgrade to Pro or Enterprise to rename again.',
+        error: 'On Basic you get one league name change, and it is already used. Upgrade to change the name again.',
       }
     }
     return { ok: true }
@@ -92,7 +90,7 @@ export function evaluateLeagueIdentityChange(params: {
         const tier = plan === 'enterprise' ? 'Enterprise' : 'Pro'
         return {
           ok: false,
-          error: `You can change your league name or URL again after ${eligible.toLocaleDateString(undefined, { dateStyle: 'medium' })} (${cooldownDays}-day cooldown on ${tier}).`,
+          error: `You can change the league name or signup link again on ${eligible.toLocaleDateString(undefined, { dateStyle: 'medium' })}. (${tier}: ${cooldownDays} days between changes.)`,
           nextEligibleAt: eligible.toISOString(),
         }
       }
@@ -103,15 +101,13 @@ export function evaluateLeagueIdentityChange(params: {
   if (slugChanged) {
     return {
       ok: false,
-      error:
-        'Custom registration URLs are a Pro feature. Upgrade to change your league URL, or keep your current link.',
+      error: 'On Basic your signup link stays as-is. Upgrade to Pro to change it.',
     }
   }
   if (nameChanged && count >= 1) {
     return {
       ok: false,
-      error:
-        'Basic includes one league name change for the life of your league. Upgrade to Pro or Enterprise to rename again.',
+      error: 'On Basic you get one league name change, and it is already used. Upgrade to change the name again.',
     }
   }
   return { ok: true }
@@ -140,14 +136,13 @@ export function leagueIdentityUiHint(params: {
       return {
         canEditName: false,
         canEditSlug: false,
-        helperText:
-          'Basic allows one name change, and you already used it. Upgrade to rename again or to set a custom sign-up link.',
+        helperText: 'You already used your one Basic name change. Upgrade to rename again or change your signup link.',
       }
     }
     return {
       canEditName: true,
       canEditSlug: false,
-      helperText: 'Basic: one free name change for your league. Custom sign-up link is on Pro and up.',
+      helperText: 'Basic: one name change. A custom signup link is on Pro and Enterprise.',
     }
   }
 
@@ -161,22 +156,22 @@ export function leagueIdentityUiHint(params: {
         return {
           canEditName: false,
           canEditSlug: false,
-          helperText: `You can change the name and link again on ${dateStr} (${cooldownDays}-day wait on ${plan === 'enterprise' ? 'Enterprise' : 'Pro'}).`,
+          helperText: `Try again on ${dateStr}. (${cooldownDays} days between changes on ${plan === 'enterprise' ? 'Enterprise' : 'Pro'}.)`,
         }
       }
     }
     const tier = plan === 'enterprise' ? 'Enterprise' : 'Pro'
-    const cadence = plan === 'enterprise' ? 'every 30 days' : 'every 90 days'
+    const cadence = plan === 'enterprise' ? '30 days' : '90 days'
     return {
       canEditName: true,
       canEditSlug: true,
-      helperText: `${tier}: update league name and sign-up link up to once ${cadence}.`,
+      helperText: `${tier}: you can change the league name and signup link once every ${cadence}.`,
     }
   }
 
   return {
     canEditName: count < 1,
     canEditSlug: false,
-    helperText: 'Basic: one name change. Upgrade to change more often or customize your link.',
+    helperText: 'Basic: one name change. Upgrade for a custom link and more name changes.',
   }
 }

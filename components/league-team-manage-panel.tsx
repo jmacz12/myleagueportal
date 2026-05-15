@@ -453,7 +453,7 @@ export function LeagueTeamManagePanel({
             { id: 'pageContent' as const, label: 'Page & links' },
             { id: 'teamPage' as const, label: 'Logo & poll' },
             { id: 'news' as const, label: 'News' },
-            { id: 'calendar' as const, label: 'Events' },
+            { id: 'calendar' as const, label: 'Schedule' },
           ] as const
         ).map((tab) => {
           const active = activeTab === tab.id
@@ -486,9 +486,8 @@ export function LeagueTeamManagePanel({
       {activeTab === 'pageContent' ? (
         <div style={{ display: 'grid', gap: '14px' }}>
           <p style={{ fontSize: '13px', color: shell.muted, margin: 0, lineHeight: 1.5 }}>
-            These fields appear on the public team page <strong style={{ color: shell.text }}>Overview</strong> tab. Use{' '}
-            <strong style={{ color: shell.text }}>News</strong> and <strong style={{ color: shell.text }}>Events</strong>{' '}
-            tabs here for posts and practices.
+            Fans see this on the team <strong style={{ color: shell.text }}>Overview</strong> tab. Use <strong style={{ color: shell.text }}>News</strong> and{' '}
+            <strong style={{ color: shell.text }}>Schedule</strong> for updates and dates (those show on the public <strong style={{ color: shell.text }}>Schedule</strong> tab).
           </p>
           <div>
             <div
@@ -503,7 +502,7 @@ export function LeagueTeamManagePanel({
               Watch live / stream link
             </div>
             <p style={{ fontSize: '12px', color: shell.muted, margin: '6px 0 8px', lineHeight: 1.45 }}>
-              YouTube, Twitch, or any https link. Shows as a &quot;Watch live&quot; button on the team Overview. League organizers can also set defaults and all teams in{' '}
+              Paste YouTube, Twitch, or any https link. Fans get a Watch live button on Overview. League-wide links live under{' '}
               <strong style={{ color: shell.text }}>Dashboard → League website → Access & streams</strong>.
             </p>
             <input
@@ -928,7 +927,7 @@ export function LeagueTeamManagePanel({
         <div>
           <div style={{ fontSize: '14px', fontWeight: 700, marginBottom: '6px' }}>Team calendar</div>
           <p style={{ fontSize: '13px', color: shell.muted, lineHeight: 1.45, marginBottom: '12px' }}>
-            Events appear in the schedule block on this public page. Import many rows from CSV.
+            These dates show on the team&apos;s public <strong style={{ color: shell.text }}>Schedule</strong> tab. Import a CSV to add many at once.
           </p>
           <div style={{ display: 'grid', gap: '8px', marginBottom: '12px' }}>
             <input

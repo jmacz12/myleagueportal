@@ -17,6 +17,7 @@ export async function GET(req: Request) {
       organizationId: access.organization.id,
       slug: access.organization.slug,
       name: access.organization.name,
+      logoUrl: access.organization.logo_url,
       role: access.role,
     },
   })

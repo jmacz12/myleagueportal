@@ -516,9 +516,9 @@ export default function LeaguePublicTeamPage() {
               </span>
             ) : null}
           </div>
-          {proLike && (last_game || next_game) ? (
+          {(next_game || (proLike && last_game)) ? (
             <div style={{ marginTop: '18px', display: 'flex', flexDirection: 'column', gap: '10px', maxWidth: '520px' }}>
-              {last_game ? (
+              {proLike && last_game ? (
                 <Link
                   href={`/league/${encodeURIComponent(slug)}/teams/${encodeURIComponent(teamId)}?tab=stream`}
                   style={{
