@@ -4,7 +4,8 @@ import { buildGameReminderEmail } from '@/lib/game-reminder-email'
 import { isProOrEnterprise, normalizeOrgPlan } from '@/lib/org-plan-tier'
 
 const REMINDER_HOURS_BEFORE = 24
-const CRON_WINDOW_MS = 60 * 60 * 1000
+/** Daily Vercel cron on Hobby; must cover the gap between runs (dedupe via game_reminder_sends). */
+const CRON_WINDOW_MS = 25 * 60 * 60 * 1000
 
 export type RunGameRemindersResult = {
   configured: boolean

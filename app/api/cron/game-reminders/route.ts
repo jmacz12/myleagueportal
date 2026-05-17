@@ -7,7 +7,7 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-/** Hourly: email roster players ~24h before scheduled league games (Pro/Enterprise). */
+/** Daily (Vercel Hobby): email roster players ~24h before scheduled league games (Pro/Enterprise). */
 export async function GET(req: Request) {
   const authHeader = req.headers.get('authorization')
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
