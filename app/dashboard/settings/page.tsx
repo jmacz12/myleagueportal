@@ -39,6 +39,7 @@ interface OrgSettings {
   brand_color_change_period_start?: string | null
   league_name_change_count?: number | null
   league_name_last_changed_at?: string | null
+  game_email_reminders_enabled?: boolean
 }
 
 const TIMEZONE_OPTIONS = [
@@ -92,6 +93,7 @@ function SettingsPageClient() {
     league_timezone: 'America/Vancouver',
     league_theme_preset: 'classic',
     league_appearance_mode: 'light',
+    game_email_reminders_enabled: true,
   })
   const [activeWaiverTab, setActiveWaiverTab] = useState<'season' | 'dropin' | null>(null)
 
@@ -212,6 +214,7 @@ function SettingsPageClient() {
       league_timezone: data.org?.league_timezone || 'America/Vancouver',
       league_theme_preset: themeChoice,
       league_appearance_mode: appearanceModeForChoice(themeChoice),
+      game_email_reminders_enabled: data.org?.game_email_reminders_enabled !== false,
     })
     setLoading(false)
   }
@@ -986,6 +989,53 @@ function SettingsPageClient() {
               Public drop-in times are displayed in this league timezone.
             </p>
           </div>
+
+          {isPro ? (
+            <div
+              className="card"
+              style={{ padding: '14px 16px', marginTop: '16px', border: '0.5px solid var(--border)' }}
+            >
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '10px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  color: 'var(--text-primary)',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={form.game_email_reminders_enabled}
+                  onChange={(e) =>
+                    setForm({ ...form, game_email_reminders_enabled: e.target.checked })
+                  }
+                  style={{ marginTop: '3px' }}
+                />
+                <span>
+                  <strong>Game reminder emails</strong>
+                  <span
+                    style={{
+                      display: 'block',
+                      fontSize: '12px',
+                      color: 'var(--text-muted)',
+                      fontWeight: 400,
+                      marginTop: '4px',
+                      lineHeight: 1.45,
+                    }}
+                  >
+                    About 24 hours before each scheduled league game, email players on those teams
+                    who have an email on the roster.
+                  </span>
+                </span>
+              </label>
+            </div>
+          ) : (
+            <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '12px', lineHeight: 1.45 }}>
+              <strong>Pro or Enterprise:</strong> automatic game-tomorrow emails to roster players.
+            </p>
+          )}
 
           <div>
             <label className="label">League News Banner</label>

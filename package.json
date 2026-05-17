@@ -15,7 +15,8 @@
     "verify:schedule-import": "tsx scripts/verify-schedule-import.ts",
     "verify:stats-import": "tsx scripts/verify-stats-import.ts",
     "verify:stats-pipeline": "tsx scripts/verify-stats-pipeline.ts",
-    "verify:stats-db": "tsx scripts/verify-stats-db-sample.ts"
+    "verify:stats-db": "tsx scripts/verify-stats-db-sample.ts",
+    "verify:game-reminders": "tsx scripts/verify-game-reminders-dry.ts"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.2.8",

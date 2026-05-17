@@ -38,7 +38,7 @@ export async function GET() {
   let { data: orgWithTz, error: orgWithTzError } = await supabaseAdmin
     .from('organizations')
     .select(
-      'id, name, slug, primary_color, logo_url, plan, stripe_customer_id, stripe_subscription_id, news_banner, news_banner_color, league_timezone, league_theme_preset, league_appearance_mode, brand_color_change_count, brand_color_change_period_start, league_name_change_count, league_name_last_changed_at'
+      'id, name, slug, primary_color, logo_url, plan, stripe_customer_id, stripe_subscription_id, news_banner, news_banner_color, league_timezone, league_theme_preset, league_appearance_mode, brand_color_change_count, brand_color_change_period_start, league_name_change_count, league_name_last_changed_at, game_email_reminders_enabled'
     )
     .eq('id', access.organization.id)
     .single()
@@ -57,6 +57,7 @@ export async function GET() {
         ...r2.data,
         league_name_change_count: 0,
         league_name_last_changed_at: null,
+        game_email_reminders_enabled: true,
       } as typeof orgWithTz
       orgWithTzError = null
     }
@@ -83,12 +84,19 @@ export async function GET() {
         brand_color_change_period_start: null,
         league_name_change_count: 0,
         league_name_last_changed_at: null,
+        game_email_reminders_enabled: true,
       }
       : null)
 
   if (!org) return NextResponse.json({ error: 'No organization found' }, { status: 404 })
 
-  return NextResponse.json({ org })
+  const orgOut = {
+    ...org,
+    game_email_reminders_enabled:
+      (org as { game_email_reminders_enabled?: boolean }).game_email_reminders_enabled !== false,
+  }
+
+  return NextResponse.json({ org: orgOut })
 }
 
 export async function PATCH(req: Request) {
@@ -135,6 +143,7 @@ export async function PATCH(req: Request) {
     league_timezone,
     league_theme_preset,
     league_appearance_mode,
+    game_email_reminders_enabled,
   } = await req.json()
 
   if (!name || !slug) {
@@ -194,6 +203,9 @@ export async function PATCH(req: Request) {
     const tm = sanitizePresetAndMode(league_theme_preset, league_appearance_mode)
     updateData.league_theme_preset = tm.preset
     updateData.league_appearance_mode = tm.mode
+    if (typeof game_email_reminders_enabled === 'boolean') {
+      updateData.game_email_reminders_enabled = game_email_reminders_enabled
+    }
   }
 
   if (isPro(org.plan)) {

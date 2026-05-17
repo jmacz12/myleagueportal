@@ -55,6 +55,7 @@ const FILES = [
   /* Scoring — regulation quarter length (minutes) per league */
   '20260516140000_organizations_scoring_quarter_minutes.sql',
   '20260516150000_organizations_public_stream_primary_stat_keys.sql',
+  '20260517120000_game_email_reminders.sql',
 ]
 
 async function main() {
