@@ -184,15 +184,6 @@ export default function LeagueWatchStreamPage() {
           </>
         ) : (
           <>
-            <p style={{ margin: '0 0 22px', fontSize: '14px', color: preset.muted, lineHeight: 1.55 }}>
-              Watch-only page with the same layout as the league <strong style={{ color: preset.heading }}>Stream</strong> tab: optional video embed plus
-              the full <strong style={{ color: preset.heading }}>player stats</strong> block (same data as{' '}
-              <strong style={{ color: preset.heading }}>Dashboard → Games → scoring</strong>). Open a specific game with{' '}
-              <strong style={{ color: preset.heading }}>?game=</strong> in the URL. Organizers set stream URLs in{' '}
-              <strong style={{ color: preset.heading }}>Dashboard → League website → Access & streams</strong> or per team under{' '}
-              <strong style={{ color: preset.heading }}>Manage team → Page & links</strong>.
-            </p>
-
             {live === undefined ? (
               <p style={{ color: preset.muted }}>Loading…</p>
             ) : (

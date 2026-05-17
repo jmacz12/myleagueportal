@@ -1,11 +1,14 @@
 /**
- * Demo payload for public league home (Home / News / About tabs).
+ * Showcase payload for public league home (Home / News / About tabs).
  * Used by `POST /api/dev/seed-teams-players` and `scripts/push-league-site-demo.ts`.
  *
- * Art lives in `public/league-demo/vancouvarites/` — casual community gym vibe, not a broadcast package.
+ * Local art: `public/league-demo/vancouvarites/` — plus remote placeholder images for sponsor-style variety.
  */
 
 export const EVERYDAY_LEAGUE_DEMO_IMG = '/league-demo/vancouvarites'
+
+/** High-quality placeholder (no API key) — stable seed = same image every load. */
+const PL = (seed: string, w: number, h: number) => `https://picsum.photos/seed/${seed}/${w}/${h}`
 
 export function everydayLeagueContentImage(url: string, maxHeightPx = 420) {
   return {
@@ -22,150 +25,286 @@ export function everydayLeagueContentImage(url: string, maxHeightPx = 420) {
   }
 }
 
-/** Plain object matching `league_site_content` draft/published JSON (parsed by `parseLeagueSitePayload` on read). */
+/** Plain object matching `league_site_content` draft/published JSON (parsed by `parseLeagueSitePayload` on read). Max 24 sections. */
 export function everydayLeagueSiteDemoPayload() {
   const img = EVERYDAY_LEAGUE_DEMO_IMG
   return {
     heroBackgroundUrl: `${img}/vv-hero-arena.png`,
     heroTagline:
-      'Weeknight runs, same community gym we’ve rented for years, and a group chat that never agrees on where to eat after.',
+      'Premier adult basketball in Vancouver — broadcast-ready stats, team pages sponsors love, and a league home that looks as serious as the play on the floor.',
     heroInitials: 'VV',
+    publicFontKey: 'dm-sans',
     sections: [
+      // —— Home tab (content / button block / section break only) — 8 blocks ——
+      {
+        id: 'demo-home-hero-story',
+        type: 'content',
+        surface: 'home',
+        title: 'Welcome to the Vancouvarites',
+        body:
+          'We are an **18-team** winter league with **two divisions**, certified scorekeepers, and a digital home fans actually use.\n\nWhether you are here to **register**, follow **standings**, or explore **partner opportunities**, this page is the single source of truth — no PDFs lost in group chat.',
+        image: everydayLeagueContentImage(`${img}/vv-home-spotlight.png`, 440),
+        textPieces: [],
+      },
+      {
+        id: 'demo-home-div-season',
+        type: 'divider',
+        surface: 'home',
+        variant: 'line',
+        label: '2026 winter session',
+      },
+      {
+        id: 'demo-home-cta-register',
+        type: 'cta',
+        surface: 'home',
+        title: 'Join the next session',
+        body:
+          'Online registration is open through the league portal. Captains: roster caps apply — add alternates early so we can balance divisions before week three.',
+        buttonLabel: 'Open season registration',
+        buttonHref: '/join/vancouvarites/register',
+      },
+      {
+        id: 'demo-home-midseason',
+        type: 'content',
+        surface: 'home',
+        title: 'Game nights that feel like an event',
+        body:
+          '**Two 20-minute halves**, running clock until the final two minutes of each half. **Pro-style score table** on the Stream tab when your game is live — friends and family watch from anywhere.\n\nPost-game, captains get a **PDF-free** recap link they can forward to sponsors.',
+        image: everydayLeagueContentImage(PL('vvhome-courtenergy', 1200, 700), 400),
+        textPieces: [],
+      },
+      {
+        id: 'demo-home-div-space',
+        type: 'divider',
+        surface: 'home',
+        variant: 'space',
+        label: '',
+      },
+      {
+        id: 'demo-home-cta-sponsor',
+        type: 'cta',
+        surface: 'home',
+        title: 'Partner with a league people follow',
+        body:
+          'Logo placement on team pages, shout-outs on stream nights, and a **digital sponsor row** on this league home. We send a simple one-pager — no long contracts for local businesses.',
+        buttonLabel: 'Request sponsor kit',
+        buttonHref: 'mailto:sponsors@example.com?subject=Vancouvarites%20sponsorship',
+      },
+      {
+        id: 'demo-home-partner-visual',
+        type: 'content',
+        surface: 'home',
+        title: 'Proud to spotlight our community partners',
+        body:
+          'From **physio** to **pizza after overtime**, our partners keep fees reasonable and the gym lights on. Scroll the **About** tab for the full partner gallery.',
+        image: everydayLeagueContentImage(PL('vvpartner-wall', 1400, 780), 360),
+        textPieces: [],
+      },
+      {
+        id: 'demo-home-cta-store',
+        type: 'cta',
+        surface: 'home',
+        title: 'League apparel — ships in Canada',
+        body:
+          'Replica warm-ups and fan tees ship from our print partner. A portion supports the **youth night** fund at the end of the season.',
+        buttonLabel: 'Browse league store',
+        buttonHref: 'https://example.com/vancouvarites-gear',
+      },
+
+      // —— News tab — 8 blocks ——
       {
         id: 'demo-news-schedule',
         type: 'news',
-        title: 'Schedule note — one Tuesday flip in March',
+        title: 'Schedule release — division realignment for February',
         mediaLayout: 'right',
         body:
-          '**Court B** is booked for a school tournament on **March 11**, so our usual Tuesday slate moves to **Wednesday March 12** at the same times. If that wrecks your carpool, ping your captain and we’ll try to nudge a slot — no promises, the sheet is pretty full.\n\nPlayoff dates are still **TBD** until we know how many teams finish the regular season. We’ll vote on it at the pizza meeting.',
+          '**Division A** picks up two cross-town matchups previously listed as TBD. **Division B** start times on **Thursday Feb 6** shift **15 minutes later** so we clear youth programming — same venue, new tip windows on your calendar export.\n\nPlayoff seeding locks **Feb 23**. Tie-breakers: head-to-head, then point differential.',
         items: [
-          {
-            url: `${img}/vv-gallery-crowd.png`,
-            kind: 'image',
-            caption: 'Crowd shot from last winter — thanks for the photos, Morgan',
-          },
           {
             url: `${img}/vv-gallery-action.png`,
             kind: 'image',
-            caption: 'Nothing fancy, just people playing hard',
+            caption: 'Division A — week 6',
+          },
+          {
+            url: `${img}/vv-gallery-crowd.png`,
+            kind: 'image',
+            caption: 'Sideline energy, commercial shoot',
           },
         ],
       },
       {
-        id: 'demo-news-jerseys',
+        id: 'demo-news-power',
         type: 'news',
-        title: 'Jerseys — bring both colours, please',
+        title: 'Power rankings — who is controlling the paint?',
         mediaLayout: 'below',
         body:
-          'We’re not the NBA; we share floors with yoga on Thursdays. **Light and dark tops** every game — if both teams show up in navy again, home team flips to white per the sheet on the fridge in the office.\n\nIf you ordered a league shirt two years ago and it still fits, you’re winning.',
+          '1) **False Creek Forge** — best defensive rating in the league. 2) **Kitsilano Knights** — top offensive efficiency when their full roster travels. 3) **Riley Park Rebels** — clutch free-throw crew in one-possession games.\n\nAgree? Disagree? Tag us when you share the standings screenshot.',
+        items: [
+          {
+            url: PL('vvnews-rankings', 900, 560),
+            kind: 'image',
+            caption: 'Graphic: efficiency leaders (sample)',
+          },
+        ],
+      },
+      {
+        id: 'demo-news-commissioner',
+        type: 'content',
+        surface: 'news',
+        title: 'From the commissioner’s desk',
+        body:
+          'Thank you for the **99% on-time starts** last month — that is a culture thing, and it matters for our **broadcast volunteers**.\n\nReminder: **zero tolerance** for verbal abuse of officials. One automatic suspension template is live in the handbook link on **About**.',
+        image: everydayLeagueContentImage(`${img}/vv-news-playoffs.png`, 340),
+        textPieces: [],
+      },
+      {
+        id: 'demo-news-div',
+        type: 'divider',
+        surface: 'news',
+        variant: 'line',
+        label: 'League updates',
+      },
+      {
+        id: 'demo-news-safety',
+        type: 'news',
+        title: 'Facility & safety — concussion protocol refresh',
+        mediaLayout: 'left',
+        body:
+          'We adopted the **2026 community league concussion checklist** — captains must confirm they have read it before playoffs. AED location maps are posted at **both** gym entrances.\n\nIce is available in the trainer room — please do not block the hallway during turnover between games.',
         items: [
           {
             url: `${img}/vv-about-detail.png`,
             kind: 'image',
-            caption: 'Ball on the floor we actually mop sometimes',
+            caption: 'Trainer room — first aid + ice',
           },
         ],
       },
       {
-        id: 'demo-news-organizer',
-        type: 'content',
+        id: 'demo-news-cta-media',
+        type: 'cta',
         surface: 'news',
-        title: 'From the person who prints the schedule',
+        title: 'Got a highlight clip?',
         body:
-          'Hi — I’m the one who texts when the gym code changes. If something looks wrong on the site, tell me and I’ll fix it when I’m off work. Scores sometimes go in late because we’re all volunteers; nobody’s getting fired.\n\nThanks for filling out waivers without being asked twice.',
-        image: everydayLeagueContentImage(`${img}/vv-home-spotlight.png`, 360),
-        textPieces: [],
+          'We feature **fan-submitted photos** on this page and in the year-end reel. Send a link or file — include team name and date in the subject line.',
+        buttonLabel: 'Email league media',
+        buttonHref: 'mailto:media@example.com?subject=Highlight%20submission',
       },
       {
-        id: 'demo-news-potluck',
+        id: 'demo-news-sponsors',
         type: 'news',
-        title: 'End-of-season potluck — sign up in the hallway',
+        title: 'Thank you to our 2026 court-side partners',
+        mediaLayout: 'behind',
+        body:
+          '**Coast Physio** — recovery lounge passes for playoff teams. **Main St Pizza** — post-game slices on rivalry nights. **Harbour Insurance** — liability coverage education night (free for captains).\n\nAsk us about **mid-season** sponsor additions — we still have **two** digital slots on team pages.',
+        items: [
+          {
+            url: PL('vvsponsor-hero', 1200, 720),
+            kind: 'image',
+            caption: 'Partner night — sample visual',
+          },
+        ],
+      },
+      {
+        id: 'demo-news-allstar',
+        type: 'news',
+        title: 'All-Star Saturday — save the date',
         mediaLayout: 'below',
         body:
-          'Last year someone brought a Costco sheet cake and we’re still talking about it. **April date TBD** once we know who’s in the final. Vegetarian option appreciated; nut allergy on the Drive team — label if you can.\n\nKids welcome; there’s usually a half-court shootaround in the corner.',
+          '**March 15** — skills challenge, three-point contest, and a **legends** half-court game with alumni refs. Tickets are donation-based; proceeds fund **youth clinic** scholarships.\n\nNominate players via your captain by **March 1** — one nominee per team per event.',
         items: [],
       },
+
+      // —— About tab — 8 blocks ——
       {
-        id: 'demo-home-welcome',
-        type: 'content',
-        surface: 'home',
-        title: 'Welcome — you found the right gym',
-        body:
-          'Vancouvarites is a **regular adult rec league**: friends-of-friends, a bit of chirping, refs who have day jobs, and games that mostly start on time.\n\nUse the tabs up top — **Schedule** for games and drop-ins, **Teams** for rosters, **News** for boring-but-useful updates. **About** is the long version if you’re new or bringing a sub.',
-        image: everydayLeagueContentImage(`${img}/vv-hero-arena.png`, 400),
-        textPieces: [],
-      },
-      {
-        id: 'demo-home-howto',
-        type: 'content',
-        surface: 'home',
-        title: 'Quick links that save a text thread',
-        body:
-          '**Season signup** and **drop-ins** live under Join — same league, just the pages where you actually click buttons.\n\nTeam pages have **Stream** links when captains remember to paste the YouTube URL. If it’s broken, it’s not on purpose.',
-        image: everydayLeagueContentImage(`${img}/vv-gallery-crowd.png`, 340),
-        textPieces: [],
-      },
-      {
-        id: 'demo-text-heritage',
+        id: 'demo-about-mission-text',
         type: 'text',
-        title: 'How this league started',
+        title: 'Mission & values',
         body:
-          'Back in **2014** a handful of us couldn’t get court time anywhere else, so we begged a community centre for a Tuesday slot and split the rental. Word spread, divisions got bigger, and now we’re… still splitting the rental, just with spreadsheets.\n\nWe’re **not** a big organization — a few volunteers, one part-time scheduler, and a lot of patience from our partners who know we’ll be home late on game nights.',
+          'Vancouvarites exists to run **competitive, respectful, well-organized** adult basketball in Vancouver.\n\nWe believe in **transparent scheduling**, **accessible stats**, and **local partnerships** that keep registration costs fair. We are volunteer-led with professional standards.',
       },
       {
-        id: 'demo-text-gamenight',
-        type: 'text',
-        title: 'What game night actually looks like',
-        body:
-          'Arrive a little early if you can — parking is tight and the good benches go fast. We run **two halves**, clock stops on fouls in the last two minutes of each half because someone always asks.\n\n**Subs** on whistles; try not to yell at the refs, they’re someone’s coworker. Overtime happens sometimes; if we’re past 10pm we might flip a coin because the custodian has keys.',
-      },
-      {
-        id: 'demo-about-values',
-        type: 'content',
-        surface: 'about',
-        title: 'House rules, the short version',
-        body:
-          'Play hard, don’t be a jerk, clean up your bottles. We’re here to sweat, laugh, and not need ice baths on Wednesday morning. If you’re new, introduce yourself — we were all the person who didn’t know the gym code once.',
-        image: everydayLeagueContentImage(`${img}/vv-news-playoffs.png`, 300),
-        textPieces: [],
-      },
-      {
-        id: 'demo-sec-media',
+        id: 'demo-about-gallery',
         type: 'media',
-        title: 'Photos people actually sent us',
+        title: 'Through the years — community moments',
         mediaLayout: 'below',
         items: [
           {
             url: `${img}/vv-hero-arena.png`,
             kind: 'image',
-            caption: 'Our gym — same lines, new tape when we remember',
-          },
-          {
-            url: `${img}/vv-home-spotlight.png`,
-            kind: 'image',
-            caption: 'Hallway energy before tip',
-          },
-          {
-            url: `${img}/vv-news-playoffs.png`,
-            kind: 'image',
-            caption: 'End-of-season chaos (the fun kind)',
-          },
-          {
-            url: `${img}/vv-gallery-action.png`,
-            kind: 'image',
-            caption: 'Someone’s cousin took this one — pretty good',
+            caption: 'Opening night — 2019',
           },
           {
             url: `${img}/vv-gallery-crowd.png`,
             kind: 'image',
-            caption: 'Friends on the sideline',
+            caption: 'Playoffs — standing room',
           },
           {
-            url: `${img}/vv-about-detail.png`,
+            url: PL('vvabout-archive', 1000, 660),
             kind: 'image',
-            caption: 'We only have two game balls; please don’t kick them',
+            caption: 'Championship weekend — sample archive',
+          },
+          {
+            url: `${img}/vv-home-spotlight.png`,
+            kind: 'image',
+            caption: 'Team captains summit',
           },
         ],
+      },
+      {
+        id: 'demo-about-values-canvas',
+        type: 'content',
+        surface: 'about',
+        title: 'How we govern the league',
+        body:
+          '**Elected board** (3-year terms) · **Finance committee** publishes a quarterly summary · **Competition committee** handles protests within **48 hours**.\n\nWe use this website for **all** official announcements — if it is not here, it is not binding.',
+        image: everydayLeagueContentImage(PL('vvabout-governance', 1100, 640), 320),
+        textPieces: [],
+      },
+      {
+        id: 'demo-about-div-partners',
+        type: 'divider',
+        surface: 'about',
+        variant: 'line',
+        label: 'Partner gallery',
+      },
+      {
+        id: 'demo-about-sponsor-logos',
+        type: 'media',
+        title: 'Sponsor logos — digital placements',
+        mediaLayout: 'below',
+        items: [
+          { url: PL('vvlogo-s1', 320, 160), kind: 'image', caption: 'Coast Physio — gold' },
+          { url: PL('vvlogo-s2', 320, 160), kind: 'image', caption: 'Main St Pizza — silver' },
+          { url: PL('vvlogo-s3', 320, 160), kind: 'image', caption: 'Harbour Insurance — silver' },
+          { url: PL('vvlogo-s4', 320, 160), kind: 'image', caption: 'North Shore Coffee — bronze' },
+        ],
+      },
+      {
+        id: 'demo-about-conduct',
+        type: 'text',
+        title: 'Code of conduct (summary)',
+        body:
+          '**Respect** opponents, officials, staff, and fans. **No harassment** online or in person. **Uniform compliance** — home team wears light unless otherwise posted.\n\nViolations are reviewed by the board; sanctions may include **suspension** or **expulsion** without refund in egregious cases.',
+      },
+      {
+        id: 'demo-about-cta-volunteer',
+        type: 'cta',
+        surface: 'about',
+        title: 'Volunteer with us',
+        body:
+          'We need **score table** and **shot clock** operators for playoff weekends. Training is one evening — we feed you pizza and list you in the program as **League Crew**.',
+        buttonLabel: 'Email volunteer lead',
+        buttonHref: 'mailto:volunteers@example.com?subject=Playoff%20volunteer',
+      },
+      {
+        id: 'demo-about-alumni',
+        type: 'content',
+        surface: 'about',
+        title: 'Alumni night & youth clinic',
+        body:
+          'Each season closes with an **alumni scrimmage** and a **free youth clinic** for neighbourhood kids. Sponsors fund equipment — if your company wants naming rights for the clinic, reach out via the **sponsor kit** button on Home.',
+        image: everydayLeagueContentImage(`${img}/vv-gallery-action.png`, 380),
+        textPieces: [],
       },
     ],
   }

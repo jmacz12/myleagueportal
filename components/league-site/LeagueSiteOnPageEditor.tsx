@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type ChangeEvent,
+  type CSSProperties,
   type PointerEvent as ReactPointerEvent,
 } from 'react'
 import Link from 'next/link'
@@ -40,7 +41,10 @@ import { PUBLIC_LEAGUE_FONT_OPTIONS } from '@/lib/public-league-fonts'
 import {
   LEAGUE_SITE_MEDIA_PLACEMENT_LABELS,
   createLeagueSiteContentSection,
+  createLeagueSiteCtaSection,
+  createLeagueSiteDividerSection,
   defaultLeagueSiteContentImage,
+  leagueSiteSectionEditorKindLabel,
   defaultLeagueSiteContentTextPieceLayout,
   isLeagueSiteAboutTabSection,
   isLeagueSiteHomeSurfaceSection,
@@ -527,6 +531,202 @@ export function LeagueSiteContentSectionFields({
   )
 }
 
+function surfaceTabLabel(surf: LeagueSiteContentSurface): string {
+  return surf === 'home' ? 'Home' : surf === 'news' ? 'News' : 'About'
+}
+
+export function LeagueSiteCtaSectionFields({
+  sec,
+  preset,
+  updateSection,
+  onNavigateToCreativeSurface,
+}: {
+  sec: Extract<LeagueSiteSection, { type: 'cta' }>
+  preset: ThemePreset
+  updateSection: (id: string, fn: (s: LeagueSiteSection) => LeagueSiteSection) => void
+  onNavigateToCreativeSurface?: (surface: LeagueSiteContentSurface) => void
+}) {
+  return (
+    <>
+      <p style={{ fontSize: '12px', fontWeight: 700, margin: '0 0 6px', color: preset.heading }}>What this block does</p>
+      <p style={{ fontSize: '12px', color: preset.muted, margin: '0 0 12px', lineHeight: 1.45 }}>
+        One clear <strong style={{ color: preset.heading }}>button</strong> that takes people somewhere you trust — season signup, sponsors, a fundraiser, team store, etc. (Big photo layouts stay in the <strong style={{ color: preset.heading }}>photo & text</strong> block.)
+      </p>
+      <p style={{ fontSize: '12px', fontWeight: 700, margin: '0 0 6px', color: preset.heading }}>Tab placement</p>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '12px' }}>
+        {(['home', 'news', 'about'] as const).map((surf) => (
+          <button
+            key={surf}
+            type="button"
+            onClick={() => {
+              updateSection(sec.id, (s) => (s.type === 'cta' ? { ...s, surface: surf } : s))
+              onNavigateToCreativeSurface?.(surf)
+            }}
+            style={{
+              padding: '6px 10px',
+              borderRadius: '8px',
+              border: `1px solid ${sec.surface === surf ? preset.accent : preset.surfaceBorder}`,
+              background: sec.surface === surf ? preset.accentSoftBg : preset.pageBg,
+              fontSize: '11px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              color: preset.heading,
+            }}
+          >
+            {surfaceTabLabel(surf)}
+          </button>
+        ))}
+      </div>
+      <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: preset.heading }}>Headline</label>
+      <input
+        value={sec.title}
+        onChange={(e) => updateSection(sec.id, (s) => (s.type === 'cta' ? { ...s, title: e.target.value } : s))}
+        style={{
+          width: '100%',
+          padding: '10px 12px',
+          borderRadius: '10px',
+          border: `1px solid ${preset.surfaceBorder}`,
+          marginBottom: '12px',
+          fontSize: '15px',
+          fontWeight: 700,
+        }}
+      />
+      <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: preset.heading }}>Supporting text</label>
+      <textarea
+        value={sec.body}
+        onChange={(e) => updateSection(sec.id, (s) => (s.type === 'cta' ? { ...s, body: e.target.value } : s))}
+        rows={5}
+        style={{
+          width: '100%',
+          padding: '12px',
+          borderRadius: '10px',
+          border: `1px solid ${preset.surfaceBorder}`,
+          fontSize: '14px',
+          fontFamily: 'inherit',
+          lineHeight: 1.55,
+          resize: 'vertical',
+          marginBottom: '12px',
+        }}
+      />
+      <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: preset.heading }}>Button label</label>
+      <input
+        value={sec.buttonLabel}
+        onChange={(e) => updateSection(sec.id, (s) => (s.type === 'cta' ? { ...s, buttonLabel: e.target.value } : s))}
+        placeholder="e.g. Donate, Sponsor us, Register"
+        style={{
+          width: '100%',
+          padding: '10px 12px',
+          borderRadius: '10px',
+          border: `1px solid ${preset.surfaceBorder}`,
+          marginBottom: '12px',
+          fontSize: '14px',
+        }}
+      />
+      <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: preset.heading }}>Button link</label>
+      <input
+        value={sec.buttonHref}
+        onChange={(e) => updateSection(sec.id, (s) => (s.type === 'cta' ? { ...s, buttonHref: e.target.value } : s))}
+        placeholder="https://… or /join/your-league/register"
+        style={{
+          width: '100%',
+          padding: '10px 12px',
+          borderRadius: '10px',
+          border: `1px solid ${preset.surfaceBorder}`,
+          marginBottom: '8px',
+          fontSize: '14px',
+        }}
+      />
+      <p style={{ fontSize: '12px', color: preset.muted, margin: 0, lineHeight: 1.45 }}>
+        Use a full web address (<strong style={{ color: preset.heading }}>https://…</strong>) or an internal path starting with{' '}
+        <strong style={{ color: preset.heading }}>/</strong> (for example registration on this site). Unsafe links are removed when you publish.
+      </p>
+    </>
+  )
+}
+
+export function LeagueSiteDividerSectionFields({
+  sec,
+  preset,
+  updateSection,
+  onNavigateToCreativeSurface,
+}: {
+  sec: Extract<LeagueSiteSection, { type: 'divider' }>
+  preset: ThemePreset
+  updateSection: (id: string, fn: (s: LeagueSiteSection) => LeagueSiteSection) => void
+  onNavigateToCreativeSurface?: (surface: LeagueSiteContentSurface) => void
+}) {
+  return (
+    <>
+      <p style={{ fontSize: '12px', fontWeight: 700, margin: '0 0 6px', color: preset.heading }}>Tab placement</p>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '12px' }}>
+        {(['home', 'news', 'about'] as const).map((surf) => (
+          <button
+            key={surf}
+            type="button"
+            onClick={() => {
+              updateSection(sec.id, (s) => (s.type === 'divider' ? { ...s, surface: surf } : s))
+              onNavigateToCreativeSurface?.(surf)
+            }}
+            style={{
+              padding: '6px 10px',
+              borderRadius: '8px',
+              border: `1px solid ${sec.surface === surf ? preset.accent : preset.surfaceBorder}`,
+              background: sec.surface === surf ? preset.accentSoftBg : preset.pageBg,
+              fontSize: '11px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              color: preset.heading,
+            }}
+          >
+            {surfaceTabLabel(surf)}
+          </button>
+        ))}
+      </div>
+      <p style={{ fontSize: '12px', fontWeight: 700, margin: '0 0 6px', color: preset.heading }}>What this block does</p>
+      <p style={{ fontSize: '12px', color: preset.muted, margin: '0 0 12px', lineHeight: 1.45 }}>
+        Adds a simple <strong style={{ color: preset.heading }}>line</strong> or <strong style={{ color: preset.heading }}>extra gap</strong> between other blocks so the page does not feel like one long wall of text. Skip it if you do not need it.
+      </p>
+      <p style={{ fontSize: '12px', fontWeight: 700, margin: '0 0 6px', color: preset.heading }}>Style</p>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '12px' }}>
+        {(['line', 'space'] as const).map((v) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => updateSection(sec.id, (s) => (s.type === 'divider' ? { ...s, variant: v } : s))}
+            style={{
+              padding: '6px 10px',
+              borderRadius: '8px',
+              border: `1px solid ${sec.variant === v ? preset.accent : preset.surfaceBorder}`,
+              background: sec.variant === v ? preset.accentSoftBg : preset.pageBg,
+              fontSize: '11px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              color: preset.heading,
+            }}
+          >
+            {v === 'line' ? 'Line' : 'Extra space'}
+          </button>
+        ))}
+      </div>
+      <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: preset.heading }}>
+        Optional label (centered)
+      </label>
+      <input
+        value={sec.label}
+        onChange={(e) => updateSection(sec.id, (s) => (s.type === 'divider' ? { ...s, label: e.target.value } : s))}
+        placeholder="e.g. Sponsors"
+        style={{
+          width: '100%',
+          padding: '10px 12px',
+          borderRadius: '10px',
+          border: `1px solid ${preset.surfaceBorder}`,
+          fontSize: '14px',
+        }}
+      />
+    </>
+  )
+}
+
 /** Add a creative block on the tab you are viewing (Home / News / About). */
 export function LeagueSiteSectionQuickAdd({
   value,
@@ -548,8 +748,34 @@ export function LeagueSiteSectionQuickAdd({
     onSectionAdded?.({ id: sec.id, surface: activeSurface })
   }
 
+  function addCta() {
+    const sec = createLeagueSiteCtaSection(activeSurface)
+    onChange({ ...value, sections: [sec, ...value.sections] })
+    onSectionAdded?.({ id: sec.id, surface: activeSurface })
+  }
+
+  function addDivider() {
+    const sec = createLeagueSiteDividerSection(activeSurface)
+    onChange({ ...value, sections: [sec, ...value.sections] })
+    onSectionAdded?.({ id: sec.id, surface: activeSurface })
+  }
+
   const surfaceLabel =
     activeSurface === 'home' ? 'Home' : activeSurface === 'news' ? 'News' : 'About'
+
+  const chipBtn: CSSProperties = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '6px',
+    fontSize: '13px',
+    fontWeight: 700,
+    padding: '10px 16px',
+    borderRadius: '999px',
+    border: `1px solid ${preset.surfaceBorder}`,
+    background: preset.pageBg,
+    color: preset.heading,
+    cursor: 'pointer',
+  }
 
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
@@ -571,10 +797,18 @@ export function LeagueSiteSectionQuickAdd({
           boxShadow: '0 2px 8px -2px rgba(0,0,0,0.12)',
         }}
       >
-        <Plus size={16} aria-hidden /> New block ({surfaceLabel})
+        <Plus size={16} aria-hidden /> Photo & text ({surfaceLabel})
       </button>
-      <span style={{ fontSize: '12px', color: preset.muted, lineHeight: 1.45, maxWidth: '360px' }}>
-        Adds to <strong style={{ color: preset.heading }}>{surfaceLabel}</strong>. Use the large preview to edit text and drag the photo into place.
+      <button type="button" onClick={addCta} style={chipBtn} title="Headline, short text, and one button — signup, sponsors, fundraiser, etc.">
+        <Plus size={16} aria-hidden /> Button block
+      </button>
+      <button type="button" onClick={addDivider} style={chipBtn} title="Optional line or extra space between sections">
+        <Plus size={16} aria-hidden /> Section break
+      </button>
+      <span style={{ fontSize: '12px', color: preset.muted, lineHeight: 1.45, maxWidth: '420px' }}>
+        Adds to <strong style={{ color: preset.heading }}>{surfaceLabel}</strong>. <strong style={{ color: preset.heading }}>Photo & text</strong> is the big layout editor;{' '}
+        <strong style={{ color: preset.heading }}>Button block</strong> is for one clear link (registration, sponsors, fundraiser);{' '}
+        <strong style={{ color: preset.heading }}>Section break</strong> is only if you want a line or extra gap between blocks.
       </span>
     </div>
   )
@@ -740,7 +974,7 @@ export function LeagueSiteLookControls({
     proBrandColorChangesMonthlyLimit: number
   }
 }) {
-  const [open, setOpen] = useState(true)
+  const [open, setOpen] = useState(false)
   const [appearanceSaving, setAppearanceSaving] = useState(false)
   const [appearanceError, setAppearanceError] = useState('')
   const [appearanceOk, setAppearanceOk] = useState('')
@@ -1349,6 +1583,18 @@ export function LeagueSiteSectionsEditor({
     onSectionAdded?.({ id: sec.id, surface: nextCreativeSurface })
   }
 
+  const addCtaBlock = () => {
+    const sec = createLeagueSiteCtaSection(nextCreativeSurface)
+    updateSections((sections) => [sec, ...sections])
+    onSectionAdded?.({ id: sec.id, surface: nextCreativeSurface })
+  }
+
+  const addDividerBlock = () => {
+    const sec = createLeagueSiteDividerSection(nextCreativeSurface)
+    updateSections((sections) => [sec, ...sections])
+    onSectionAdded?.({ id: sec.id, surface: nextCreativeSurface })
+  }
+
   return (
     <div style={{ maxWidth, margin: '0 auto', padding: '0 0 32px' }}>
       {showAddToolbar ? (
@@ -1379,6 +1625,7 @@ export function LeagueSiteSectionsEditor({
             ))}
             <button
               type="button"
+              title="Photo background plus text you can position — main story layouts"
               onClick={addCreativeBlock}
               style={{
                 display: 'inline-flex',
@@ -1394,7 +1641,47 @@ export function LeagueSiteSectionsEditor({
                 cursor: 'pointer',
               }}
             >
-              <Plus size={14} /> New block
+              <Plus size={14} /> Photo & text
+            </button>
+            <button
+              type="button"
+              title="Headline, short text, and one button — signup, sponsors, fundraiser, etc."
+              onClick={addCtaBlock}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                fontSize: '12px',
+                fontWeight: 700,
+                padding: '8px 14px',
+                borderRadius: '10px',
+                border: `1px solid ${preset.surfaceBorder}`,
+                background: preset.pageBg,
+                color: preset.heading,
+                cursor: 'pointer',
+              }}
+            >
+              <Plus size={14} /> Button block
+            </button>
+            <button
+              type="button"
+              title="Optional line or extra space between sections"
+              onClick={addDividerBlock}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                fontSize: '12px',
+                fontWeight: 700,
+                padding: '8px 14px',
+                borderRadius: '10px',
+                border: `1px solid ${preset.surfaceBorder}`,
+                background: preset.pageBg,
+                color: preset.heading,
+                cursor: 'pointer',
+              }}
+            >
+              <Plus size={14} /> Section break
             </button>
           </div>
           <p style={{ fontSize: '12px', color: preset.muted, margin: '0 0 16px', lineHeight: 1.5 }}>
@@ -1456,8 +1743,8 @@ export function LeagueSiteSectionsEditor({
           }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px', marginBottom: '12px', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '11px', fontWeight: 800, color: preset.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-              {sec.type} · {subsetMode === 'all' ? `position ${localIdx + 1}` : `${subsetMode} ${localIdx + 1}`} · site #{globalIdx + 1}
+            <span style={{ fontSize: '11px', fontWeight: 800, color: preset.muted, letterSpacing: '0.03em' }}>
+              {leagueSiteSectionEditorKindLabel(sec)} · {subsetMode === 'all' ? `Position ${localIdx + 1}` : `${subsetMode} ${localIdx + 1}`} · Site order #{globalIdx + 1}
             </span>
             <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
               <button
@@ -1521,7 +1808,7 @@ export function LeagueSiteSectionsEditor({
             </div>
           </div>
 
-          {sec.type !== 'content' ? (
+          {sec.type === 'text' || sec.type === 'news' || sec.type === 'media' ? (
             <>
               <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: preset.heading }}>Section heading</label>
               <input
@@ -1637,6 +1924,20 @@ export function LeagueSiteSectionsEditor({
                 onChange={(next) => updateSection(sec.id, () => next)}
               />
             </>
+          ) : sec.type === 'cta' ? (
+            <LeagueSiteCtaSectionFields
+              sec={sec}
+              preset={preset}
+              updateSection={updateSection}
+              onNavigateToCreativeSurface={onNavigateToCreativeSurface}
+            />
+          ) : sec.type === 'divider' ? (
+            <LeagueSiteDividerSectionFields
+              sec={sec}
+              preset={preset}
+              updateSection={updateSection}
+              onNavigateToCreativeSurface={onNavigateToCreativeSurface}
+            />
           ) : sec.type === 'text' ? (
             <>
               <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: preset.heading }}>Main text</label>

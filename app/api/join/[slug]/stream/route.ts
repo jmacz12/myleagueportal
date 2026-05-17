@@ -1,15 +1,13 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { fetchOrganizationForPublicJoin, normalizeJoinSlugParam } from '@/lib/join-public-org'
+import { DEMO_LIVE_LOCATION } from '@/lib/ensure-live-stream-demo'
 import { normalizeStreamUrl } from '@/lib/stream-url'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
-
-/** Matches dev demo game from `POST /api/dev/live-demo-game` so Stream tab always picks it first. */
-const DEMO_LIVE_LOCATION = 'MLP_DEMO_LIVE_STREAM'
 
 /**
  * League-wide live stream context: first live season game in the org + a watch URL from either team.

@@ -4,17 +4,13 @@ import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
 import { SignInButton, useUser } from '@clerk/nextjs'
 import { CalendarDays, Crown, Lock, MapPin, Megaphone, Radio, Trophy, Video } from 'lucide-react'
+import { PublicSectionTabBar } from '@/components/public/PublicSectionTabBar'
 import { StreamWithOverlay } from '@/components/public-stream/StreamWithOverlay'
-import { contrastTextForAccent, type ThemePreset } from '@/lib/leagueTheme'
+import type { ThemePreset } from '@/lib/leagueTheme'
 import { fanStatLabelForTemplate, headlineFanStatsForTemplate, publicFanStatFootnoteForTemplate } from '@/lib/public-fan-stat-labels'
 import { PUBLIC_PRIMARY_STAT_ORDER, normalizePublicPrimaryStatKeys, type PublicPrimaryStatKey } from '@/lib/public-primary-stats'
 import { normalizeSportTemplateId } from '@/lib/sport-templates'
-import {
-  PUBLIC_LOCKED_PRO_ENTERPRISE_ARIA,
-  PUBLIC_LOCKED_PRO_ENTERPRISE_BADGE,
-  PUBLIC_LOCKED_PRO_ENTERPRISE_BADGE_TITLE,
-  PUBLIC_STREAM_HUB_UPSELL,
-} from '@/lib/public-plan-copy'
+import { PUBLIC_STREAM_HUB_UPSELL } from '@/lib/public-plan-copy'
 import type { PlayerTotalsRow, PublicTeamTab, TeamPayload } from './team-page-types'
 
 type Props = {
@@ -253,6 +249,84 @@ function JerseyPollOverviewCard({
       ) : null}
 
     </div>
+  )
+}
+
+const SEED_TEAM_NAME_PREFIX = '[SEED]'
+
+/** Enterprise team page: show a polished sponsor strip for `[SEED]` portal demo teams (no DB table yet). */
+function TeamSponsorsEnterpriseCard({
+  teamId,
+  teamName,
+  preset,
+}: {
+  teamId: string
+  teamName: string
+  preset: ThemePreset
+}) {
+  if (!teamName.startsWith(SEED_TEAM_NAME_PREFIX)) {
+    return (
+      <p style={{ margin: '8px 0 0', fontSize: '13px', color: preset.body, lineHeight: 1.45 }}>
+        No team sponsors added yet. Enterprise teams can feature local partner logos and links here.
+      </p>
+    )
+  }
+
+  const key = teamId.replace(/-/g, '').slice(0, 12)
+  const sponsors = [
+    { name: 'Coast Physio', href: 'https://example.com', img: `https://picsum.photos/seed/${key}sp1/200/80` },
+    { name: 'Main St Pizza', href: 'https://example.com', img: `https://picsum.photos/seed/${key}sp2/200/80` },
+    { name: 'Harbour Insurance', href: 'https://example.com', img: `https://picsum.photos/seed/${key}sp3/200/80` },
+    { name: 'City Roasters', href: 'https://example.com', img: `https://picsum.photos/seed/${key}sp4/200/80` },
+  ]
+
+  return (
+    <>
+      <div
+        style={{
+          marginTop: '12px',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(112px, 1fr))',
+          gap: '12px',
+        }}
+      >
+        {sponsors.map((s) => (
+          <a
+            key={s.name}
+            href={s.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: 'block',
+              textDecoration: 'none',
+              borderRadius: '10px',
+              overflow: 'hidden',
+              border: `1px solid ${preset.surfaceBorder}`,
+              background: preset.surfaceBg,
+              boxShadow: '0 4px 12px -8px rgba(0,0,0,0.2)',
+            }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element -- remote demo logos */}
+            <img src={s.img} alt="" width={200} height={80} style={{ width: '100%', height: 'auto', display: 'block' }} />
+            <div
+              style={{
+                padding: '8px 8px 10px',
+                fontSize: '11px',
+                fontWeight: 700,
+                color: preset.heading,
+                textAlign: 'center',
+                lineHeight: 1.25,
+              }}
+            >
+              {s.name}
+            </div>
+          </a>
+        ))}
+      </div>
+      <p style={{ margin: '12px 0 0', fontSize: '11px', color: preset.muted, lineHeight: 1.4 }}>
+        Demo sponsor layout for seeded teams — swap in real partners from your dashboard when you launch.
+      </p>
+    </>
   )
 }
 
@@ -870,132 +944,24 @@ export function PublicTeamTabPanels({
 
   return (
     <>
-      <nav
-        aria-label="Team sections"
+      <div
         style={{
-          position: 'sticky',
-          top: 0,
-          zIndex: 45,
-          background: poster ? preset.surfaceBg : preset.pageBg,
-          backdropFilter: poster ? 'saturate(160%) blur(12px)' : undefined,
-          WebkitBackdropFilter: poster ? 'saturate(160%) blur(12px)' : undefined,
-          borderBottom: `1px solid ${preset.surfaceBorder}`,
-          boxShadow: poster ? '0 2px 16px -8px rgba(0,0,0,0.08)' : '0 8px 24px -18px rgba(0,0,0,0.18)',
           marginBottom: '22px',
           marginLeft: '-20px',
           marginRight: '-20px',
           width: 'calc(100% + 40px)',
         }}
       >
-        <div
-          style={{
-            maxWidth: tabBarMaxWidth,
-            margin: '0 auto',
-            padding: poster ? '12px 12px 14px' : '0 8px 2px',
-            display: 'flex',
-            justifyContent: 'center',
-          }}
-        >
-          <div
-            style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              justifyContent: 'center',
-              gap: poster ? '6px' : '2px',
-              rowGap: poster ? '6px' : '0',
-              background: poster ? preset.pageBg : undefined,
-              padding: poster ? '5px' : undefined,
-              borderRadius: poster ? '999px' : undefined,
-              border: poster ? `1px solid ${preset.surfaceBorder}` : undefined,
-            }}
-          >
-            {teamTabsForBar.map((t) => {
-              const isActive = publicTab === t.id
-              const tabLocked = t.locked
-              return (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => setPublicTabQuery(t.id)}
-                  aria-current={isActive ? 'page' : undefined}
-                  aria-label={tabLocked ? `${t.label} (${PUBLIC_LOCKED_PRO_ENTERPRISE_ARIA})` : undefined}
-                  style={{
-                    flex: '0 0 auto',
-                    padding: poster ? '9px 18px' : '14px 14px',
-                    fontSize: '13px',
-                    fontWeight: poster ? 600 : 800,
-                    letterSpacing: poster ? '0.01em' : '0.02em',
-                    textTransform: 'none',
-                    opacity: tabLocked && !isActive ? 0.88 : 1,
-                    ...(poster
-                      ? (() => {
-                          const c = isActive ? preset.accent : 'transparent'
-                          return {
-                            borderTopWidth: '1px',
-                            borderRightWidth: '1px',
-                            borderBottomWidth: '1px',
-                            borderLeftWidth: '1px',
-                            borderTopStyle: 'solid' as const,
-                            borderRightStyle: 'solid' as const,
-                            borderBottomStyle: 'solid' as const,
-                            borderLeftStyle: 'solid' as const,
-                            borderTopColor: c,
-                            borderRightColor: c,
-                            borderBottomColor: c,
-                            borderLeftColor: c,
-                          }
-                        })()
-                      : {
-                          borderTop: 'none',
-                          borderLeft: 'none',
-                          borderRight: 'none',
-                          borderBottom: isActive ? `3px solid ${preset.accent}` : '3px solid transparent',
-                        }),
-                    borderRadius: poster ? '999px' : undefined,
-                    background: poster
-                      ? isActive
-                        ? preset.accent
-                        : 'transparent'
-                      : 'transparent',
-                    color: poster
-                      ? isActive
-                        ? contrastTextForAccent(preset.accent)
-                        : preset.body
-                      : isActive
-                        ? preset.heading
-                        : preset.muted,
-                    cursor: 'pointer',
-                    fontFamily: poster && headingFontFamily ? headingFontFamily : 'inherit',
-                    boxShadow: poster && isActive ? '0 4px 14px -4px rgba(0,0,0,0.2)' : undefined,
-                  }}
-                >
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', justifyContent: 'center' }}>
-                    {t.label}
-                    {tabLocked ? (
-                      <span
-                        title={PUBLIC_LOCKED_PRO_ENTERPRISE_BADGE_TITLE}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '3px',
-                          fontSize: '9px',
-                          fontWeight: 800,
-                          letterSpacing: '0.02em',
-                          textTransform: 'none',
-                          color: poster && isActive ? 'rgba(255,255,255,0.92)' : preset.accent,
-                        }}
-                      >
-                        <Lock size={12} strokeWidth={2.5} aria-hidden />
-                        {PUBLIC_LOCKED_PRO_ENTERPRISE_BADGE}
-                      </span>
-                    ) : null}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      </nav>
+        <PublicSectionTabBar
+          active={publicTab}
+          onChange={setPublicTabQuery}
+          tabs={teamTabsForBar}
+          preset={preset}
+          maxWidth={tabBarMaxWidth}
+          headingFontFamily={headingFontFamily}
+          ariaLabel="Team sections"
+        />
+      </div>
 
       {publicTab === 'overview' ? (
         <>
@@ -1133,9 +1099,7 @@ export function PublicTeamTabPanels({
               <div style={{ fontSize: '11px', letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 800, color: preset.muted }}>
                 Team sponsors
               </div>
-              <p style={{ margin: '8px 0 0', fontSize: '13px', color: preset.body, lineHeight: 1.45 }}>
-                No team sponsors added yet. Enterprise teams can feature local partner logos and links here.
-              </p>
+              <TeamSponsorsEnterpriseCard teamId={team.id} teamName={team.name} preset={preset} />
             </div>
           ) : null}
           {tier === 'basic' ? (

@@ -5,21 +5,15 @@ import {
   CalendarDays,
   Check,
   Dices,
-  FileText,
   Globe2,
-  LayoutTemplate,
-  Newspaper,
   Radio,
-  Shirt,
-  ShoppingBag,
-  Sparkles,
+  Users,
   Zap,
   type LucideIcon,
 } from 'lucide-react'
 
 import { LandingSignedInHeroActions, LandingSignedInNav } from '@/components/marketing/LandingSignedInChrome'
 import { LandingLeagueSearch } from '@/components/marketing/LandingLeagueSearch'
-import { SupportedSportsSection } from '@/components/marketing/SupportedSportsSection'
 import { getOrgAccessForClerkUser } from '@/lib/org-access'
 
 export default async function HomePage() {
@@ -168,9 +162,10 @@ export default async function HomePage() {
               — and team managers, captains & club leads
             </span>
           </h1>
-          <p style={{ fontSize: '16px', color: 'rgba(242,234,214,0.88)', lineHeight: '1.65', maxWidth: '560px', margin: '0 auto 24px' }}>
+          <p style={{ fontSize: '16px', color: 'rgba(242,234,214,0.88)', lineHeight: '1.65', maxWidth: '560px', margin: '0 auto 20px' }}>
             One place for schedules, live scores, sign-ups, and waivers—for organizers and team leads.
           </p>
+          <LandingLeagueSearch tone="hero" />
           {userId ? (
             <LandingSignedInHeroActions leagueSlug={leagueSlug} />
           ) : (
@@ -191,10 +186,6 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <SupportedSportsSection />
-
-      <LandingLeagueSearch />
-
       {/* Features — original grid + white cards */}
       <section style={{ maxWidth: '960px', margin: '0 auto', padding: '64px 24px' }}>
         <div style={{ textAlign: 'center', marginBottom: '40px' }}>
@@ -202,8 +193,7 @@ export default async function HomePage() {
             What you get
           </h2>
           <p style={{ fontSize: '15px', color: '#6b5e3a', maxWidth: '520px', margin: '0 auto' }}>
-            From your public league site and live scores to drop-ins and waivers.{' '}
-            <span style={{ fontWeight: 700, color: '#5c4a2a' }}>Enterprise</span> adds a league shop and an AI assistant—see pricing below.
+            The highlights organizers and team leads care about most—full leagues and standalone teams.
           </p>
         </div>
 
@@ -213,12 +203,22 @@ export default async function HomePage() {
               {
                 Icon: Globe2,
                 title: 'League home & sign-ups',
-                desc: 'Fans get a proper league site (schedule, teams, news, stream). Sign-up links stay separate for registering, drop-ins, and jersey picks.',
+                desc: 'A real public home for your league—schedule, standings, news, and stream. Share registration and drop-in links without rebuilding a website.',
+              },
+              {
+                Icon: Users,
+                title: 'Team management hub',
+                desc: 'Run a club or rec team without a full league: rosters, public team pages, jersey polls, and team news—same dashboard, built for captains and managers.',
               },
               {
                 Icon: Zap,
                 title: 'Live scores fans can follow',
                 desc: 'Score from the bench with clock and starters. Share a watch link; streams can show a live score bar that tracks the game.',
+              },
+              {
+                Icon: Dices,
+                title: 'Drop-ins & attendance',
+                desc: 'Recurring nights, mobile sign-up, check-in, payments, and waitlists. Pro can auto-balance teams; organizers get attendance tiers (Gold / Silver / Bronze).',
               },
               {
                 Icon: Radio,
@@ -228,42 +228,7 @@ export default async function HomePage() {
               {
                 Icon: CalendarDays,
                 title: 'One calendar for everything',
-                desc: 'Season games and drop-ins live in one list. Logged-in players can see their own games highlighted on top of the full schedule.',
-              },
-              {
-                Icon: Dices,
-                title: 'Drop-ins & attendance',
-                desc: 'Recurring nights, easy mobile sign-up, check-in, payments, and waitlists. Pro can auto-balance teams; organizers get attendance tiers (Gold / Silver / Bronze).',
-              },
-              {
-                Icon: LayoutTemplate,
-                title: 'League website & themes',
-                desc: 'Edit your public pages from the dashboard—hero, news, and more—with editors you trust. Pro adds your colors and ready-made looks.',
-              },
-              {
-                Icon: Shirt,
-                title: 'Jersey number polls',
-                desc: 'Players request numbers online; you see clashes in one table and lock in final jerseys when you are ready.',
-              },
-              {
-                Icon: FileText,
-                title: 'Waivers',
-                desc: 'Different waivers for season vs drop-ins. Type them in or upload; Pro can pull text out of old PDFs so signing stays simple.',
-              },
-              {
-                Icon: Newspaper,
-                title: 'Team news & calendar',
-                desc: 'Team leads post updates and events; fans can read them on the public team page together with big league news.',
-              },
-              {
-                Icon: ShoppingBag,
-                title: 'League shop (Enterprise)',
-                desc: 'Enterprise leagues get a shop on their public pages—browse merch or fundraisers, with room to add on-site checkout when you turn it on.',
-              },
-              {
-                Icon: Sparkles,
-                title: 'AI setup assistant (Enterprise)',
-                desc: 'Enterprise-only: describe changes in plain language; get draft updates for schedule, news, teams, and rosters. Nothing publishes until you approve it.',
+                desc: 'Season games and drop-ins in one list. Logged-in players see their games highlighted on top of the full schedule.',
               },
             ] satisfies { Icon: LucideIcon; title: string; desc: string }[]
           ).map(({ Icon, title, desc }) => (
@@ -276,6 +241,20 @@ export default async function HomePage() {
             </div>
           ))}
         </div>
+
+        <p
+          style={{
+            textAlign: 'center',
+            fontSize: '15px',
+            color: '#6b5e3a',
+            lineHeight: 1.6,
+            maxWidth: '560px',
+            margin: '36px auto 0',
+          }}
+        >
+          <span style={{ fontWeight: 800, color: '#1a1a0a' }}>And many more</span>
+          —waivers, jersey polls, custom league themes, season stats &amp; stat sheets, league shop, and an AI setup assistant on Enterprise.
+        </p>
       </section>
 
       {/* How it works — unchanged layout */}
@@ -287,7 +266,7 @@ export default async function HomePage() {
           <p style={{ fontSize: '15px', color: '#9a8c6a', marginBottom: '40px' }}>No setup fees. No training required.</p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px' }}>
             {[
-              { step: '01', title: 'Create your league', desc: 'Sign up, name your league, and pick your sport so registration shows the right positions.' },
+              { step: '01', title: 'Create your league or team', desc: 'Sign up, name your organization, and invite players—whether you run a full league or a single club.' },
               { step: '02', title: 'Add your season', desc: 'Create a season and share your registration link with players.' },
               { step: '03', title: 'Run your games', desc: 'Schedule games, track live scores, and manage stats in real time.' },
               { step: '04', title: 'Grow your league', desc: 'Use drop-ins, reputation tracking, and waivers to build a serious program.' },

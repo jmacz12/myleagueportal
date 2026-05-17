@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { createClient } from '@supabase/supabase-js'
-import { EMPTY_LEAGUE_SITE, isLeagueSiteNewsSurfaceSection, parseLeagueSitePayload } from '@/lib/league-site'
+import { EMPTY_LEAGUE_SITE, isLeagueSiteNewsArticleSection, parseLeagueSitePayload } from '@/lib/league-site'
 import { fetchOrganizationForPublicJoin, normalizeJoinSlugParam } from '@/lib/join-public-org'
 import { jerseyPollsEnabledForOrgPlan } from '@/lib/jersey-poll-tier'
 import { getJerseyPollSelfPayload } from '@/lib/jersey-poll-self'
@@ -175,7 +175,7 @@ export async function GET(
     const parsedSite = parseLeagueSitePayload(siteRow.published)
     publicFontKey = parsedSite.publicFontKey
     leagueNews = parsedSite.sections
-      .filter(isLeagueSiteNewsSurfaceSection)
+      .filter(isLeagueSiteNewsArticleSection)
       .slice(0, 6)
       .map((sec, idx) => ({
         id: `league-news-${idx}-${sec.id}`,

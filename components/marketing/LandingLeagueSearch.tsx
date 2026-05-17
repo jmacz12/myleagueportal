@@ -7,7 +7,13 @@ import { Loader2, Search } from 'lucide-react'
 type LeagueHit = { id: string; name: string; slug: string }
 type TeamHit = { id: string; name: string; leagueSlug: string; leagueName: string }
 
-export function LandingLeagueSearch() {
+type LandingLeagueSearchProps = {
+  /** `hero` = directly under the homepage headline (dark background). */
+  tone?: 'hero' | 'default'
+}
+
+export function LandingLeagueSearch({ tone = 'default' }: LandingLeagueSearchProps) {
+  const onHero = tone === 'hero'
   const listId = useId()
   const wrapRef = useRef<HTMLDivElement>(null)
   const [q, setQ] = useState('')
@@ -80,21 +86,25 @@ export function LandingLeagueSearch() {
 
   return (
     <section
-      style={{
-        background: '#ebe4d4',
-        borderTop: '0.5px solid #d4c9a8',
-        borderBottom: '0.5px solid #d4c9a8',
-        padding: '28px 24px',
-      }}
+      style={
+        onHero
+          ? { padding: '4px 0 20px', width: '100%' }
+          : {
+              background: '#ebe4d4',
+              borderTop: '0.5px solid #d4c9a8',
+              borderBottom: '0.5px solid #d4c9a8',
+              padding: '28px 24px',
+            }
+      }
       aria-labelledby={`${listId}-heading`}
     >
       <div style={{ maxWidth: '640px', margin: '0 auto' }} ref={wrapRef}>
         <h2
           id={`${listId}-heading`}
           style={{
-            fontSize: '15px',
+            fontSize: onHero ? 'clamp(17px, 2.5vw, 20px)' : '15px',
             fontWeight: '800',
-            color: '#1a1a0a',
+            color: onHero ? '#f2ead6' : '#1a1a0a',
             marginBottom: '10px',
             textAlign: 'center',
             letterSpacing: '-0.02em',
@@ -102,8 +112,16 @@ export function LandingLeagueSearch() {
         >
           Find a league or team
         </h2>
-        <p style={{ fontSize: '13px', color: '#6b5e3a', textAlign: 'center', margin: '0 0 14px', lineHeight: 1.5 }}>
-          Search by league or team name, then pick a result to open that page.
+        <p
+          style={{
+            fontSize: '13px',
+            color: onHero ? 'rgba(242,234,214,0.82)' : '#6b5e3a',
+            textAlign: 'center',
+            margin: '0 0 14px',
+            lineHeight: 1.5,
+          }}
+        >
+          Fans: search by name and jump straight to a league home or team page.
         </p>
         <div style={{ position: 'relative' }}>
           <label htmlFor={`${listId}-input`} className="sr-only">

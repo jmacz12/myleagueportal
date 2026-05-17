@@ -24,10 +24,15 @@ import {
   BarChart3,
   Info,
 } from 'lucide-react'
-import NewsBanner from '@/components/NewsBanner'
+import { PublicSectionTabBar } from '@/components/public/PublicSectionTabBar'
+import {
+  PublicSectionMobileMenu,
+  usePublicSectionMobileLayout,
+} from '@/components/public/PublicSectionMobileMenu'
 import { MediaGalleryPublic } from '@/components/league-site/MediaGalleryPublic'
 import { leagueSiteCreativeStageMinHeightCss } from '@/lib/league-site-creative-canvas'
 import { LeagueNotFoundOrganizerHint } from '@/components/LeagueNotFoundOrganizerHint'
+import { LeaguePublicAuthBar } from '@/components/league-site/LeaguePublicAuthBar'
 import { PublicLeagueHeroBand } from '@/components/league-site/PublicLeagueHeroBand'
 import type { LeagueAppearanceMode } from '@/lib/leagueTheme'
 import {
@@ -39,6 +44,7 @@ import {
 import { getPublicThemeInputsForOrg } from '@/lib/public-league-branding'
 import type {
   LeagueSiteContentSurface,
+  LeagueSiteNewsArticleSection,
   LeagueSiteNewsTabSection,
   LeagueSitePayload,
   LeagueSiteSection,
@@ -50,8 +56,10 @@ import {
   displayHeroInitials,
   isLeagueSiteAboutTabSection,
   isLeagueSiteHomeSurfaceSection,
+  isLeagueSiteNewsArticleSection,
   isLeagueSiteNewsSurfaceSection,
   resolveLeagueSiteContentBlockTextColor,
+  sanitizeLeagueSiteCtaHref,
 } from '@/lib/league-site'
 import {
   leagueSiteCreativeBodyTypography,
@@ -65,9 +73,6 @@ import {
 } from '@/lib/public-league-fonts'
 import { LeaguePublicStreamFanBlock } from '@/components/public-stream/LeaguePublicStreamFanBlock'
 import {
-  PUBLIC_LOCKED_PRO_ENTERPRISE_ARIA,
-  PUBLIC_LOCKED_PRO_ENTERPRISE_BADGE,
-  PUBLIC_LOCKED_PRO_ENTERPRISE_BADGE_TITLE,
   PUBLIC_STREAM_HUB_UPSELL,
 } from '@/lib/public-plan-copy'
 import { parseJoinStreamLivePayload, type JoinStreamLivePayload } from '@/lib/join-stream-live'
@@ -538,6 +543,136 @@ function LeagueSiteSectionBlock({
           </div>
         </div>
       </section>
+    )
+  }
+
+  if (section.type === 'cta') {
+    const href = sanitizeLeagueSiteCtaHref(section.buttonHref)
+    const btn = section.buttonLabel.trim()
+    const hasBtn = btn.length > 0 && href.length > 0
+    const internal = href.startsWith('/')
+    const sidePad = posterLayout ? '20px 22px 22px' : '24px 24px 26px'
+    return (
+      <section
+        style={{
+          position: 'relative',
+          marginBottom: posterLayout ? '24px' : '28px',
+          padding: '0',
+          borderRadius: posterLayout ? '16px' : '18px',
+          background: preset.surfaceBg,
+          border: posterLayout ? `1px solid ${preset.surfaceBorder}` : `1px solid ${preset.surfaceBorder}`,
+          boxShadow: posterLayout
+            ? '0 10px 40px -24px rgba(0,0,0,0.14)'
+            : '0 12px 40px -24px rgba(0,0,0,0.4)',
+          overflow: 'hidden',
+        }}
+      >
+        {rail}
+        <div
+          style={{
+            padding: sidePad,
+            background: `linear-gradient(125deg, ${preset.accentSoftBg} 0%, ${preset.surfaceBg} 55%, ${preset.surfaceBg} 100%)`,
+          }}
+        >
+          {section.title.trim() ? <h2 style={{ ...h2Style, marginBottom: section.body.trim() ? '12px' : hasBtn ? '16px' : 0 }}>{section.title}</h2> : null}
+          {section.body.trim() ? (
+            <div style={{ marginBottom: hasBtn ? '18px' : 0 }}>{bodyText(section.body)}</div>
+          ) : null}
+          {hasBtn ? (
+            internal ? (
+              <Link
+                href={href}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '12px 22px',
+                  borderRadius: '999px',
+                  background: preset.accent,
+                  color: contrastTextForAccent(preset.accent),
+                  fontWeight: 800,
+                  fontSize: '15px',
+                  textDecoration: 'none',
+                  boxShadow: '0 4px 14px -4px rgba(0,0,0,0.35)',
+                }}
+              >
+                {btn}
+              </Link>
+            ) : (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '12px 22px',
+                  borderRadius: '999px',
+                  background: preset.accent,
+                  color: contrastTextForAccent(preset.accent),
+                  fontWeight: 800,
+                  fontSize: '15px',
+                  textDecoration: 'none',
+                  boxShadow: '0 4px 14px -4px rgba(0,0,0,0.35)',
+                }}
+              >
+                {btn}
+              </a>
+            )
+          ) : null}
+        </div>
+      </section>
+    )
+  }
+
+  if (section.type === 'divider') {
+    const lab = section.label.trim()
+    const labEl =
+      lab.length > 0 ? (
+        <span
+          style={{
+            fontSize: posterLayout ? '11px' : '12px',
+            fontWeight: 700,
+            letterSpacing: '0.06em',
+            textTransform: 'uppercase',
+            color: preset.muted,
+            whiteSpace: 'nowrap',
+            padding: '0 10px',
+          }}
+        >
+          {lab}
+        </span>
+      ) : null
+    if (section.variant === 'space') {
+      return (
+        <div
+          style={{
+            marginBottom: posterLayout ? '20px' : '24px',
+            minHeight: lab ? '28px' : '16px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          {labEl}
+        </div>
+      )
+    }
+    return (
+      <div
+        style={{
+          marginBottom: posterLayout ? '20px' : '24px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px',
+          width: '100%',
+        }}
+      >
+        <div style={{ flex: 1, height: '1px', background: preset.surfaceBorder }} aria-hidden />
+        {labEl}
+        <div style={{ flex: 1, height: '1px', background: preset.surfaceBorder }} aria-hidden />
+      </div>
     )
   }
 
@@ -1183,148 +1318,6 @@ function LeagueHomeFeaturedGameCard({
   )
 }
 
-function LeaguePublicTabBar({
-  active,
-  onChange,
-  tabs,
-  preset,
-  maxWidth = '1000px',
-  headingFontFamily,
-}: {
-  active: LeaguePublicTabId
-  onChange: (id: LeaguePublicTabId) => void
-  tabs: readonly { id: LeaguePublicTabId; label: string; locked?: boolean }[]
-  preset: ReturnType<typeof resolveThemePreset>
-  maxWidth?: string
-  headingFontFamily?: string
-}) {
-  const poster = preset.id === PRESET_PORTAL_ORIGINAL_ID
-  return (
-    <nav
-      aria-label="League sections"
-      style={{
-        position: 'sticky',
-        top: 0,
-        zIndex: 45,
-        background: poster ? preset.surfaceBg : preset.pageBg,
-        backdropFilter: poster ? 'saturate(160%) blur(12px)' : undefined,
-        WebkitBackdropFilter: poster ? 'saturate(160%) blur(12px)' : undefined,
-        borderBottom: `1px solid ${preset.surfaceBorder}`,
-        boxShadow: poster ? '0 2px 16px -8px rgba(0,0,0,0.08)' : '0 8px 24px -18px rgba(0,0,0,0.18)',
-      }}
-    >
-      <div
-        style={{
-          maxWidth,
-          margin: '0 auto',
-          padding: poster ? '12px 12px 14px' : '0 8px 2px',
-          display: 'flex',
-          justifyContent: 'center',
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            justifyContent: 'center',
-            gap: poster ? '6px' : '2px',
-            rowGap: poster ? '6px' : '0',
-            background: poster ? preset.pageBg : undefined,
-            padding: poster ? '5px' : undefined,
-            borderRadius: poster ? '999px' : undefined,
-            border: poster ? `1px solid ${preset.surfaceBorder}` : undefined,
-          }}
-        >
-        {tabs.map((t) => {
-          const isActive = active === t.id
-          const tabLocked = !!t.locked
-          return (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => onChange(t.id)}
-              aria-current={isActive ? 'page' : undefined}
-              aria-label={tabLocked ? `${t.label} (${PUBLIC_LOCKED_PRO_ENTERPRISE_ARIA})` : t.label}
-              style={{
-                flex: '0 0 auto',
-                padding: poster ? '9px 18px' : '14px 14px',
-                fontSize: poster ? '13px' : '13px',
-                fontWeight: poster ? 600 : 800,
-                letterSpacing: poster ? '0.01em' : '0.02em',
-                textTransform: 'none',
-                opacity: tabLocked && !isActive ? 0.88 : 1,
-                ...(poster
-                  ? (() => {
-                      const c = isActive ? preset.accent : 'transparent'
-                      return {
-                        borderTopWidth: '1px',
-                        borderRightWidth: '1px',
-                        borderBottomWidth: '1px',
-                        borderLeftWidth: '1px',
-                        borderTopStyle: 'solid' as const,
-                        borderRightStyle: 'solid' as const,
-                        borderBottomStyle: 'solid' as const,
-                        borderLeftStyle: 'solid' as const,
-                        borderTopColor: c,
-                        borderRightColor: c,
-                        borderBottomColor: c,
-                        borderLeftColor: c,
-                      }
-                    })()
-                  : {
-                      borderTop: 'none',
-                      borderLeft: 'none',
-                      borderRight: 'none',
-                      borderBottom: isActive ? `3px solid ${preset.accent}` : '3px solid transparent',
-                    }),
-                borderRadius: poster ? '999px' : undefined,
-                background: poster
-                  ? isActive
-                    ? preset.accent
-                    : 'transparent'
-                  : 'transparent',
-                color: poster
-                  ? isActive
-                    ? contrastTextForAccent(preset.accent)
-                    : preset.body
-                  : isActive
-                    ? preset.heading
-                    : preset.muted,
-                cursor: 'pointer',
-                fontFamily: poster && headingFontFamily ? headingFontFamily : 'inherit',
-                boxShadow: poster && isActive ? '0 4px 14px -4px rgba(0,0,0,0.2)' : undefined,
-              }}
-            >
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', justifyContent: 'center' }}>
-                {t.label}
-                {tabLocked ? (
-                  <span
-                    title={PUBLIC_LOCKED_PRO_ENTERPRISE_BADGE_TITLE}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '3px',
-                      fontSize: '9px',
-                      fontWeight: 800,
-                      letterSpacing: '0.02em',
-                      textTransform: 'none',
-                      color: poster && isActive ? 'rgba(255,255,255,0.92)' : preset.accent,
-                    }}
-                  >
-                    <Lock size={12} strokeWidth={2.5} aria-hidden />
-                    {PUBLIC_LOCKED_PRO_ENTERPRISE_BADGE}
-                  </span>
-                ) : null}
-              </span>
-            </button>
-          )
-        })}
-        </div>
-      </div>
-    </nav>
-  )
-}
-
 function LeagueHomeContent() {
   const params = useParams()
   const searchParams = useSearchParams()
@@ -1416,6 +1409,7 @@ function LeagueHomeContent() {
   )
 
   const [stickyVisible, setStickyVisible] = useState(false)
+  const isMobileLayout = usePublicSectionMobileLayout()
   const [canManageSite, setCanManageSite] = useState(false)
   const [siteAccessRole, setSiteAccessRole] = useState<'owner' | 'editor' | null>(null)
   const [accessResolved, setAccessResolved] = useState(false)
@@ -1902,7 +1896,9 @@ function LeagueHomeContent() {
     () => buildLeagueScheduleDisplayRows(rankedScheduleItems),
     [rankedScheduleItems]
   )
-  const latestNewsSection = newsSections[0] ?? null
+  const latestNewsSection = useMemo((): LeagueSiteNewsArticleSection | null => {
+    return displaySite.sections.find(isLeagueSiteNewsArticleSection) ?? null
+  }, [displaySite.sections])
   const latestNewsContentThumbnail =
     latestNewsSection && latestNewsSection.type === 'content' ? (latestNewsSection.image?.url ?? null) : null
   const personalizedSchedule = useMemo(() => {
@@ -2044,7 +2040,7 @@ function LeagueHomeContent() {
 
   return (
     <div style={{ minHeight: '100vh', background: preset.pageBg, fontFamily: publicFontStack }}>
-      <NewsBanner message={org.news_banner} color={org.news_banner_color} />
+      <LeaguePublicAuthBar preset={preset} canManageSite={canManageSite} accessResolved={accessResolved} />
 
       {searchParams.get('edit') === '1' && accessResolved && !canManageSite ? (
         <div
@@ -2174,7 +2170,7 @@ function LeagueHomeContent() {
         </>
       ) : null}
 
-      {!editMode ? (
+      {!editMode && isMobileLayout ? (
       <div
         style={{
           position: 'fixed',
@@ -2185,7 +2181,7 @@ function LeagueHomeContent() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: '12px 18px',
+          padding: '10px 14px',
           borderBottom: `1px solid ${heroTheme.stickyBorder}`,
           background: heroTheme.stickyBackground,
           backdropFilter: 'saturate(180%) blur(16px)',
@@ -2242,39 +2238,15 @@ function LeagueHomeContent() {
               {org.name}
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-            {competitiveSeason && seasonRegistrationOpen ? (
-              <Link
-                href={`/join/${slug}/register`}
-                style={{
-                  fontSize: '12px',
-                  fontWeight: 800,
-                  textDecoration: 'none',
-                  padding: '8px 12px',
-                  borderRadius: '999px',
-                  background: preset.accent,
-                  color: contrastTextForAccent(preset.accent),
-                }}
-              >
-                Join
-              </Link>
-            ) : null}
-            <Link
-              href={`/join/${slug}/dropins`}
-              style={{
-                fontSize: '12px',
-                fontWeight: 700,
-                textDecoration: 'none',
-                padding: '8px 12px',
-                borderRadius: '999px',
-                border: `1px solid ${preset.surfaceBorder}`,
-                color: preset.heading,
-                background: preset.surfaceBg,
-              }}
-            >
-              Drop-ins
-            </Link>
-          </div>
+          <PublicSectionMobileMenu
+            active={activeTab}
+            onChange={setLeagueTab}
+            tabs={leagueTabsForBar}
+            preset={preset}
+            headingFontFamily={portalOriginalLayout ? publicHeadingFontStack : undefined}
+            menuAlign="right"
+            compact
+          />
         </div>
       </div>
       ) : null}
@@ -2308,13 +2280,15 @@ function LeagueHomeContent() {
         ) : null}
       </div>
 
-      <LeaguePublicTabBar
+      <PublicSectionTabBar
         active={activeTab}
         onChange={setLeagueTab}
         tabs={leagueTabsForBar}
         preset={preset}
         maxWidth={leagueContentMax}
         headingFontFamily={portalOriginalLayout ? publicHeadingFontStack : undefined}
+        ariaLabel="League sections"
+        mobileMenuInStickyBar={isMobileLayout && stickyVisible}
       />
 
       {editMode && draftLoadState === 'ok' && draftSite && !websiteLockedForPlan ? (
@@ -2696,12 +2670,6 @@ function LeagueHomeContent() {
             </h2>
             {isProLike ? (
               <>
-                <p style={{ margin: '0 0 22px', fontSize: '14px', color: preset.muted, lineHeight: 1.55, width: '100%' }}>
-                  Live score and clock stay on the <strong style={{ color: preset.heading }}>video overlay</strong> while the game is in progress.{' '}
-                  <strong style={{ color: preset.heading }}>Player stats</strong> below use the same rows as{' '}
-                  <strong style={{ color: preset.heading }}>Dashboard → Games → scoring</strong> (threes, twos, assists, etc.) and refresh in real time. Schedule and standings links can open a specific game with{' '}
-                  <strong style={{ color: preset.heading }}>?game=</strong> in the URL.
-                </p>
                 <LeaguePublicStreamFanBlock
                   slug={slug}
                   streamGameIdParam={streamGameIdParam}

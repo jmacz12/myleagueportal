@@ -23,6 +23,9 @@ export const LEAGUE_SITE_MEDIA_PLACEMENT_LABELS: Record<LeagueSiteSectionMediaPl
 /** Which public tab surface a creative block belongs to (Home / News / About). */
 export type LeagueSiteContentSurface = 'home' | 'news' | 'about'
 
+/** Visual rhythm between sections (Home / News / About). */
+export type LeagueSiteDividerVariant = 'line' | 'space'
+
 /** One stackable text run in a creative block (like Canva text layers). */
 export type LeagueSiteContentTextPiece = {
   id: string
@@ -84,6 +87,23 @@ export type LeagueSiteSection =
       /** Optional fixed min-height (px) for the photo+text % grid; unset uses responsive default. */
       creativeStageMinPx?: number
     }
+  | {
+      id: string
+      type: 'cta'
+      surface: LeagueSiteContentSurface
+      title: string
+      body: string
+      buttonLabel: string
+      buttonHref: string
+    }
+  | {
+      id: string
+      type: 'divider'
+      surface: LeagueSiteContentSurface
+      variant: LeagueSiteDividerVariant
+      /** Optional centered label on the rule or spacer. */
+      label: string
+    }
 
 /** Classic section kinds (legacy); creative blocks use `createLeagueSiteContentSection`. */
 export type LeagueSiteClassicKind = 'text' | 'news' | 'media'
@@ -91,24 +111,77 @@ export type LeagueSiteClassicKind = 'text' | 'news' | 'media'
 export type LeagueSiteNewsTabSection =
   | Extract<LeagueSiteSection, { type: 'news' }>
   | (Extract<LeagueSiteSection, { type: 'content' }> & { surface: 'news' })
+  | (Extract<LeagueSiteSection, { type: 'cta' }> & { surface: 'news' })
+  | (Extract<LeagueSiteSection, { type: 'divider' }> & { surface: 'news' })
 
 export type LeagueSiteAboutTabSection =
   | Extract<LeagueSiteSection, { type: 'text' }>
   | Extract<LeagueSiteSection, { type: 'media' }>
   | (Extract<LeagueSiteSection, { type: 'content' }> & { surface: 'about' })
+  | (Extract<LeagueSiteSection, { type: 'cta' }> & { surface: 'about' })
+  | (Extract<LeagueSiteSection, { type: 'divider' }> & { surface: 'about' })
 
-export type LeagueSiteHomeTabSection = Extract<LeagueSiteSection, { type: 'content' }> & { surface: 'home' }
+export type LeagueSiteHomeTabSection =
+  | (Extract<LeagueSiteSection, { type: 'content' }> & { surface: 'home' })
+  | (Extract<LeagueSiteSection, { type: 'cta' }> & { surface: 'home' })
+  | (Extract<LeagueSiteSection, { type: 'divider' }> & { surface: 'home' })
 
-export function isLeagueSiteNewsSurfaceSection(s: LeagueSiteSection): s is LeagueSiteNewsTabSection {
+export type LeagueSiteNewsArticleSection =
+  | Extract<LeagueSiteSection, { type: 'news' }>
+  | (Extract<LeagueSiteSection, { type: 'content' }> & { surface: 'news' })
+
+/** True for league “news article” blocks (title + body + optional media) — excludes button blocks / section breaks on the News tab. */
+export function isLeagueSiteNewsArticleSection(s: LeagueSiteSection): s is LeagueSiteNewsArticleSection {
   return s.type === 'news' || (s.type === 'content' && s.surface === 'news')
 }
 
+export function isLeagueSiteNewsSurfaceSection(s: LeagueSiteSection): s is LeagueSiteNewsTabSection {
+  return (
+    s.type === 'news' ||
+    (s.type === 'content' && s.surface === 'news') ||
+    (s.type === 'cta' && s.surface === 'news') ||
+    (s.type === 'divider' && s.surface === 'news')
+  )
+}
+
 export function isLeagueSiteAboutTabSection(s: LeagueSiteSection): s is LeagueSiteAboutTabSection {
-  return s.type === 'text' || s.type === 'media' || (s.type === 'content' && s.surface === 'about')
+  return (
+    s.type === 'text' ||
+    s.type === 'media' ||
+    (s.type === 'content' && s.surface === 'about') ||
+    (s.type === 'cta' && s.surface === 'about') ||
+    (s.type === 'divider' && s.surface === 'about')
+  )
 }
 
 export function isLeagueSiteHomeSurfaceSection(s: LeagueSiteSection): s is LeagueSiteHomeTabSection {
-  return s.type === 'content' && s.surface === 'home'
+  return (
+    (s.type === 'content' && s.surface === 'home') ||
+    (s.type === 'cta' && s.surface === 'home') ||
+    (s.type === 'divider' && s.surface === 'home')
+  )
+}
+
+/** Plain-English name for a section in organizer UIs (JSON still uses `type` like `cta`). */
+export function leagueSiteSectionEditorKindLabel(sec: LeagueSiteSection): string {
+  const tab = (surf: LeagueSiteContentSurface) =>
+    surf === 'home' ? 'Home' : surf === 'news' ? 'News' : 'About'
+  switch (sec.type) {
+    case 'text':
+      return 'Text section'
+    case 'news':
+      return 'News post'
+    case 'media':
+      return 'Photo gallery'
+    case 'content':
+      return `Photo & text block (${tab(sec.surface)})`
+    case 'cta':
+      return `Button block (${tab(sec.surface)})`
+    case 'divider':
+      return `Section break (${tab(sec.surface)})`
+    default:
+      return 'Section'
+  }
 }
 
 export type LeagueSitePayload = {
@@ -173,6 +246,36 @@ export function createLeagueSiteContentSection(surface: LeagueSiteContentSurface
     body: '',
     image: null,
     textPieces: [],
+  }
+}
+
+export function createLeagueSiteCtaSection(surface: LeagueSiteContentSurface): LeagueSiteSection {
+  const id =
+    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `sec-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+  return {
+    id,
+    type: 'cta',
+    surface,
+    title: 'Support the league',
+    body: 'Great for sponsors, a fundraiser, team fees, or any trusted link — add a short message, then a button label and web address.',
+    buttonLabel: 'Learn more',
+    buttonHref: '',
+  }
+}
+
+export function createLeagueSiteDividerSection(surface: LeagueSiteContentSurface): LeagueSiteSection {
+  const id =
+    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `sec-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+  return {
+    id,
+    type: 'divider',
+    surface,
+    variant: 'line',
+    label: '',
   }
 }
 
@@ -325,6 +428,8 @@ const MAX_BODY = 24_000
 const MAX_MEDIA = 100
 const MAX_URL = 2048
 const MAX_CAPTION = 280
+const MAX_CTA_BUTTON_LABEL = 80
+const MAX_DIVIDER_LABEL = 120
 
 function sanitizeMediaLayout(raw: unknown): LeagueSiteSectionMediaPlacement {
   const s = typeof raw === 'string' ? raw.trim().toLowerCase() : ''
@@ -335,6 +440,25 @@ function sanitizeMediaLayout(raw: unknown): LeagueSiteSectionMediaPlacement {
 function clip(s: string, max: number): string {
   const t = typeof s === 'string' ? s.trim() : ''
   return t.length <= max ? t : t.slice(0, max)
+}
+
+/** Sanitized URL for button-block links — https/http, mailto, tel, or same-site path (no protocol-relative URLs). */
+export function sanitizeLeagueSiteCtaHref(raw: unknown): string {
+  const s = clip(String(raw ?? ''), MAX_URL)
+  if (!s) return ''
+  const t = s.trim()
+  const colon = t.indexOf(':')
+  const proto = colon >= 0 ? t.slice(0, colon).toLowerCase().trim() : ''
+  if (proto === 'javascript' || proto === 'data' || proto === 'vbscript') return ''
+  const lower = t.toLowerCase()
+  if (lower.startsWith('http://') || lower.startsWith('https://')) return t
+  if (lower.startsWith('mailto:') || lower.startsWith('tel:')) return t
+  if (t.startsWith('/')) {
+    if (t.startsWith('//')) return ''
+    if (!/^\/[\w.\-~/?#=&%]*$/i.test(t)) return ''
+    return t
+  }
+  return ''
 }
 
 /** Allow only `#rgb` / `#rrggbb` / `#rrggbbaa` for CMS text colors (avoids injecting non-color CSS). */
@@ -457,6 +581,31 @@ function sanitizeSection(raw: unknown): LeagueSiteSection | null {
       ...(textColor ? { textColor } : {}),
       ...(creativeStageMinPx != null ? { creativeStageMinPx } : {}),
     }
+  }
+
+  if (type === 'cta') {
+    const title = clip(String(o.title ?? ''), MAX_TITLE)
+    const body = clip(String(o.body ?? ''), MAX_BODY)
+    const buttonLabel = clip(String(o.buttonLabel ?? ''), MAX_CTA_BUTTON_LABEL)
+    const buttonHref = sanitizeLeagueSiteCtaHref(o.buttonHref)
+    const surface = sanitizeContentSurface(o.surface)
+    return {
+      id,
+      type: 'cta',
+      surface,
+      title,
+      body,
+      buttonLabel,
+      buttonHref,
+    }
+  }
+
+  if (type === 'divider') {
+    const surface = sanitizeContentSurface(o.surface)
+    const v = String(o.variant ?? '').trim().toLowerCase()
+    const variant: LeagueSiteDividerVariant = v === 'space' ? 'space' : 'line'
+    const label = clip(String(o.label ?? ''), MAX_DIVIDER_LABEL)
+    return { id, type: 'divider', surface, variant, label }
   }
 
   return null

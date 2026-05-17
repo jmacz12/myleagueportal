@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { seedSeasonGamesWithStats } from '@/lib/dev-seed-season-games'
 import { everydayLeagueSiteDemoPayload } from '@/lib/everyday-league-site-demo'
+import { ensureLiveStreamDemoGame } from '@/lib/ensure-live-stream-demo'
 import { seedDropinDemo } from '@/lib/seed-dropin-demo'
 
 const DEMO_SUMMER_SEASON_NAME = 'Summer 2026'
@@ -925,6 +926,16 @@ export async function POST(req: Request) {
     }
   }
 
+  let liveStreamDemo: { gameId: string; homeTeam: string; awayTeam: string } | null = null
+  if ((withLeagueSiteDemo || fullPortalDemo) && teamsOut.length >= 2) {
+    const live = await ensureLiveStreamDemoGame(supabaseAdmin, org.id)
+    if (live.ok) {
+      liveStreamDemo = { gameId: live.gameId, homeTeam: live.homeTeam, awayTeam: live.awayTeam }
+    } else {
+      console.warn('[seed-teams-players] live stream demo:', live.error)
+    }
+  }
+
   let gamesSeeded: { games_created: number; stats_rows: number } | null = null
   if (withGamesAndStats && teamsOut.length >= 2 && seasonId) {
     const g = await seedSeasonGamesWithStats(supabaseAdmin, {
@@ -995,6 +1006,7 @@ export async function POST(req: Request) {
     vancouverites_news_banner: vancouveritesNewsBanner,
     full_portal_demo: fullPortalDemo,
     games_seeded: gamesSeeded,
+    live_stream_demo: liveStreamDemo,
     preview_plan: previewPublicTier,
   })
 }
