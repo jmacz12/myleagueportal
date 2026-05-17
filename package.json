@@ -11,19 +11,25 @@
     "smoke:delete-account": "tsx scripts/smoke-delete-league-account.ts",
     "seed-dropin": "tsx scripts/seed-dropin-cli.ts",
     "seed-league-site": "tsx scripts/push-league-site-demo.ts",
-    "stripe:test-checkout": "node scripts/stripe-open-test-checkout.mjs"
+    "stripe:test-checkout": "node scripts/stripe-open-test-checkout.mjs",
+    "verify:schedule-import": "tsx scripts/verify-schedule-import.ts",
+    "verify:stats-import": "tsx scripts/verify-stats-import.ts",
+    "verify:stats-pipeline": "tsx scripts/verify-stats-pipeline.ts",
+    "verify:stats-db": "tsx scripts/verify-stats-db-sample.ts"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.2.8",
     "@stripe/stripe-js": "^9.4.0",
     "@supabase/ssr": "^0.10.2",
     "@supabase/supabase-js": "^2.105.1",
+    "exceljs": "^4.4.0",
     "lucide-react": "^1.14.0",
     "next": "16.2.4",
     "pdf-parse": "^2.4.5",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "stripe": "^22.1.0"
+    "stripe": "^22.1.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

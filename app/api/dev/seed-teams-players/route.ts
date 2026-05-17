@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { seedSeasonGamesWithStats } from '@/lib/dev-seed-season-games'
 import { everydayLeagueSiteDemoPayload } from '@/lib/everyday-league-site-demo'
+import { seedDropinDemo } from '@/lib/seed-dropin-demo'
+
+const DEMO_SUMMER_SEASON_NAME = 'Summer 2026'
+const DEMO_SUMMER_START = '2026-06-01'
+const DEMO_SUMMER_END = '2026-08-31'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -19,12 +24,25 @@ const PORTAL_TEAM_NAMES = [
   `${SEED_PREFIX} Trout Lake Tempo`,
   `${SEED_PREFIX} Cambie Crossover`,
   `${SEED_PREFIX} Fraserhood Flight`,
+  `${SEED_PREFIX} Downtown Runners`,
+  `${SEED_PREFIX} Hastings Hoopers`,
 ]
 
-const PORTAL_TEAM_COLORS = ['#b91c1c', '#1d4ed8', '#0d9488', '#ca8a04', '#7c3aed', '#db2777', '#ea580c', '#4d7c0f']
+const PORTAL_TEAM_COLORS = [
+  '#b91c1c',
+  '#1d4ed8',
+  '#0d9488',
+  '#ca8a04',
+  '#7c3aed',
+  '#db2777',
+  '#ea580c',
+  '#4d7c0f',
+  '#0891b2',
+  '#be123c',
+]
 
-/** Professional demo depth: 10 players per team across 8 teams. */
-const PLAYERS_PER_TEAM = [10, 10, 10, 10, 10, 10, 10, 10]
+/** 10 players per team across 10 teams. */
+const PLAYERS_PER_TEAM = [10, 10, 10, 10, 10, 10, 10, 10, 10, 10]
 
 const POSITION_SETS = [
   ['Guard'],
@@ -45,7 +63,145 @@ const TEAM_LOGO_URLS = [
   'https://picsum.photos/seed/vvbrand-tempo/256/256',
   'https://picsum.photos/seed/vvbrand-crossover/256/256',
   'https://picsum.photos/seed/vvbrand-flight/256/256',
+  'https://picsum.photos/seed/vvbrand-runners/256/256',
+  'https://picsum.photos/seed/vvbrand-hastings/256/256',
 ]
+
+async function ensureDemoSummerSeason(organizationId: string): Promise<string | null> {
+  await supabaseAdmin
+    .from('seasons')
+    .update({ is_active: false })
+    .eq('organization_id', organizationId)
+    .eq('type', 'season')
+
+  const { data: existing } = await supabaseAdmin
+    .from('seasons')
+    .select('id')
+    .eq('organization_id', organizationId)
+    .eq('type', 'season')
+    .eq('name', DEMO_SUMMER_SEASON_NAME)
+    .maybeSingle()
+
+  const row: Record<string, unknown> = {
+    name: DEMO_SUMMER_SEASON_NAME,
+    type: 'season',
+    organization_id: organizationId,
+    is_active: true,
+    start_date: DEMO_SUMMER_START,
+    end_date: DEMO_SUMMER_END,
+    allow_online_registration: true,
+  }
+
+  if (existing?.id) {
+    let { error } = await supabaseAdmin.from('seasons').update(row).eq('id', existing.id)
+    if (error && String(error.message || '').includes('allow_online_registration')) {
+      const slim = { ...row }
+      delete slim.allow_online_registration
+      ;({ error } = await supabaseAdmin.from('seasons').update(slim).eq('id', existing.id))
+    }
+    return error ? null : existing.id
+  }
+
+  let { data: created, error: insErr } = await supabaseAdmin
+    .from('seasons')
+    .insert(row)
+    .select('id')
+    .single()
+
+  if (insErr && String(insErr.message || '').includes('allow_online_registration')) {
+    const slim = { ...row }
+    delete slim.allow_online_registration
+    const retry = await supabaseAdmin.from('seasons').insert(slim).select('id').single()
+    created = retry.data
+    insErr = retry.error
+  }
+
+  return insErr || !created ? null : created.id
+}
+
+/** Dev portal reset — clears competition data so re-seed starts clean. */
+async function wipeOrgCompetitionForPortalDemo(organizationId: string) {
+  const { data: games } = await supabaseAdmin
+    .from('games')
+    .select('id')
+    .eq('organization_id', organizationId)
+  const gameIds = (games || []).map((g) => g.id).filter(Boolean)
+  if (gameIds.length > 0) {
+    await supabaseAdmin.from('player_game_stats').delete().in('game_id', gameIds)
+    await supabaseAdmin.from('games').delete().in('id', gameIds)
+  }
+
+  const { data: teams } = await supabaseAdmin
+    .from('teams')
+    .select('id')
+    .eq('organization_id', organizationId)
+  const teamIds = (teams || []).map((t) => t.id).filter(Boolean)
+  if (teamIds.length > 0) {
+    await supabaseAdmin.from('players').delete().in('team_id', teamIds)
+    await supabaseAdmin.from('teams').delete().in('id', teamIds)
+  }
+}
+
+const PARTNER_NAMES = ['Coast Physio', 'Main St Pizza', 'North Shore Coffee', 'Harbour Insurance']
+
+/** Rich team-page news for portal demo — reads like a real club feed (sponsors, logistics, film). */
+function buildSeedTeamNewsRows(
+  organizationId: string,
+  seasonId: string | null,
+  team: { id: string; name: string },
+  teamIndex: number
+): Record<string, unknown>[] {
+  const base = team.name.replace(SEED_PREFIX, '').trim()
+  const partner = PARTNER_NAMES[teamIndex % PARTNER_NAMES.length]
+  const ago = (days: number) => new Date(Date.now() - days * 86400000).toISOString()
+
+  return [
+    {
+      organization_id: organizationId,
+      team_id: team.id,
+      season_id: seasonId,
+      title: `${base} — captain’s desk: lineups & partner shout-outs`,
+      body: `Update **availability by Thursday noon** so we can lock the league lineup sheet.
+
+This month’s partner spotlight: **${partner}** — tag them when you post win recaps; they boost our posts on **Instagram** and it keeps our team page sponsor row looking sharp for next season’s bids.`,
+      pinned: true,
+      created_at: ago(1),
+    },
+    {
+      organization_id: organizationId,
+      team_id: team.id,
+      season_id: seasonId,
+      title: `${base} — shootaround + film (optional)`,
+      body: `**Friday 8:15pm** — small gym if the booking clears. Bring a **reversible** if you have one.
+
+After: **10 minutes** of defensive clips from last week (captain will AirPlay). Not mandatory — but if you’re chasing minutes in close games, it helps.`,
+      pinned: false,
+      created_at: ago(3),
+    },
+    {
+      organization_id: organizationId,
+      team_id: team.id,
+      season_id: seasonId,
+      title: `${base} — fees & merch deadline`,
+      body: `Team treasurer reminder: **session fee** is due before **playoff seeding locks**. E-transfer memo format: \`VV-${base.slice(0, 3).toUpperCase()}-LASTNAME\`.
+
+Warm-up order closes **Sunday** — late adds pay rush shipping only.`,
+      pinned: false,
+      created_at: ago(5),
+    },
+    {
+      organization_id: organizationId,
+      team_id: team.id,
+      season_id: seasonId,
+      title: `${base} — community night (kids clinic volunteers)`,
+      body: `We need **two volunteers** to help with the youth clinic station on **All-Star Saturday**. 90 minutes, league feeds you pizza, you get a **League Crew** shout-out in the program.
+
+Reply here or text the captain chain. **Zero pressure** if you’re nursing an ankle — we’ll rotate names.`,
+      pinned: false,
+      created_at: ago(8),
+    },
+  ]
+}
 
 const FIRST_NAMES = [
   'Alex',
@@ -123,8 +279,8 @@ async function deleteSeedDropinsForOrg(organizationId: string) {
  *     -H "Content-Type: application/json" \
  *     -d "{\"slug\":\"vancouvarites\",\"replace\":true,\"fullPortalDemo\":true,\"withGamesAndStats\":true,\"previewPublicTier\":\"enterprise\"}"
  *
- * `fullPortalDemo`: max **8** seed teams, **80** total roster players, season registration window opened,
- * **[SEED]** drop-in sessions with sample registrations, and rich TEXT/NEWS league home content.
+ * `fullPortalDemo`: **10** seed teams, **100** roster players, **Summer 2026** season, Mon/Wed weekly drop-ins,
+ * a modest game schedule (not full round-robin), and rich TEXT/NEWS league home content.
  * Implies league site demo content (same as `withLeagueSiteDemo`).
  *
  * `withGamesAndStats`: after teams/players, inserts **final** round-robin `games` + `player_game_stats`
@@ -380,26 +536,30 @@ export async function POST(req: Request) {
   }
 
   if (replace) {
-    const { data: seedTeams } = await supabaseAdmin
-      .from('teams')
-      .select('id')
-      .eq('organization_id', org.id)
-      .like('name', `${SEED_PREFIX}%`)
+    if (fullPortalDemo) {
+      await wipeOrgCompetitionForPortalDemo(org.id)
+    } else {
+      const { data: seedTeams } = await supabaseAdmin
+        .from('teams')
+        .select('id')
+        .eq('organization_id', org.id)
+        .like('name', `${SEED_PREFIX}%`)
 
-    const seedTeamIds = (seedTeams || []).map((t) => t.id)
-    if (seedTeamIds.length > 0) {
-      const { data: gh } = await supabaseAdmin.from('games').select('id').in('home_team_id', seedTeamIds)
-      const { data: ga } = await supabaseAdmin.from('games').select('id').in('away_team_id', seedTeamIds)
-      const gameIdSet = new Set<string>()
-      for (const g of gh || []) if (g.id) gameIdSet.add(g.id)
-      for (const g of ga || []) if (g.id) gameIdSet.add(g.id)
-      const gameIds = [...gameIdSet]
-      if (gameIds.length > 0) {
-        await supabaseAdmin.from('player_game_stats').delete().in('game_id', gameIds)
-        await supabaseAdmin.from('games').delete().in('id', gameIds)
+      const seedTeamIds = (seedTeams || []).map((t) => t.id)
+      if (seedTeamIds.length > 0) {
+        const { data: gh } = await supabaseAdmin.from('games').select('id').in('home_team_id', seedTeamIds)
+        const { data: ga } = await supabaseAdmin.from('games').select('id').in('away_team_id', seedTeamIds)
+        const gameIdSet = new Set<string>()
+        for (const g of gh || []) if (g.id) gameIdSet.add(g.id)
+        for (const g of ga || []) if (g.id) gameIdSet.add(g.id)
+        const gameIds = [...gameIdSet]
+        if (gameIds.length > 0) {
+          await supabaseAdmin.from('player_game_stats').delete().in('game_id', gameIds)
+          await supabaseAdmin.from('games').delete().in('id', gameIds)
+        }
+        await supabaseAdmin.from('players').delete().in('team_id', seedTeamIds)
+        await supabaseAdmin.from('teams').delete().in('id', seedTeamIds)
       }
-      await supabaseAdmin.from('players').delete().in('team_id', seedTeamIds)
-      await supabaseAdmin.from('teams').delete().in('id', seedTeamIds)
     }
   }
 
@@ -408,6 +568,13 @@ export async function POST(req: Request) {
   }
 
   let seasonId: string | null = null
+
+  if (fullPortalDemo) {
+    seasonId = await ensureDemoSummerSeason(org.id)
+    if (!seasonId) {
+      return NextResponse.json({ error: 'Could not create or update Summer 2026 season.' }, { status: 500 })
+    }
+  }
 
   const { data: activeSeason } = await supabaseAdmin
     .from('seasons')
@@ -419,9 +586,9 @@ export async function POST(req: Request) {
     .limit(1)
     .maybeSingle()
 
-  if (activeSeason?.id) {
+  if (!seasonId && activeSeason?.id) {
     seasonId = activeSeason.id
-  } else {
+  } else if (!seasonId) {
     const { data: anySeason } = await supabaseAdmin
       .from('seasons')
       .select('id')
@@ -587,25 +754,7 @@ export async function POST(req: Request) {
     const eventRows: Record<string, unknown>[] = []
     for (let ti = 0; ti < teamsOut.length; ti++) {
       const team = teamsOut[ti]
-      const baseTitle = team.name.replace(SEED_PREFIX, '').trim()
-      newsRows.push(
-        {
-          organization_id: org.id,
-          team_id: team.id,
-          season_id: seasonId,
-          title: `${baseTitle} — practice this week?`,
-          body: `Hey ${baseTitle} folks — we’re trying to grab the small gym **Thursday ~8pm** for a light shootaround. Reply in the thread if you can make it (no pressure). Bring a reversible if you have one.`,
-          pinned: true,
-        },
-        {
-          organization_id: org.id,
-          team_id: team.id,
-          season_id: seasonId,
-          title: `${baseTitle} — carpool from the SkyTrain?`,
-          body: `Posting this for the people who always ask last minute: two of us drive from **Commercial** most game nights. DM if you want a seat — gas money optional but snacks appreciated.`,
-          pinned: false,
-        }
-      )
+      newsRows.push(...buildSeedTeamNewsRows(org.id, seasonId, team, ti))
 
       for (let ei = 0; ei < 4; ei++) {
         const starts = new Date(now + (ti * 2 + ei * 4 + 2) * 24 * 3600 * 1000)
@@ -658,69 +807,9 @@ export async function POST(req: Request) {
       }
     }
 
-    const sessionSpecs = [
-      { daysFromNow: 4, hour: 18, minute: 45, fee: 15, max: 18, label: 'East Van — Evening run' },
-      { daysFromNow: 11, hour: 19, minute: 0, fee: 12, max: 20, label: 'Midweek pickup — division neutral' },
-      { daysFromNow: 18, hour: 10, minute: 30, fee: 10, max: 22, label: 'Sunday morning shootaround' },
-      { daysFromNow: 25, hour: 20, minute: 15, fee: 18, max: 16, label: 'Lights-out late slot' },
-    ]
-
-    const regSplit = [4, 5, 5, 5]
-    let regNameIdx = 0
-
-    for (let si = 0; si < sessionSpecs.length; si++) {
-      const spec = sessionSpecs[si]
-      const start = new Date()
-      start.setDate(start.getDate() + spec.daysFromNow)
-      start.setHours(spec.hour, spec.minute, 0, 0)
-
-      const { data: sess, error: sesErr } = await supabaseAdmin
-        .from('dropin_sessions')
-        .insert({
-          organization_id: org.id,
-          name: `${SEED_PREFIX} ${spec.label}`,
-          scheduled_at: start.toISOString(),
-          max_players: spec.max,
-          fee_amount: spec.fee,
-          payment_method: 'cash_or_etransfer',
-          etransfer_info: null,
-          allow_signups: true,
-          status: 'upcoming',
-          signup_opens: 'immediately',
-          signup_opens_days_before: null,
-          signup_opens_at: null,
-          is_recurring: false,
-          recurring_frequency: null,
-          recurring_until: null,
-          location: '[SEED] Demo venue — safe to delete in Dashboard → Drop-ins',
-        })
-        .select('id')
-        .single()
-
-      if (sesErr || !sess) {
-        console.warn('[seed] dropin session insert:', sesErr?.message)
-        continue
-      }
-
-      const nReg = regSplit[si] ?? 3
-      const batch = []
-      for (let r = 0; r < nReg; r++) {
-        const fn = FIRST_NAMES[regNameIdx % FIRST_NAMES.length]
-        const ln = LAST_NAMES[(regNameIdx + 3) % LAST_NAMES.length]
-        regNameIdx++
-        batch.push({
-          session_id: sess.id,
-          organization_id: org.id,
-          full_name: `${fn} ${ln}`,
-          email: `seed.dropin.${stamp}.${si}.${r}@example.test`,
-          positions: [],
-          waiver_accepted: true,
-          is_guest: false,
-          checked_in: false,
-          payment_status: 'unpaid',
-        })
-      }
-      await supabaseAdmin.from('dropin_registrations').insert(batch)
+    const dropin = await seedDropinDemo(supabaseAdmin, slug.trim(), { recurringMonths: 3 })
+    if (!dropin.ok) {
+      console.warn('[seed] drop-in demo:', dropin.error)
     }
   } else {
     const redName = `${SEED_PREFIX} Red Hots`
@@ -805,6 +894,7 @@ export async function POST(req: Request) {
   }
 
   let leagueSiteDemo = false
+  let vancouveritesNewsBanner = false
   if (withLeagueSiteDemo) {
     const payload = everydayLeagueSiteDemoPayload()
     const { error: siteErr } = await supabaseAdmin.from('league_site_content').upsert(
@@ -820,6 +910,19 @@ export async function POST(req: Request) {
     if (siteErr) {
       console.warn('[seed-teams-players] league_site_content upsert:', siteErr.message)
     }
+
+    if (slug.trim().toLowerCase() === 'vancouvarites') {
+      const { error: banErr } = await supabaseAdmin
+        .from('organizations')
+        .update({
+          news_banner:
+            'Summer 2026 is live — drop-ins every Mon & Wed, league games on the schedule. Questions? Ask your captain.',
+          news_banner_color: '#0f172a',
+        })
+        .eq('id', org.id)
+      vancouveritesNewsBanner = !banErr
+      if (banErr) console.warn('[seed-teams-players] organizations news_banner:', banErr.message)
+    }
   }
 
   let gamesSeeded: { games_created: number; stats_rows: number } | null = null
@@ -828,6 +931,7 @@ export async function POST(req: Request) {
       organizationId: org.id,
       seasonId,
       teams: teamsOut,
+      maxFinalGames: fullPortalDemo ? 12 : undefined,
     })
     if (!g.ok) {
       return NextResponse.json({ error: g.error }, { status: 500 })
@@ -835,12 +939,14 @@ export async function POST(req: Request) {
     gamesSeeded = { games_created: g.games_created, stats_rows: g.stats_rows }
 
     const upcomingRows: Record<string, unknown>[] = []
-    for (let i = 0; i < Math.min(teamsOut.length, 6); i += 2) {
-      const home = teamsOut[i]
-      const away = teamsOut[i + 1]
-      if (!home || !away) continue
-      const when = new Date(Date.now() + (i + 3) * 24 * 3600 * 1000)
-      when.setHours(20, 0, 0, 0)
+    const upcomingCount = fullPortalDemo ? 10 : Math.min(3, Math.floor(teamsOut.length / 2))
+    for (let u = 0; u < upcomingCount; u++) {
+      const home = teamsOut[(u * 2) % teamsOut.length]
+      const away = teamsOut[(u * 2 + 1) % teamsOut.length]
+      if (!home || !away || home.id === away.id) continue
+      const when = new Date()
+      when.setDate(when.getDate() + 7 * (u + 1))
+      when.setHours(19, 30, 0, 0)
       upcomingRows.push({
         organization_id: org.id,
         season_id: seasonId,
@@ -848,7 +954,7 @@ export async function POST(req: Request) {
         away_team_id: away.id,
         scheduled_at: when.toISOString(),
         status: 'scheduled',
-        location: 'Vancouver Arena Court 2',
+        location: 'Community gym — Court 1',
       })
     }
     if (upcomingRows.length > 0) {
@@ -877,7 +983,7 @@ export async function POST(req: Request) {
     ok: true,
     message:
       (fullPortalDemo
-        ? `Portal demo: ${teamsOut.length} teams (80 roster players max seed), season signup window opened, TEXT/NEWS league home, [SEED] drop-ins with registrations. Visit /league/${slug.trim()} and /join/${slug.trim()}/dropins. Delete [SEED] rows from dashboard when done.`
+        ? `Portal demo: ${teamsOut.length} teams, ${DEMO_SUMMER_SEASON_NAME}, Mon/Wed drop-ins, light schedule + upcoming games. Visit /league/${slug.trim()} and /join/${slug.trim()}/dropins. Delete [SEED] rows from dashboard when done.`
         : `Open /league/${slug.trim()} — seed teams: ${teamHint}. Remove later from Dashboard → Teams / Players if you like.`) +
       (gamesSeeded
         ? ` Games: ${gamesSeeded.games_created} finals, ${gamesSeeded.stats_rows} stat rows. Open a team page under /league/${slug.trim()}/teams/<teamId>.`
@@ -886,6 +992,7 @@ export async function POST(req: Request) {
     season_id: seasonId,
     teams: teamsOut,
     league_site_demo: leagueSiteDemo,
+    vancouverites_news_banner: vancouveritesNewsBanner,
     full_portal_demo: fullPortalDemo,
     games_seeded: gamesSeeded,
     preview_plan: previewPublicTier,

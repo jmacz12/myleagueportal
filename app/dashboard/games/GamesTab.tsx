@@ -45,7 +45,11 @@ interface Game {
 }
 
 interface Team { id: string; name: string; color: string | null }
-interface Season { id: string; name: string }
+interface Season { id: string; name: string; is_active?: boolean }
+
+type GamesListPreset = 'upcoming' | 'live' | 'past' | 'all'
+
+const GAMES_LIST_PAGE_SIZE = 12
 
 export default function GamesTab() {
   const [games, setGames] = useState<Game[]>([])
@@ -53,8 +57,9 @@ export default function GamesTab() {
   const [seasons, setSeasons] = useState<Season[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
-  const [filter, setFilter] = useState<'all' | 'scheduled' | 'live' | 'final'>('all')
-  const [selectedSeason, setSelectedSeason] = useState('all')
+  const [listPreset, setListPreset] = useState<GamesListPreset>('upcoming')
+  const [selectedSeason, setSelectedSeason] = useState('')
+  const [listLimit, setListLimit] = useState(GAMES_LIST_PAGE_SIZE)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [scoringQuarterMinutes, setScoringQuarterMinutes] = useState(10)
   const [scoringPrefsSaving, setScoringPrefsSaving] = useState(false)
@@ -183,9 +188,15 @@ export default function GamesTab() {
     const [gd, td, sd] = await Promise.all([
       gamesRes.json(), teamsRes.json(), seasonsRes.json()
     ])
+    const seasonList: Season[] = sd.seasons || []
     setGames(gd.games || [])
     setTeams(td.teams || [])
-    setSeasons(sd.seasons || [])
+    setSeasons(seasonList)
+    const active = seasonList.find((s) => s.is_active)
+    setSelectedSeason((prev) => {
+      if (prev && seasonList.some((s) => s.id === prev)) return prev
+      return active?.id ?? seasonList[0]?.id ?? ''
+    })
     setLoading(false)
   }
 
@@ -216,27 +227,50 @@ export default function GamesTab() {
 
   const getTeam = (id: string | null) => teams.find(t => t.id === id)
 
+  useEffect(() => {
+    setListLimit(GAMES_LIST_PAGE_SIZE)
+  }, [listPreset, selectedSeason])
+
   const filtered = useMemo(() => {
     const rows = games.filter((g) => {
-      const statusMatch = filter === 'all' || g.status === filter
-      const seasonMatch = selectedSeason === 'all' || g.season_id === selectedSeason
-      return statusMatch && seasonMatch
+      if (selectedSeason && g.season_id !== selectedSeason) return false
+      switch (listPreset) {
+        case 'upcoming':
+          return g.status === 'scheduled'
+        case 'live':
+          return g.status === 'live'
+        case 'past':
+          return g.status === 'final'
+        default:
+          return true
+      }
     })
-    return [...rows].sort((a, b) => {
+    const sorted = [...rows].sort((a, b) => {
       if (a.status === 'live' && b.status !== 'live') return -1
       if (a.status !== 'live' && b.status === 'live') return 1
       const ta = a.scheduled_at ? new Date(a.scheduled_at).getTime() : 0
       const tb = b.scheduled_at ? new Date(b.scheduled_at).getTime() : 0
-      return ta - tb
+      return listPreset === 'past' ? tb - ta : ta - tb
     })
-  }, [games, filter, selectedSeason])
+    return sorted
+  }, [games, listPreset, selectedSeason])
+
+  const visibleGames = useMemo(() => filtered.slice(0, listLimit), [filtered, listLimit])
+  const hiddenCount = Math.max(0, filtered.length - visibleGames.length)
+
+  const listPresetLabel: Record<GamesListPreset, string> = {
+    upcoming: 'Upcoming games',
+    live: 'Live now',
+    past: 'Completed games',
+    all: 'All games',
+  }
 
   const demoLiveGame = useMemo(
     () => games.find((g) => g.status === 'live' && g.location === DEMO_LIVE_LOCATION),
     [games]
   )
 
-  const grouped = filtered.reduce((acc, game) => {
+  const grouped = visibleGames.reduce((acc, game) => {
     const date = game.scheduled_at
       ? new Date(game.scheduled_at).toLocaleDateString('en-CA', {
           weekday: 'long', month: 'long', day: 'numeric'
@@ -264,7 +298,11 @@ export default function GamesTab() {
       <div className="page-header">
         <div>
           <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-            {games.length} game{games.length !== 1 ? 's' : ''} total
+            {filtered.length === 0
+              ? `No ${listPresetLabel[listPreset].toLowerCase()}`
+              : hiddenCount > 0
+                ? `Showing ${visibleGames.length} of ${filtered.length} — ${listPresetLabel[listPreset].toLowerCase()}`
+                : `${filtered.length} ${listPresetLabel[listPreset].toLowerCase()}`}
           </p>
         </div>
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -450,38 +488,49 @@ export default function GamesTab() {
         </div>
       ) : null}
 
-      <div style={{ display: 'flex', gap: '6px', marginBottom: '16px', flexWrap: 'wrap' }}>
-        {(['all', 'scheduled', 'live', 'final'] as const).map((f) => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            style={{
-              padding: '5px 14px',
-              borderRadius: '99px',
-              fontSize: '12px',
-              fontWeight: '600',
-              border: filter === f ? '1.5px solid var(--btn-primary-bg)' : '1.5px solid var(--border)',
-              cursor: 'pointer',
-              background: filter === f ? 'var(--btn-primary-bg)' : 'transparent',
-              color: filter === f ? 'var(--btn-primary-text)' : 'var(--text-primary)',
-              fontFamily: 'inherit',
-              textTransform: 'capitalize',
-            }}
+      <div
+        style={{
+          display: 'flex',
+          gap: '12px',
+          marginBottom: '16px',
+          flexWrap: 'wrap',
+          alignItems: 'flex-end',
+        }}
+      >
+        <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <span className="label" style={{ margin: 0 }}>Show</span>
+          <select
+            value={listPreset}
+            onChange={(e) => setListPreset(e.target.value as GamesListPreset)}
+            className="input"
+            style={{ minWidth: '200px', padding: '6px 10px', fontSize: '13px' }}
           >
-            {f}
-          </button>
-        ))}
-        <select
-          value={selectedSeason}
-          onChange={(e) => setSelectedSeason(e.target.value)}
-          className="input"
-          style={{ width: 'auto', padding: '5px 12px', fontSize: '12px', marginLeft: '8px' }}
-        >
-          <option value="all">All Seasons</option>
-          {seasons.map(s => (
-            <option key={s.id} value={s.id}>{s.name}</option>
-          ))}
-        </select>
+            <option value="upcoming">Upcoming games</option>
+            <option value="live">Live now</option>
+            <option value="past">Completed games</option>
+            <option value="all">All games</option>
+          </select>
+        </label>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <span className="label" style={{ margin: 0 }}>Season</span>
+          <select
+            value={selectedSeason}
+            onChange={(e) => setSelectedSeason(e.target.value)}
+            className="input"
+            style={{ minWidth: '180px', padding: '6px 10px', fontSize: '13px' }}
+          >
+            {seasons.length === 0 ? (
+              <option value="">No seasons</option>
+            ) : (
+              seasons.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                  {s.is_active ? ' (active)' : ''}
+                </option>
+              ))
+            )}
+          </select>
+        </label>
       </div>
 
       {loading ? (
@@ -491,11 +540,18 @@ export default function GamesTab() {
       ) : filtered.length === 0 ? (
         <div className="empty-state">
           <div className="empty-state-icon"><CalendarDays size={32} strokeWidth={1.5} /></div>
-          <div className="empty-state-title">No games yet</div>
-          <div className="empty-state-desc">Click &quot;+ Add Games&quot; to schedule your first game.</div>
+          <div className="empty-state-title">
+            {games.length === 0 ? 'No games yet' : `No ${listPresetLabel[listPreset].toLowerCase()}`}
+          </div>
+          <div className="empty-state-desc">
+            {games.length === 0
+              ? 'Click "+ Add Games" to schedule your first game, or import a spreadsheet.'
+              : 'Try another filter or season.'}
+          </div>
         </div>
       ) : (
-        Object.entries(grouped).map(([date, dateGames]) => (
+        <>
+        {Object.entries(grouped).map(([date, dateGames]) => (
           <div key={date} style={{ marginBottom: '20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
               <span style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
@@ -728,7 +784,18 @@ export default function GamesTab() {
               })}
             </div>
           </div>
-        ))
+        ))}
+        {hiddenCount > 0 ? (
+          <button
+            type="button"
+            className="btn-secondary"
+            style={{ width: '100%', marginTop: '4px', marginBottom: '20px' }}
+            onClick={() => setListLimit((n) => n + GAMES_LIST_PAGE_SIZE)}
+          >
+            Show more games ({hiddenCount} remaining)
+          </button>
+        ) : null}
+        </>
       )}
     </div>
   )

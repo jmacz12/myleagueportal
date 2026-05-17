@@ -25,9 +25,15 @@ function rnd(min: number, max: number) {
  */
 export async function seedSeasonGamesWithStats(
   supabase: SupabaseClient,
-  params: { organizationId: string; seasonId: string; teams: { id: string }[] }
+  params: {
+    organizationId: string
+    seasonId: string
+    teams: { id: string }[]
+    /** Cap completed games (full round-robin is heavy for 10+ teams). */
+    maxFinalGames?: number
+  }
 ): Promise<{ ok: true; games_created: number; stats_rows: number } | { ok: false; error: string }> {
-  const { organizationId, seasonId, teams } = params
+  const { organizationId, seasonId, teams, maxFinalGames } = params
   if (teams.length < 2) {
     return { ok: false, error: 'Need at least two teams to seed games.' }
   }
@@ -54,6 +60,7 @@ export async function seedSeasonGamesWithStats(
 
   for (let i = 0; i < teams.length; i++) {
     for (let j = i + 1; j < teams.length; j++) {
+      if (maxFinalGames !== undefined && gamesCreated >= maxFinalGames) break
       const swap = (i + j + gameIndex) % 2 === 0
       const homeId = swap ? teams[i].id : teams[j].id
       const awayId = swap ? teams[j].id : teams[i].id
@@ -133,6 +140,7 @@ export async function seedSeasonGamesWithStats(
         })
       }
     }
+    if (maxFinalGames !== undefined && gamesCreated >= maxFinalGames) break
   }
 
   if (statRows.length > 0) {
