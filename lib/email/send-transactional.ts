@@ -1,10 +1,11 @@
+import { resolveResendFromAddress } from '@/lib/email/resend-from'
+
 export type SendEmailResult =
   | { ok: true; id?: string; skipped?: boolean; reason?: string }
   | { ok: false; error: string }
 
 function emailFromAddress(): string | null {
-  const from = process.env.RESEND_FROM?.trim() || process.env.EMAIL_FROM?.trim()
-  return from || null
+  return resolveResendFromAddress()
 }
 
 /** Send one transactional email via Resend (https://resend.com). */

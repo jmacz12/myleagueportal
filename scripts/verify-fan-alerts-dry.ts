@@ -8,6 +8,8 @@ import { join } from 'node:path'
 import { runGameReminders } from '../lib/run-game-reminders'
 import { runRegistrationOpensEmails } from '../lib/run-registration-opens-emails'
 import { runDropinReminders } from '../lib/run-dropin-reminders'
+import { runLeagueNewsEmails } from '../lib/run-league-news-emails'
+import { runStatsHighlightEmails } from '../lib/run-stats-highlight-emails'
 import { isEmailDeliveryConfigured } from '../lib/email/send-transactional'
 
 const envPath = join(process.cwd(), '.env.local')
@@ -34,11 +36,21 @@ async function main() {
   const gameReminders = await runGameReminders(sb, { dryRun: true })
   const registrationOpens = await runRegistrationOpensEmails(sb, { dryRun: true })
   const dropinReminders = await runDropinReminders(sb, { dryRun: true })
-  console.log(JSON.stringify({ gameReminders, registrationOpens, dropinReminders }, null, 2))
+  const leagueNews = await runLeagueNewsEmails(sb, { dryRun: true })
+  const statsHighlights = await runStatsHighlightEmails(sb, { dryRun: true })
+  console.log(
+    JSON.stringify(
+      { gameReminders, registrationOpens, dropinReminders, leagueNews, statsHighlights },
+      null,
+      2
+    )
+  )
   const errors = [
     ...gameReminders.errors,
     ...registrationOpens.errors,
     ...dropinReminders.errors,
+    ...leagueNews.errors,
+    ...statsHighlights.errors,
   ]
   if (errors.length) process.exit(1)
 }

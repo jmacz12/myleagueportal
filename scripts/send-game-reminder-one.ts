@@ -3,9 +3,10 @@
  * Run: npx tsx scripts/send-game-reminder-one.ts
  */
 import { createClient } from '@supabase/supabase-js'
-import { existsSync, readFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { buildGameReminderEmail } from '../lib/game-reminder-email'
+import { resolveResendFromAddress } from '../lib/email/resend-from'
 import { sendTransactionalEmail } from '../lib/email/send-transactional'
 
 const TO = process.env.TEST_EMAIL?.trim() || process.argv[2]?.trim()
@@ -24,12 +25,6 @@ for (const line of readFileSync(envPath, 'utf8').split(/\r?\n/)) {
 }
 
 const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-
-const fromCandidates = [
-  process.env.RESEND_FROM?.trim(),
-  'MyLeaguePortal <reminders@myleagueportal.com>',
-  'MyLeaguePortal <reminders@send.myleagueportal.com>',
-].filter(Boolean) as string[]
 
 async function main() {
   const { data: org } = await sb
@@ -73,22 +68,23 @@ async function main() {
     leagueTimezone: null,
   })
 
-  for (const from of fromCandidates) {
-    process.env.RESEND_FROM = from
-    console.log('Trying from:', from)
-    const res = await sendTransactionalEmail({
-      to: TO,
-      subject: mail.subject,
-      html: mail.html,
-      text: mail.text,
-      listUnsubscribeUrl: mail.listUnsubscribeUrl,
-    })
-    console.log(res)
-    if (res.ok && !res.skipped) {
-      console.log('\nSent! Check', TO)
-      return
-    }
+  const from = resolveResendFromAddress()
+  if (from) process.env.RESEND_FROM = from
+  console.log('Using from:', from)
+  const res = await sendTransactionalEmail({
+    to: TO,
+    subject: mail.subject,
+    html: mail.html,
+    text: mail.text,
+    listUnsubscribeUrl: mail.listUnsubscribeUrl,
+  })
+  console.log(res)
+  if (res.ok && !res.skipped) {
+    console.log('\nSent! Check', TO)
+    return
   }
+
+  console.error('\nSend failed')
   process.exit(1)
 }
 

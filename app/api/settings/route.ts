@@ -39,7 +39,7 @@ export async function GET() {
   let { data: orgWithTz, error: orgWithTzError } = await supabaseAdmin
     .from('organizations')
     .select(
-      'id, name, slug, primary_color, logo_url, plan, plan_complimentary, stripe_customer_id, stripe_subscription_id, news_banner, news_banner_color, league_timezone, league_theme_preset, league_appearance_mode, brand_color_change_count, brand_color_change_period_start, league_name_change_count, league_name_last_changed_at, game_email_reminders_enabled, fan_email_registration_opens_enabled, fan_email_dropin_reminders_enabled'
+      'id, name, slug, primary_color, logo_url, plan, plan_complimentary, stripe_customer_id, stripe_subscription_id, news_banner, news_banner_color, league_timezone, league_theme_preset, league_appearance_mode, brand_color_change_count, brand_color_change_period_start, league_name_change_count, league_name_last_changed_at, game_email_reminders_enabled, fan_email_registration_opens_enabled, fan_email_dropin_reminders_enabled, fan_email_news_publish_enabled, fan_email_stats_highlights_enabled'
     )
     .eq('id', access.organization.id)
     .single()
@@ -62,6 +62,8 @@ export async function GET() {
         game_email_reminders_enabled: true,
         fan_email_registration_opens_enabled: true,
         fan_email_dropin_reminders_enabled: true,
+        fan_email_news_publish_enabled: true,
+        fan_email_stats_highlights_enabled: true,
         plan_complimentary: r2Complimentary,
       } as typeof orgWithTz
       orgWithTzError = null
@@ -111,6 +113,11 @@ export async function GET() {
       false,
     fan_email_dropin_reminders_enabled:
       (org as { fan_email_dropin_reminders_enabled?: boolean }).fan_email_dropin_reminders_enabled !==
+      false,
+    fan_email_news_publish_enabled:
+      (org as { fan_email_news_publish_enabled?: boolean }).fan_email_news_publish_enabled !== false,
+    fan_email_stats_highlights_enabled:
+      (org as { fan_email_stats_highlights_enabled?: boolean }).fan_email_stats_highlights_enabled !==
       false,
     plan_complimentary: planComplimentary,
     demo_plan_switcher_enabled: demoPlanSwitcherAllowed(slug, planComplimentary),
@@ -166,6 +173,8 @@ export async function PATCH(req: Request) {
     game_email_reminders_enabled,
     fan_email_registration_opens_enabled,
     fan_email_dropin_reminders_enabled,
+    fan_email_news_publish_enabled,
+    fan_email_stats_highlights_enabled,
   } = await req.json()
 
   if (!name || !slug) {
@@ -232,6 +241,12 @@ export async function PATCH(req: Request) {
     }
     if (typeof fan_email_dropin_reminders_enabled === 'boolean') {
       updateData.fan_email_dropin_reminders_enabled = fan_email_dropin_reminders_enabled
+    }
+    if (typeof fan_email_news_publish_enabled === 'boolean') {
+      updateData.fan_email_news_publish_enabled = fan_email_news_publish_enabled
+    }
+    if (typeof fan_email_stats_highlights_enabled === 'boolean') {
+      updateData.fan_email_stats_highlights_enabled = fan_email_stats_highlights_enabled
     }
   }
 

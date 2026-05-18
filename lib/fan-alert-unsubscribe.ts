@@ -16,6 +16,38 @@ export async function optOutPlayerRegistrationOpens(
   return { ok: true }
 }
 
+export async function optOutPlayerNewsPublish(
+  admin: SupabaseClient,
+  playerId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { data, error } = await admin
+    .from('players')
+    .update({ fan_email_news_publish_opt_out: true })
+    .eq('id', playerId)
+    .select('id')
+    .maybeSingle()
+
+  if (error) return { ok: false, error: error.message || 'Could not update preferences' }
+  if (!data) return { ok: false, error: 'Player not found' }
+  return { ok: true }
+}
+
+export async function optOutPlayerStatsHighlights(
+  admin: SupabaseClient,
+  playerId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { data, error } = await admin
+    .from('players')
+    .update({ fan_email_stats_highlights_opt_out: true })
+    .eq('id', playerId)
+    .select('id')
+    .maybeSingle()
+
+  if (error) return { ok: false, error: error.message || 'Could not update preferences' }
+  if (!data) return { ok: false, error: 'Player not found' }
+  return { ok: true }
+}
+
 export async function optOutDropinReminder(
   admin: SupabaseClient,
   registrationId: string

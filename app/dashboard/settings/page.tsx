@@ -47,6 +47,8 @@ interface OrgSettings {
   game_email_reminders_enabled?: boolean
   fan_email_registration_opens_enabled?: boolean
   fan_email_dropin_reminders_enabled?: boolean
+  fan_email_news_publish_enabled?: boolean
+  fan_email_stats_highlights_enabled?: boolean
 }
 
 const TIMEZONE_OPTIONS = [
@@ -69,7 +71,8 @@ interface WaiverData {
   content: string
 }
 
-const SETTINGS_TAB_IDS = ['plan', 'league', 'domain', 'waivers'] as const
+const SETTINGS_TAB_IDS = ['plan', 'league', 'notifications', 'domain', 'waivers'] as const
+const MLP_FAN_EMAIL_TEST_STORAGE_KEY = 'mlp_fan_email_test_to'
 type SettingsMainTab = (typeof SETTINGS_TAB_IDS)[number]
 
 function SettingsPageClient() {
@@ -116,8 +119,16 @@ function SettingsPageClient() {
     game_email_reminders_enabled: true,
     fan_email_registration_opens_enabled: true,
     fan_email_dropin_reminders_enabled: true,
+    fan_email_news_publish_enabled: true,
+    fan_email_stats_highlights_enabled: true,
   })
   const [activeWaiverTab, setActiveWaiverTab] = useState<'season' | 'dropin' | null>(null)
+  const [notifSaving, setNotifSaving] = useState(false)
+  const [notifSuccess, setNotifSuccess] = useState(false)
+  const [notifError, setNotifError] = useState('')
+  const [testEmail, setTestEmail] = useState('')
+  const [testSending, setTestSending] = useState<string | null>(null)
+  const [testMessage, setTestMessage] = useState('')
 
   // Season waiver state
   const [seasonWaiver, setSeasonWaiver] = useState<WaiverData | null>(null)
@@ -145,6 +156,15 @@ function SettingsPageClient() {
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   const [deleteBusy, setDeleteBusy] = useState(false)
   const [deleteError, setDeleteError] = useState('')
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(MLP_FAN_EMAIL_TEST_STORAGE_KEY)
+      if (stored?.includes('@')) setTestEmail(stored)
+    } catch {
+      /* ignore */
+    }
+  }, [])
 
   useEffect(() => {
     fetchSettings()
@@ -240,6 +260,8 @@ function SettingsPageClient() {
       fan_email_registration_opens_enabled:
         data.org?.fan_email_registration_opens_enabled !== false,
       fan_email_dropin_reminders_enabled: data.org?.fan_email_dropin_reminders_enabled !== false,
+      fan_email_news_publish_enabled: data.org?.fan_email_news_publish_enabled !== false,
+      fan_email_stats_highlights_enabled: data.org?.fan_email_stats_highlights_enabled !== false,
     })
     setLoading(false)
   }
@@ -368,6 +390,64 @@ function SettingsPageClient() {
     } finally {
       setDeleteBusy(false)
     }
+  }
+
+  async function saveNotificationSettings() {
+    setNotifSaving(true)
+    setNotifError('')
+    setNotifSuccess(false)
+    const res = await fetch('/api/settings/notifications', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        game_email_reminders_enabled: form.game_email_reminders_enabled,
+        fan_email_registration_opens_enabled: form.fan_email_registration_opens_enabled,
+        fan_email_dropin_reminders_enabled: form.fan_email_dropin_reminders_enabled,
+        fan_email_news_publish_enabled: form.fan_email_news_publish_enabled,
+        fan_email_stats_highlights_enabled: form.fan_email_stats_highlights_enabled,
+      }),
+    })
+    const data = await res.json()
+    setNotifSaving(false)
+    if (!res.ok) {
+      setNotifError(data.error || 'Could not save notification settings.')
+      return
+    }
+    setNotifSuccess(true)
+    setTimeout(() => setNotifSuccess(false), 3000)
+    void fetchSettings()
+  }
+
+  async function sendFanEmailTest(kind: string) {
+    const to = testEmail.trim().toLowerCase()
+    if (!to || !to.includes('@')) {
+      setTestMessage('Enter a valid email address above first.')
+      return
+    }
+    try {
+      localStorage.setItem(MLP_FAN_EMAIL_TEST_STORAGE_KEY, to)
+    } catch {
+      /* ignore */
+    }
+    setTestSending(kind)
+    setTestMessage('')
+    const res = await fetch('/api/settings/fan-email-test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to, kind }),
+    })
+    const data = await res.json()
+    setTestSending(null)
+    if (!res.ok) {
+      setTestMessage(typeof data.error === 'string' ? data.error : 'Test email could not be sent.')
+      return
+    }
+    const count = Array.isArray(data.sent) ? data.sent.length : 1
+    setTestMessage(
+      count > 1
+        ? `Sent ${count} test emails to ${to}. Check your inbox (and spam).`
+        : `Sent. Check ${to} (and spam) for a message marked [TEST].`
+    )
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -693,6 +773,7 @@ function SettingsPageClient() {
           [
             { id: 'plan' as const, label: 'Plan' },
             { id: 'league' as const, label: 'League & appearance' },
+            { id: 'notifications' as const, label: 'Email notifications' },
             { id: 'domain' as const, label: 'Custom domain' },
             { id: 'waivers' as const, label: 'Waivers' },
           ] as const
@@ -1179,10 +1260,7 @@ function SettingsPageClient() {
             </p>
           </div>
 
-          <div
-            className="card"
-            style={{ padding: '14px 16px', marginTop: '16px', border: '0.5px solid var(--border)' }}
-          >
+          <div className="card" style={{ display: 'none' }} aria-hidden>
             {!isPro ? (
               <DashboardPlanLockedHint feature="turn fan email alerts on or off for your league" />
             ) : null}
@@ -1212,6 +1290,18 @@ function SettingsPageClient() {
                     title: 'Drop-in reminder emails',
                     detail:
                       'About 24 hours before a drop-in session, email people signed up for that session.',
+                  },
+                  {
+                    key: 'fan_email_news_publish_enabled' as const,
+                    title: 'League & team news emails',
+                    detail:
+                      'When you publish the league website or a team posts news, email roster players on that team (or whole league for site publish).',
+                  },
+                  {
+                    key: 'fan_email_stats_highlights_enabled' as const,
+                    title: 'Stats highlight emails',
+                    detail:
+                      'After a game is final and stats are saved, email players on those teams with the score and top scorers.',
                   },
                 ] as const
               ).map((row, i) => (
@@ -1303,6 +1393,200 @@ function SettingsPageClient() {
         </div>
         <ThemeSelector plan={settings?.plan || 'basic'} />
       </div>
+        </div>
+      )}
+
+      {settingsMainTab === 'notifications' && (
+        <div
+          id="settings-main-panel-notifications"
+          role="tabpanel"
+          aria-labelledby="settings-main-tab-notifications"
+        >
+          <div className="card" style={{ marginBottom: '16px', padding: '16px 18px' }}>
+            <p style={{ margin: '0 0 8px', fontSize: '15px', fontWeight: 800, color: 'var(--text-primary)' }}>
+              Automated fan emails
+            </p>
+            <p style={{ margin: '0 0 16px', fontSize: '13px', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+              Turn each alert type on or off. Roster players and drop-in sign-ups with an email on file receive
+              these automatically (each includes its own unsubscribe link).
+            </p>
+            {!isPro ? (
+              <DashboardPlanLockedHint feature="turn fan email alerts on or off for your league" />
+            ) : null}
+            {(
+              [
+                {
+                  key: 'game_email_reminders_enabled' as const,
+                  title: 'Game reminder emails',
+                  detail: 'About 24 hours before each scheduled league game.',
+                },
+                {
+                  key: 'fan_email_registration_opens_enabled' as const,
+                  title: 'Registration opens emails',
+                  detail: 'When season online registration opens.',
+                },
+                {
+                  key: 'fan_email_dropin_reminders_enabled' as const,
+                  title: 'Drop-in reminder emails',
+                  detail: 'About 24 hours before a drop-in session.',
+                },
+                {
+                  key: 'fan_email_news_publish_enabled' as const,
+                  title: 'League & team news emails',
+                  detail: 'When you publish the league website or a team posts news.',
+                },
+                {
+                  key: 'fan_email_stats_highlights_enabled' as const,
+                  title: 'Stats highlight emails',
+                  detail: 'After a final game when stats are saved.',
+                },
+              ] as const
+            ).map((row, i) => (
+              <label
+                key={row.key}
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '10px',
+                  cursor: isPro ? 'pointer' : 'not-allowed',
+                  fontSize: '14px',
+                  color: 'var(--text-primary)',
+                  marginTop: i === 0 ? 0 : '12px',
+                  opacity: isPro ? 1 : 0.65,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={form[row.key]}
+                  disabled={!isPro}
+                  onChange={(e) => setForm({ ...form, [row.key]: e.target.checked })}
+                  style={{ marginTop: '3px' }}
+                />
+                <span>
+                  <strong>{row.title}</strong>
+                  <span
+                    style={{
+                      display: 'block',
+                      fontSize: '12px',
+                      color: 'var(--text-muted)',
+                      fontWeight: 400,
+                      marginTop: '4px',
+                      lineHeight: 1.45,
+                    }}
+                  >
+                    {row.detail}
+                  </span>
+                </span>
+              </label>
+            ))}
+            {notifSuccess ? (
+              <div
+                style={{
+                  marginTop: '14px',
+                  background: '#f0fdf4',
+                  border: '0.5px solid #bbf7d0',
+                  borderRadius: '8px',
+                  padding: '10px 14px',
+                  fontSize: '13px',
+                  color: '#16a34a',
+                  fontWeight: 600,
+                }}
+              >
+                Notification settings saved.
+              </div>
+            ) : null}
+            {notifError ? (
+              <div
+                style={{
+                  marginTop: '14px',
+                  background: '#fef2f2',
+                  border: '0.5px solid #fecaca',
+                  borderRadius: '8px',
+                  padding: '10px 14px',
+                  fontSize: '13px',
+                  color: '#dc2626',
+                }}
+              >
+                {notifError}
+              </div>
+            ) : null}
+            <button
+              type="button"
+              className="btn-primary"
+              disabled={!isPro || notifSaving}
+              onClick={() => void saveNotificationSettings()}
+              style={{ marginTop: '16px', fontSize: '13px', padding: '9px 16px' }}
+            >
+              {notifSaving ? 'Saving…' : 'Save notification settings'}
+            </button>
+          </div>
+
+          <div className="card" style={{ padding: '16px 18px' }}>
+            <p style={{ margin: '0 0 8px', fontSize: '15px', fontWeight: 800, color: 'var(--text-primary)' }}>
+              Send test emails
+            </p>
+            <p style={{ margin: '0 0 14px', fontSize: '13px', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+              Preview what fans receive. Messages are marked <strong>[TEST]</strong> and do not change real player
+              preferences.
+            </p>
+            <label className="label" htmlFor="fan-email-test-to">
+              Send tests to
+            </label>
+            <input
+              id="fan-email-test-to"
+              type="email"
+              className="input"
+              value={testEmail}
+              onChange={(e) => setTestEmail(e.target.value)}
+              placeholder="you@example.com"
+              autoComplete="email"
+              style={{ marginBottom: '14px', maxWidth: '360px' }}
+            />
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              {(
+                [
+                  ['game_reminder', 'Game reminder'],
+                  ['registration_opens', 'Registration opens'],
+                  ['dropin_reminder', 'Drop-in reminder'],
+                  ['league_news', 'League news'],
+                  ['team_news', 'Team news'],
+                  ['stats_highlight', 'Stats highlight'],
+                ] as const
+              ).map(([kind, label]) => (
+                <button
+                  key={kind}
+                  type="button"
+                  className="btn-secondary"
+                  disabled={!!testSending}
+                  onClick={() => void sendFanEmailTest(kind)}
+                  style={{ fontSize: '12px', padding: '7px 12px' }}
+                >
+                  {testSending === kind ? 'Sending…' : label}
+                </button>
+              ))}
+              <button
+                type="button"
+                className="btn-primary"
+                disabled={!!testSending}
+                onClick={() => void sendFanEmailTest('all')}
+                style={{ fontSize: '12px', padding: '7px 14px' }}
+              >
+                {testSending === 'all' ? 'Sending all…' : 'Send all samples'}
+              </button>
+            </div>
+            {testMessage ? (
+              <p
+                style={{
+                  margin: '14px 0 0',
+                  fontSize: '13px',
+                  color: testMessage.toLowerCase().includes('could not') ? '#dc2626' : '#15803d',
+                  lineHeight: 1.45,
+                }}
+              >
+                {testMessage}
+              </p>
+            ) : null}
+          </div>
         </div>
       )}
 

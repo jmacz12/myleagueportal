@@ -26,7 +26,9 @@ export async function GET() {
       .order('registered_at', { ascending: false }),
     supabaseAdmin
       .from('organizations')
-      .select('plan, game_email_reminders_enabled, fan_email_registration_opens_enabled')
+      .select(
+        'plan, game_email_reminders_enabled, fan_email_registration_opens_enabled, fan_email_news_publish_enabled, fan_email_stats_highlights_enabled'
+      )
       .eq('id', org.id)
       .single(),
   ])
@@ -38,12 +40,20 @@ export async function GET() {
   const registrationOpensEnabled =
     (orgRow as { fan_email_registration_opens_enabled?: boolean } | null)
       ?.fan_email_registration_opens_enabled !== false
+  const newsPublishEnabled =
+    (orgRow as { fan_email_news_publish_enabled?: boolean } | null)?.fan_email_news_publish_enabled !==
+    false
+  const statsHighlightsEnabled =
+    (orgRow as { fan_email_stats_highlights_enabled?: boolean } | null)
+      ?.fan_email_stats_highlights_enabled !== false
 
   return NextResponse.json({
     players: players || [],
     org_plan: orgPlan,
     game_email_reminders_enabled: gameEmailRemindersEnabled,
     fan_email_registration_opens_enabled: registrationOpensEnabled,
+    fan_email_news_publish_enabled: newsPublishEnabled,
+    fan_email_stats_highlights_enabled: statsHighlightsEnabled,
     game_reminders_available: isProOrEnterprise(orgPlan),
     fan_alerts_available: isProOrEnterprise(orgPlan),
   })
@@ -64,6 +74,8 @@ export async function PATCH(req: Request) {
     jersey_number,
     game_reminders_opt_out,
     fan_email_registration_opens_opt_out,
+    fan_email_news_publish_opt_out,
+    fan_email_stats_highlights_opt_out,
   } = await req.json()
   if (!player_id) return NextResponse.json({ error: 'player_id is required' }, { status: 400 })
 
@@ -116,6 +128,12 @@ export async function PATCH(req: Request) {
   }
   if (fan_email_registration_opens_opt_out !== undefined) {
     update.fan_email_registration_opens_opt_out = fan_email_registration_opens_opt_out === true
+  }
+  if (fan_email_news_publish_opt_out !== undefined) {
+    update.fan_email_news_publish_opt_out = fan_email_news_publish_opt_out === true
+  }
+  if (fan_email_stats_highlights_opt_out !== undefined) {
+    update.fan_email_stats_highlights_opt_out = fan_email_stats_highlights_opt_out === true
   }
 
   if (Object.keys(update).length === 0) {

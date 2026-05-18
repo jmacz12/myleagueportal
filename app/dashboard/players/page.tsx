@@ -19,6 +19,8 @@ interface Player {
   registered_at: string
   game_reminders_opt_out?: boolean
   fan_email_registration_opens_opt_out?: boolean
+  fan_email_news_publish_opt_out?: boolean
+  fan_email_stats_highlights_opt_out?: boolean
 }
 
 interface Team {
@@ -53,8 +55,12 @@ export default function PlayersPage() {
   const [fanAlertsAvailable, setFanAlertsAvailable] = useState(false)
   const [gameEmailRemindersEnabled, setGameEmailRemindersEnabled] = useState(true)
   const [registrationOpensEnabled, setRegistrationOpensEnabled] = useState(true)
+  const [newsPublishEnabled, setNewsPublishEnabled] = useState(true)
+  const [statsHighlightsEnabled, setStatsHighlightsEnabled] = useState(true)
   const [reminderToggleId, setReminderToggleId] = useState<string | null>(null)
   const [registrationToggleId, setRegistrationToggleId] = useState<string | null>(null)
+  const [newsToggleId, setNewsToggleId] = useState<string | null>(null)
+  const [statsToggleId, setStatsToggleId] = useState<string | null>(null)
 
   useEffect(() => {
     void fetchData()
@@ -72,6 +78,8 @@ export default function PlayersPage() {
     setFanAlertsAvailable(pd.fan_alerts_available === true || pd.game_reminders_available === true)
     setGameEmailRemindersEnabled(pd.game_email_reminders_enabled !== false)
     setRegistrationOpensEnabled(pd.fan_email_registration_opens_enabled !== false)
+    setNewsPublishEnabled(pd.fan_email_news_publish_enabled !== false)
+    setStatsHighlightsEnabled(pd.fan_email_stats_highlights_enabled !== false)
     setSeasons(sd.seasons || [])
     setLoading(false)
   }
@@ -129,6 +137,38 @@ export default function PlayersPage() {
     setRegistrationToggleId(null)
     if (!res.ok) {
       alert(data.error || 'Could not update registration alert preference.')
+      return
+    }
+    void fetchData()
+  }
+
+  async function updateNewsPublish(playerId: string, optOut: boolean) {
+    setNewsToggleId(playerId)
+    const res = await fetch('/api/players', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ player_id: playerId, fan_email_news_publish_opt_out: optOut }),
+    })
+    const data = await res.json()
+    setNewsToggleId(null)
+    if (!res.ok) {
+      alert(data.error || 'Could not update news alert preference.')
+      return
+    }
+    void fetchData()
+  }
+
+  async function updateStatsHighlights(playerId: string, optOut: boolean) {
+    setStatsToggleId(playerId)
+    const res = await fetch('/api/players', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ player_id: playerId, fan_email_stats_highlights_opt_out: optOut }),
+    })
+    const data = await res.json()
+    setStatsToggleId(null)
+    if (!res.ok) {
+      alert(data.error || 'Could not update stats highlight preference.')
       return
     }
     void fetchData()
@@ -425,6 +465,74 @@ export default function PlayersPage() {
                             style={{ margin: 0, accentColor: 'var(--accent)' }}
                           />
                           <span>Registration opens emails</span>
+                        </label>
+                        <label
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            marginTop: '4px',
+                            fontSize: '11px',
+                            color: 'var(--text-muted)',
+                            cursor:
+                              fanAlertsAvailable && newsPublishEnabled && newsToggleId !== player.id
+                                ? 'pointer'
+                                : 'not-allowed',
+                          }}
+                          title={
+                            !fanAlertsAvailable
+                              ? 'Pro or Enterprise — compare plans under Settings → Plan'
+                              : !newsPublishEnabled
+                                ? 'Turn on news emails under Dashboard → Settings → League & appearance'
+                                : 'Email when league site is published or team posts news'
+                          }
+                        >
+                          <input
+                            type="checkbox"
+                            checked={player.fan_email_news_publish_opt_out !== true}
+                            disabled={
+                              !fanAlertsAvailable || !newsPublishEnabled || newsToggleId === player.id
+                            }
+                            onChange={(e) => void updateNewsPublish(player.id, !e.target.checked)}
+                            style={{ margin: 0, accentColor: 'var(--accent)' }}
+                          />
+                          <span>League & team news emails</span>
+                        </label>
+                        <label
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            marginTop: '4px',
+                            fontSize: '11px',
+                            color: 'var(--text-muted)',
+                            cursor:
+                              fanAlertsAvailable &&
+                              statsHighlightsEnabled &&
+                              statsToggleId !== player.id
+                                ? 'pointer'
+                                : 'not-allowed',
+                          }}
+                          title={
+                            !fanAlertsAvailable
+                              ? 'Pro or Enterprise — compare plans under Settings → Plan'
+                              : !statsHighlightsEnabled
+                                ? 'Turn on stats highlight emails under Dashboard → Settings → League & appearance'
+                                : 'Email after final games when stats are saved'
+                          }
+                        >
+                          <input
+                            type="checkbox"
+                            checked={player.fan_email_stats_highlights_opt_out !== true}
+                            disabled={
+                              !fanAlertsAvailable ||
+                              !statsHighlightsEnabled ||
+                              statsToggleId === player.id
+                            }
+                            onChange={(e) => void updateStatsHighlights(player.id, !e.target.checked)}
+                            style={{ margin: 0, accentColor: 'var(--accent)' }}
+                          />
+                          <span>Stats highlight emails</span>
                         </label>
                       </div>
                     ) : null}

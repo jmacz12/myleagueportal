@@ -1,6 +1,10 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
 
-export type FanAlertUnsubscribeScope = 'registration_opens' | 'dropin_reminder'
+export type FanAlertUnsubscribeScope =
+  | 'registration_opens'
+  | 'dropin_reminder'
+  | 'news_publish'
+  | 'stats_highlight'
 
 function secret(): string {
   const s =
@@ -44,7 +48,14 @@ export function verifyFanAlertUnsubscribeToken(
   const colon = payload.indexOf(':')
   if (colon <= 0) return null
   const scope = payload.slice(0, colon) as FanAlertUnsubscribeScope
-  if (scope !== 'registration_opens' && scope !== 'dropin_reminder') return null
+  if (
+    scope !== 'registration_opens' &&
+    scope !== 'dropin_reminder' &&
+    scope !== 'news_publish' &&
+    scope !== 'stats_highlight'
+  ) {
+    return null
+  }
   const entityId = payload.slice(colon + 1)
   if (!entityId) return null
 

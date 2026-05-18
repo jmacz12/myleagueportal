@@ -177,17 +177,21 @@ export async function PUT(req: Request) {
     )
   }
 
+  const nowIso = new Date().toISOString()
+  let publishedAt: string | null = null
   if (body.publish === true) {
     published = draft
+    publishedAt = nowIso
     revalidatePath(`/league/${access.organization.slug}`)
   }
 
-  const payload = {
+  const payload: Record<string, unknown> = {
     organization_id: access.organization.id,
     draft,
     published,
-    updated_at: new Date().toISOString(),
+    updated_at: nowIso,
   }
+  if (publishedAt) payload.published_at = publishedAt
 
   const { error } = await supabaseAdmin.from('league_site_content').upsert(payload, { onConflict: 'organization_id' })
 
