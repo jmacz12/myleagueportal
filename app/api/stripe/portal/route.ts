@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { isComplimentaryPlan } from '@/lib/org-billing-access'
 import { stripe } from '@/lib/stripe'
 import { createClient } from '@supabase/supabase-js'
 import { auth } from '@clerk/nextjs/server'
@@ -14,9 +15,16 @@ export async function POST() {
 
   const { data: org } = await supabaseAdmin
     .from('organizations')
-    .select('stripe_customer_id')
+    .select('stripe_customer_id, plan_complimentary')
     .eq('clerk_user_id', userId)
     .single()
+
+  if (isComplimentaryPlan(org)) {
+    return NextResponse.json(
+      { error: 'This league is on complimentary access — there is no Stripe subscription to manage.' },
+      { status: 403 }
+    )
+  }
 
   if (!org?.stripe_customer_id) {
     return NextResponse.json({ error: 'No billing account found' }, { status: 404 })

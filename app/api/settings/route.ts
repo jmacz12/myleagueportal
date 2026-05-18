@@ -7,6 +7,7 @@ import {
   evaluateLeagueIdentityChange,
   leagueIdentityFieldsChanged,
 } from '@/lib/league-identity-change-policy'
+import { demoPlanSwitcherAllowed } from '@/lib/demo-plan-switcher'
 import { isPro, isProOrEnterprise } from '@/lib/org-plan-tier'
 
 const supabaseAdmin = createClient(
@@ -38,7 +39,7 @@ export async function GET() {
   let { data: orgWithTz, error: orgWithTzError } = await supabaseAdmin
     .from('organizations')
     .select(
-      'id, name, slug, primary_color, logo_url, plan, stripe_customer_id, stripe_subscription_id, news_banner, news_banner_color, league_timezone, league_theme_preset, league_appearance_mode, brand_color_change_count, brand_color_change_period_start, league_name_change_count, league_name_last_changed_at, game_email_reminders_enabled'
+      'id, name, slug, primary_color, logo_url, plan, plan_complimentary, stripe_customer_id, stripe_subscription_id, news_banner, news_banner_color, league_timezone, league_theme_preset, league_appearance_mode, brand_color_change_count, brand_color_change_period_start, league_name_change_count, league_name_last_changed_at, game_email_reminders_enabled'
     )
     .eq('id', access.organization.id)
     .single()
@@ -48,16 +49,18 @@ export async function GET() {
     const r2 = await supabaseAdmin
       .from('organizations')
       .select(
-        'id, name, slug, primary_color, logo_url, plan, stripe_customer_id, stripe_subscription_id, news_banner, news_banner_color, league_timezone, league_theme_preset, league_appearance_mode, brand_color_change_count, brand_color_change_period_start'
+        'id, name, slug, primary_color, logo_url, plan, stripe_customer_id, stripe_subscription_id, news_banner, news_banner_color, league_timezone, league_theme_preset, league_appearance_mode, brand_color_change_count, brand_color_change_period_start, plan_complimentary'
       )
       .eq('id', access.organization.id)
       .single()
     if (!r2.error && r2.data) {
+      const r2Complimentary = (r2.data as { plan_complimentary?: boolean }).plan_complimentary === true
       orgWithTz = {
         ...r2.data,
         league_name_change_count: 0,
         league_name_last_changed_at: null,
         game_email_reminders_enabled: true,
+        plan_complimentary: r2Complimentary,
       } as typeof orgWithTz
       orgWithTzError = null
     }
@@ -67,7 +70,9 @@ export async function GET() {
   const { data: orgWithoutTz } = orgWithTzError
     ? await supabaseAdmin
         .from('organizations')
-        .select('id, name, slug, primary_color, logo_url, plan, stripe_customer_id, stripe_subscription_id, news_banner, news_banner_color')
+        .select(
+          'id, name, slug, primary_color, logo_url, plan, plan_complimentary, stripe_customer_id, stripe_subscription_id, news_banner, news_banner_color'
+        )
         .eq('id', access.organization.id)
         .single()
     : { data: null }
@@ -85,15 +90,22 @@ export async function GET() {
         league_name_change_count: 0,
         league_name_last_changed_at: null,
         game_email_reminders_enabled: true,
+        plan_complimentary:
+          (orgWithoutTz as { plan_complimentary?: boolean }).plan_complimentary === true,
       }
       : null)
 
   if (!org) return NextResponse.json({ error: 'No organization found' }, { status: 404 })
 
+  const planComplimentary = (org as { plan_complimentary?: boolean }).plan_complimentary === true
+  const slug = typeof org.slug === 'string' ? org.slug : ''
+
   const orgOut = {
     ...org,
     game_email_reminders_enabled:
       (org as { game_email_reminders_enabled?: boolean }).game_email_reminders_enabled !== false,
+    plan_complimentary: planComplimentary,
+    demo_plan_switcher_enabled: demoPlanSwitcherAllowed(slug, planComplimentary),
   }
 
   return NextResponse.json({ org: orgOut })

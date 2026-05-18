@@ -23,12 +23,15 @@ import { DELETE_LEAGUE_ACCOUNT_CONFIRM_PHRASE } from '@/lib/delete-league-accoun
 import { MLP_PREF_SPORT_STORAGE_KEY } from '@/lib/sport-templates'
 import { CustomDomainPanel } from '@/components/dashboard/CustomDomainPanel'
 import { publicFanSiteOrigin } from '@/lib/public-site-origin'
+import type { OrgPlanSlug } from '@/lib/org-plan-tier'
 
 interface OrgSettings {
   name: string
   slug: string
   primary_color: string
   plan: string
+  plan_complimentary?: boolean
+  demo_plan_switcher_enabled?: boolean
   logo_url?: string | null
   news_banner?: string | null
   news_banner_color?: string | null
@@ -70,11 +73,22 @@ function SettingsPageClient() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const tabFromUrl = searchParams.get('tab')
-  const settingsMainTab: SettingsMainTab = SETTINGS_TAB_IDS.includes(tabFromUrl as SettingsMainTab)
+  const tabFromUrlValid = SETTINGS_TAB_IDS.includes(tabFromUrl as SettingsMainTab)
     ? (tabFromUrl as SettingsMainTab)
-    : 'league'
+    : null
+  const [settingsMainTab, setSettingsMainTab] = useState<SettingsMainTab>(
+    tabFromUrlValid ?? 'plan'
+  )
+  useEffect(() => {
+    if (tabFromUrlValid) setSettingsMainTab(tabFromUrlValid)
+  }, [tabFromUrlValid])
   const selectSettingsTab = (tab: SettingsMainTab) => {
-    router.replace(`${pathname}?tab=${tab}`, { scroll: false })
+    setSettingsMainTab(tab)
+    const next = `${pathname}?tab=${tab}`
+    router.replace(next, { scroll: false })
+    if (typeof window !== 'undefined' && window.location.search !== `?tab=${tab}`) {
+      window.history.replaceState(null, '', next)
+    }
   }
   const [settings, setSettings] = useState<OrgSettings | null>(null)
   const [loading, setLoading] = useState(true)
@@ -85,6 +99,7 @@ function SettingsPageClient() {
   const [copiedLeague, setCopiedLeague] = useState(false)
   const [verifiedFanHostname, setVerifiedFanHostname] = useState<string | null>(null)
   const [upgrading, setUpgrading] = useState(false)
+  const [demoPlanSaving, setDemoPlanSaving] = useState<OrgPlanSlug | null>(null)
   const [form, setForm] = useState({ 
     name: '', 
     slug: '', 
@@ -445,6 +460,32 @@ function SettingsPageClient() {
     else { setError('Failed to open billing portal.'); setUpgrading(false) }
   }
 
+  async function handleDemoPlanSwitch(plan: OrgPlanSlug) {
+    if (!settings?.demo_plan_switcher_enabled || plan === settings.plan) return
+    setDemoPlanSaving(plan)
+    setError('')
+    try {
+      const res = await fetch('/api/settings/demo-plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(typeof data.error === 'string' ? data.error : 'Could not switch demo plan.')
+        return
+      }
+      await fetchSettings()
+      broadcastLeagueAppearanceUpdated()
+    } catch {
+      setError('Could not switch demo plan.')
+    } finally {
+      setDemoPlanSaving(null)
+    }
+  }
+
+  const isComplimentary = settings?.plan_complimentary === true
+  const demoPlanSwitcher = settings?.demo_plan_switcher_enabled === true
   const isPro = settings?.plan === 'pro' || settings?.plan === 'enterprise'
   const isEnterprise = settings?.plan === 'enterprise'
   const proColorChangesRemaining =
@@ -679,17 +720,23 @@ function SettingsPageClient() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <span className={`badge badge-${settings?.plan || 'basic'}`}>{settings?.plan || 'basic'}</span>
             <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-              {settings?.plan === 'basic' ? 'Free' : settings?.plan === 'pro' ? '$49/month' : '$149/month'}
+              {isComplimentary
+                ? 'Included — no charge'
+                : settings?.plan === 'basic'
+                  ? 'Free'
+                  : settings?.plan === 'pro'
+                    ? '$49/month'
+                    : '$149/month'}
             </span>
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
-            {settings?.plan !== 'enterprise' && (
+            {!isComplimentary && settings?.plan !== 'enterprise' && (
               <button className="btn-primary" onClick={handleUpgrade} disabled={upgrading}
                 style={{ fontSize: '12px', padding: '7px 14px' }}>
                 {upgrading ? 'Loading...' : 'Upgrade Plan'}
               </button>
             )}
-            {settings?.plan !== 'basic' && (
+            {!isComplimentary && settings?.plan !== 'basic' && (
               <button className="btn-secondary" onClick={handleBillingPortal} disabled={upgrading}
                 style={{ fontSize: '12px', padding: '7px 14px' }}>
                 Manage Billing
@@ -697,6 +744,58 @@ function SettingsPageClient() {
             )}
           </div>
         </div>
+        {isComplimentary ? (
+          <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '12px', lineHeight: 1.45 }}>
+            This league has complimentary access — all features for your current plan tier with no Stripe billing.
+          </p>
+        ) : null}
+        {demoPlanSwitcher ? (
+          <div
+            style={{
+              marginBottom: '14px',
+              padding: '12px 14px',
+              borderRadius: '10px',
+              border: '0.5px solid var(--border)',
+              background: '#f8faf5',
+            }}
+          >
+            <span className="label" style={{ marginBottom: '6px' }}>
+              Demo showcase — try each tier
+            </span>
+            <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 10px', lineHeight: 1.45 }}>
+              Switch how this league looks to fans and what features unlock. No payment — for your Vancouvarites demo only until the admin console ships.
+            </p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              {(['basic', 'pro', 'enterprise'] as const).map((tier) => {
+                const active = settings?.plan === tier
+                const saving = demoPlanSaving === tier
+                return (
+                  <button
+                    key={tier}
+                    type="button"
+                    disabled={demoPlanSaving !== null}
+                    onClick={() => void handleDemoPlanSwitch(tier)}
+                    style={{
+                      padding: '8px 14px',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      borderRadius: '8px',
+                      cursor: demoPlanSaving !== null ? 'wait' : 'pointer',
+                      fontFamily: 'inherit',
+                      textTransform: 'capitalize',
+                      border: active ? '1.5px solid var(--accent)' : '0.5px solid var(--border)',
+                      background: active ? 'var(--accent)' : 'white',
+                      color: active ? 'white' : 'var(--text-primary)',
+                      opacity: saving ? 0.7 : 1,
+                    }}
+                  >
+                    {saving ? 'Saving…' : tier}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        ) : null}
         <div style={{ background: 'var(--bg-elevated)', borderRadius: '8px', padding: '12px 16px', border: '0.5px solid var(--border)' }}>
           <span className="label" style={{ marginBottom: '8px' }}>Your plan includes</span>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>

@@ -56,6 +56,7 @@ const FILES = [
   '20260516140000_organizations_scoring_quarter_minutes.sql',
   '20260516150000_organizations_public_stream_primary_stat_keys.sql',
   '20260517120000_game_email_reminders.sql',
+  '20260518120000_organizations_plan_complimentary.sql',
 ]
 
 async function main() {

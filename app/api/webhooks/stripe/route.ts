@@ -3,6 +3,7 @@ import type Stripe from 'stripe'
 import { stripe } from '@/lib/stripe'
 import { createClient } from '@supabase/supabase-js'
 import { headers } from 'next/headers'
+import { isComplimentaryPlan } from '@/lib/org-billing-access'
 import {
   checkoutSessionOrgPlanSync,
   normalizeBillingPlan,
@@ -13,6 +14,24 @@ const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
+
+async function orgIsComplimentaryById(organizationId: string): Promise<boolean> {
+  const { data } = await supabaseAdmin
+    .from('organizations')
+    .select('plan_complimentary')
+    .eq('id', organizationId)
+    .maybeSingle()
+  return isComplimentaryPlan(data)
+}
+
+async function orgIsComplimentaryBySubscriptionId(subscriptionId: string): Promise<boolean> {
+  const { data } = await supabaseAdmin
+    .from('organizations')
+    .select('plan_complimentary')
+    .eq('stripe_subscription_id', subscriptionId)
+    .maybeSingle()
+  return isComplimentaryPlan(data)
+}
 
 export async function POST(req: Request) {
   const body = await req.text()
@@ -37,6 +56,7 @@ export async function POST(req: Request) {
       const session = event.data.object as Stripe.Checkout.Session
       const sync = checkoutSessionOrgPlanSync(session)
       if (sync) {
+        if (await orgIsComplimentaryById(sync.organizationId)) break
         const updates: Record<string, unknown> = {
           plan: sync.plan,
           stripe_subscription_id: sync.subscriptionId,
@@ -72,6 +92,7 @@ export async function POST(req: Request) {
 
     case 'customer.subscription.updated': {
       const subscription = event.data.object as Stripe.Subscription
+      if (await orgIsComplimentaryBySubscriptionId(subscription.id)) break
       let plan = normalizeBillingPlan(subscription.metadata?.plan)
       if (plan === 'basic') {
         const priceId = subscription.items?.data?.[0]?.price?.id
@@ -86,6 +107,7 @@ export async function POST(req: Request) {
 
     case 'customer.subscription.deleted': {
       const subscription = event.data.object as Stripe.Subscription
+      if (await orgIsComplimentaryBySubscriptionId(subscription.id)) break
 
       await supabaseAdmin
         .from('organizations')
