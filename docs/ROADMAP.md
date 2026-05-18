@@ -373,6 +373,16 @@ Most of this is **not built yet**; this section records **Basic / Pro / Enterpri
 - When you **ship** or **cancel** a roadmap item, edit the relevant phase and add a short **changelog line** at the bottom (date + one sentence).
 - When code changes **materially** affect a bullet above, update this doc in the **same PR** when possible.
 
+### New session — start here (2026-05-19)
+
+**Shipped and live (`main`, production **myleagueportal**):** Fan email alerts round 2 + **Settings → Email notifications**; production fan-alert cutover (**#14**); league **Games → Import** **`.ics`** + CSV/Excel (**#15**, commit **`de9aa36`** — owner verified on live).
+
+**Do next unless reprioritized:** **Suggested next focus #16** — scoring assist (quick stat adjust + narrow NL play entry on live scorer, Pro, confirm-before-apply).
+
+**Deferred (owner intent captured):** **Team manager / club workspace** — solo captain **individual team page** with **`.ics` import** for practices/team events (reuse **`lib/games-schedule-ics.ts`**); **not** league **Games** import. **After #16** unless owner bumps it up. See **Product direction — Team manager / club workspace**.
+
+**Ops scripts worth knowing:** **`npm run verify:schedule-import`**, **`npm run verify:fan-alerts-production`**, **`npm run db:apply-pending`** (production Supabase when schema ships).
+
 ### Plain-English glossary (for non-developers)
 
 These terms show up in **changelog** lines and **agent** summaries. You do **not** need to memorize them—this table is the cheat sheet.
@@ -509,7 +519,7 @@ Use this when validating `**league_site_content`**, organization_editors, and `*
 - **2026-05-18:** **Dashboard — visible plan locks on Basic:** Fan email alerts, league theme, news banner, waiver PDF upload, custom domain panel, games import tab, drop-in standings, stats hub, and per-player email prefs always show; **Basic** gets **`DashboardPlanLockedHint`** + disabled controls (public **Stream**-style). **ROADMAP** — **Suggested next focus #12**.
 - **2026-05-18:** **Stripe checkout E2E (disposable league):** **`npm run verify:stripe-checkout-e2e`** — non-complimentary org, **LIVE** trialing subscription, production webhooks → **Pro** / **Basic** in DB, sync-checkout path, cleanup. **ROADMAP** — **#2b**, **#13**, **Verification checklist — Stripe** step 4.
 - **2026-05-18:** **Stripe live ops re-verified:** **`npm run verify:stripe-money-path`** + **`verify-stripe-env.mjs`** pass on **LIVE** keys; audit script skips missing Stripe ids when **`plan_complimentary`**. **ROADMAP** — **#2b** + **Verification checklist — Stripe** (ops).
-- **2026-05-19:** **Calendar `.ics` import:** **Dashboard → Games → Import** accepts Google/Apple **`.ics`** exports (same preview → confirm as spreadsheet); event titles **vs** / **@**; **`lib/games-schedule-ics.ts`**; **`verify:schedule-import`** ICS fixture.
+- **2026-05-19:** **Calendar `.ics` import (live):** **Dashboard → Games → Import** accepts Google/Apple **`.ics`** exports (same preview → confirm as spreadsheet); event titles **vs** / **@**; **`lib/games-schedule-ics.ts`**; **`verify:schedule-import`** ICS fixture; pushed **`main`** **`de9aa36`** — owner verified on production.
 - **2026-05-19:** **Fan alerts — production cutover:** **`npm run verify:fan-alerts-production`**; **`db:apply-pending`** on live Supabase; live **`www.myleagueportal.com`** cron dry-run **200** for news + stats runners. **ROADMAP** — **#14** + **Verification checklist — Fan email alerts (production)**.
 - **2026-05-19:** **Vercel cleanup:** Deleted duplicate **`horizon-leagues`** project; **`myleagueportal`** remains production (**`www.myleagueportal.com`**).
 - **2026-05-19:** **Email sender fix:** **`lib/email/resend-from.ts`** normalizes **`RESEND_FROM`** and falls back to **`MyLeaguePortal <reminders@myleagueportal.com>`** when local env uses an invalid/old address (fixes test sends + dashboard **Send test emails**). **Deploy note:** disconnect **`horizon-leagues`** Vercel project in dashboard only (not **`git.deploymentEnabled`** in repo — that blocked **`myleagueportal`** deploys too).
