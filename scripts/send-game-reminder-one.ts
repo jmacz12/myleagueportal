@@ -34,7 +34,7 @@ const fromCandidates = [
 async function main() {
   const { data: org } = await sb
     .from('organizations')
-    .select('name, slug, custom_domain, custom_domain_verified_at')
+    .select('id, name, slug, custom_domain, custom_domain_verified_at')
     .eq('slug', SLUG)
     .single()
 
@@ -48,8 +48,19 @@ async function main() {
       ? org.custom_domain.trim().toLowerCase()
       : null
 
+  const { data: samplePlayer } = await sb
+    .from('players')
+    .select('id')
+    .eq('organization_id', org.id)
+    .not('email', 'is', null)
+    .limit(1)
+    .maybeSingle()
+
+  const playerId = samplePlayer?.id ?? '00000000-0000-4000-8000-000000000001'
+
   const scheduledAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
   const mail = buildGameReminderEmail({
+    playerId: String(playerId),
     leagueName: String(org.name || 'Vancouvarites'),
     leagueSlug: SLUG,
     verifiedCustomDomain: verifiedDomain,
@@ -70,6 +81,7 @@ async function main() {
       subject: mail.subject,
       html: mail.html,
       text: mail.text,
+      listUnsubscribeUrl: mail.listUnsubscribeUrl,
     })
     console.log(res)
     if (res.ok && !res.skipped) {

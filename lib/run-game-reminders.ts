@@ -175,6 +175,7 @@ export async function runGameReminders(
         : `${teamNameById.get(awayId) ?? 'Away'} @ ${teamNameById.get(homeId) ?? 'Home'}`
 
       const mail = buildGameReminderEmail({
+        playerId: pid,
         leagueName: String(org.name || 'Your league'),
         leagueSlug: String(org.slug || ''),
         verifiedCustomDomain: verifiedDomain,
@@ -199,6 +200,7 @@ export async function runGameReminders(
         subject: mail.subject,
         html: mail.html,
         text: mail.text,
+        listUnsubscribeUrl: mail.listUnsubscribeUrl,
       })
 
       if (!sendRes.ok) {

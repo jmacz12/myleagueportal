@@ -13,6 +13,8 @@ export async function sendTransactionalEmail(params: {
   subject: string
   html: string
   text?: string
+  /** RFC 8058 one-click unsubscribe URL (HTTPS). */
+  listUnsubscribeUrl?: string
 }): Promise<SendEmailResult> {
   const apiKey = process.env.RESEND_API_KEY?.trim()
   const from = emailFromAddress()
@@ -29,19 +31,29 @@ export async function sendTransactionalEmail(params: {
     return { ok: false, error: 'Invalid recipient email' }
   }
 
+  const body: Record<string, unknown> = {
+    from,
+    to: [to],
+    subject: params.subject,
+    html: params.html,
+    text: params.text,
+  }
+
+  const unsub = params.listUnsubscribeUrl?.trim()
+  if (unsub) {
+    body.headers = {
+      'List-Unsubscribe': `<${unsub}>`,
+      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+    }
+  }
+
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      from,
-      to: [to],
-      subject: params.subject,
-      html: params.html,
-      text: params.text,
-    }),
+    body: JSON.stringify(body),
   })
 
   const json = (await res.json().catch(() => null)) as { id?: string; message?: string } | null
