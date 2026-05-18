@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { DashboardPlanLockedHint } from '@/components/dashboard/DashboardPlanLockedHint'
 import { useState, useEffect } from 'react'
 import { DashboardHelpLauncher } from '@/components/dashboard/DashboardHelpLauncher'
 
@@ -17,6 +18,7 @@ interface Player {
   season_id: string
   registered_at: string
   game_reminders_opt_out?: boolean
+  fan_email_registration_opens_opt_out?: boolean
 }
 
 interface Team {
@@ -48,9 +50,11 @@ export default function PlayersPage() {
   const [playerSearch, setPlayerSearch] = useState('')
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [assigningId, setAssigningId] = useState<string | null>(null)
-  const [gameRemindersAvailable, setGameRemindersAvailable] = useState(false)
+  const [fanAlertsAvailable, setFanAlertsAvailable] = useState(false)
   const [gameEmailRemindersEnabled, setGameEmailRemindersEnabled] = useState(true)
+  const [registrationOpensEnabled, setRegistrationOpensEnabled] = useState(true)
   const [reminderToggleId, setReminderToggleId] = useState<string | null>(null)
+  const [registrationToggleId, setRegistrationToggleId] = useState<string | null>(null)
 
   useEffect(() => {
     void fetchData()
@@ -65,8 +69,9 @@ export default function PlayersPage() {
     const [pd, td, sd] = await Promise.all([playersRes.json(), teamsRes.json(), seasonsRes.json()])
     setPlayers(pd.players || [])
     setTeams(td.teams || [])
-    setGameRemindersAvailable(pd.game_reminders_available === true)
+    setFanAlertsAvailable(pd.fan_alerts_available === true || pd.game_reminders_available === true)
     setGameEmailRemindersEnabled(pd.game_email_reminders_enabled !== false)
+    setRegistrationOpensEnabled(pd.fan_email_registration_opens_enabled !== false)
     setSeasons(sd.seasons || [])
     setLoading(false)
   }
@@ -105,6 +110,25 @@ export default function PlayersPage() {
     setReminderToggleId(null)
     if (!res.ok) {
       alert(data.error || 'Could not update reminder preference.')
+      return
+    }
+    void fetchData()
+  }
+
+  async function updateRegistrationOpens(playerId: string, optOut: boolean) {
+    setRegistrationToggleId(playerId)
+    const res = await fetch('/api/players', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        player_id: playerId,
+        fan_email_registration_opens_opt_out: optOut,
+      }),
+    })
+    const data = await res.json()
+    setRegistrationToggleId(null)
+    if (!res.ok) {
+      alert(data.error || 'Could not update registration alert preference.')
       return
     }
     void fetchData()
@@ -159,7 +183,7 @@ export default function PlayersPage() {
           <p className="page-subtitle">
             {filteredPlayers.length} player{filteredPlayers.length !== 1 ? 's' : ''}
             {selectedSeason !== 'all' || selectedTeam !== 'all' || q ? ' (filtered)' : ' total'}
-            {gameRemindersAvailable ? (
+            {fanAlertsAvailable ? (
               <>
                 {' '}
                 · Game reminder emails:{' '}
@@ -176,6 +200,12 @@ export default function PlayersPage() {
         </div>
         <DashboardHelpLauncher topic="players" />
       </div>
+
+      {!fanAlertsAvailable ? (
+        <div style={{ marginBottom: '16px' }}>
+          <DashboardPlanLockedHint feature="set per-player fan email preferences (game reminders and registration opens)" />
+        </div>
+      ) : null}
 
       <div className="card-sm" style={{ marginBottom: '16px', display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
         <div style={{ flex: '2 1 200px' }}>
@@ -305,7 +335,7 @@ export default function PlayersPage() {
                         }}
                       >
                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{player.email}</span>
-                        {gameRemindersAvailable && player.game_reminders_opt_out ? (
+                        {fanAlertsAvailable && player.game_reminders_opt_out && player.email ? (
                           <span
                             style={{
                               flexShrink: 0,
@@ -323,33 +353,80 @@ export default function PlayersPage() {
                       </div>
                     )}
                     {player.phone && <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{player.phone}</div>}
-                    {gameRemindersAvailable && player.email ? (
-                      <label
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          marginTop: '5px',
-                          fontSize: '11px',
-                          color: 'var(--text-muted)',
-                          cursor:
-                            gameEmailRemindersEnabled && reminderToggleId !== player.id ? 'pointer' : 'not-allowed',
-                        }}
-                        title={
-                          !gameEmailRemindersEnabled
-                            ? 'Turn on game reminder emails under Dashboard → Settings → League & appearance'
-                            : 'Send automated email ~24 hours before scheduled league games'
-                        }
-                      >
-                        <input
-                          type="checkbox"
-                          checked={player.game_reminders_opt_out !== true}
-                          disabled={!gameEmailRemindersEnabled || reminderToggleId === player.id}
-                          onChange={(e) => void updateGameReminders(player.id, !e.target.checked)}
-                          style={{ margin: 0, accentColor: 'var(--accent)' }}
-                        />
-                        <span>Game reminder emails</span>
-                      </label>
+                    {player.email ? (
+                      <div style={{ marginTop: '5px', opacity: fanAlertsAvailable ? 1 : 0.65 }}>
+                        <label
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            fontSize: '11px',
+                            color: 'var(--text-muted)',
+                            cursor:
+                              fanAlertsAvailable &&
+                              gameEmailRemindersEnabled &&
+                              reminderToggleId !== player.id
+                                ? 'pointer'
+                                : 'not-allowed',
+                          }}
+                          title={
+                            !fanAlertsAvailable
+                              ? 'Pro or Enterprise — compare plans under Settings → Plan'
+                              : !gameEmailRemindersEnabled
+                                ? 'Turn on game reminder emails under Dashboard → Settings → League & appearance'
+                                : 'Send automated email ~24 hours before scheduled league games'
+                          }
+                        >
+                          <input
+                            type="checkbox"
+                            checked={player.game_reminders_opt_out !== true}
+                            disabled={
+                              !fanAlertsAvailable ||
+                              !gameEmailRemindersEnabled ||
+                              reminderToggleId === player.id
+                            }
+                            onChange={(e) => void updateGameReminders(player.id, !e.target.checked)}
+                            style={{ margin: 0, accentColor: 'var(--accent)' }}
+                          />
+                          <span>Game reminder emails</span>
+                        </label>
+                        <label
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            marginTop: '4px',
+                            fontSize: '11px',
+                            color: 'var(--text-muted)',
+                            cursor:
+                              fanAlertsAvailable &&
+                              registrationOpensEnabled &&
+                              registrationToggleId !== player.id
+                                ? 'pointer'
+                                : 'not-allowed',
+                          }}
+                          title={
+                            !fanAlertsAvailable
+                              ? 'Pro or Enterprise — compare plans under Settings → Plan'
+                              : !registrationOpensEnabled
+                                ? 'Turn on registration-opens emails under Dashboard → Settings → League & appearance'
+                                : 'Email when season online registration opens'
+                          }
+                        >
+                          <input
+                            type="checkbox"
+                            checked={player.fan_email_registration_opens_opt_out !== true}
+                            disabled={
+                              !fanAlertsAvailable ||
+                              !registrationOpensEnabled ||
+                              registrationToggleId === player.id
+                            }
+                            onChange={(e) => void updateRegistrationOpens(player.id, !e.target.checked)}
+                            style={{ margin: 0, accentColor: 'var(--accent)' }}
+                          />
+                          <span>Registration opens emails</span>
+                        </label>
+                      </div>
                     ) : null}
                     {!player.email && !player.phone && <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>—</span>}
                   </div>

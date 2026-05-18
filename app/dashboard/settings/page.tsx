@@ -23,6 +23,7 @@ import {
 import { DELETE_LEAGUE_ACCOUNT_CONFIRM_PHRASE } from '@/lib/delete-league-account-constants'
 import { MLP_PREF_SPORT_STORAGE_KEY } from '@/lib/sport-templates'
 import { CustomDomainPanel } from '@/components/dashboard/CustomDomainPanel'
+import { DashboardPlanLockedHint } from '@/components/dashboard/DashboardPlanLockedHint'
 import { publicFanSiteOrigin } from '@/lib/public-site-origin'
 import type { OrgPlanSlug } from '@/lib/org-plan-tier'
 
@@ -44,6 +45,8 @@ interface OrgSettings {
   league_name_change_count?: number | null
   league_name_last_changed_at?: string | null
   game_email_reminders_enabled?: boolean
+  fan_email_registration_opens_enabled?: boolean
+  fan_email_dropin_reminders_enabled?: boolean
 }
 
 const TIMEZONE_OPTIONS = [
@@ -111,6 +114,8 @@ function SettingsPageClient() {
     league_theme_preset: 'classic',
     league_appearance_mode: 'light',
     game_email_reminders_enabled: true,
+    fan_email_registration_opens_enabled: true,
+    fan_email_dropin_reminders_enabled: true,
   })
   const [activeWaiverTab, setActiveWaiverTab] = useState<'season' | 'dropin' | null>(null)
 
@@ -232,6 +237,9 @@ function SettingsPageClient() {
       league_theme_preset: themeChoice,
       league_appearance_mode: appearanceModeForChoice(themeChoice),
       game_email_reminders_enabled: data.org?.game_email_reminders_enabled !== false,
+      fan_email_registration_opens_enabled:
+        data.org?.fan_email_registration_opens_enabled !== false,
+      fan_email_dropin_reminders_enabled: data.org?.fan_email_dropin_reminders_enabled !== false,
     })
     setLoading(false)
   }
@@ -534,26 +542,29 @@ function SettingsPageClient() {
   }) {
     return (
       <div>
+        {!isPro ? (
+          <div style={{ marginBottom: '14px' }}>
+            <DashboardPlanLockedHint feature="upload a PDF waiver — extracted text is editable before you save" />
+          </div>
+        ) : null}
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '14px', gap: '12px' }}>
           <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{description}</p>
-          {isPro && (
-            <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
-              <button type="button" onClick={() => setMode('type')} style={{
+          <div style={{ display: 'flex', gap: '6px', flexShrink: 0, opacity: isPro ? 1 : 0.65 }}>
+              <button type="button" disabled={!isPro} onClick={() => setMode('type')} style={{
                 padding: '5px 12px', fontSize: '11px', fontWeight: '700', borderRadius: '6px',
-                cursor: 'pointer', fontFamily: 'inherit',
+                cursor: isPro ? 'pointer' : 'not-allowed', fontFamily: 'inherit',
                 border: mode === 'type' ? '1.5px solid var(--accent)' : '0.5px solid var(--border)',
                 background: mode === 'type' ? 'var(--accent)' : 'transparent',
                 color: mode === 'type' ? 'white' : 'var(--text-muted)',
               }}>Type</button>
-              <button type="button" onClick={() => setMode('upload')} style={{
+              <button type="button" disabled={!isPro} onClick={() => setMode('upload')} style={{
                 padding: '5px 12px', fontSize: '11px', fontWeight: '700', borderRadius: '6px',
-                cursor: 'pointer', fontFamily: 'inherit',
+                cursor: isPro ? 'pointer' : 'not-allowed', fontFamily: 'inherit',
                 border: mode === 'upload' ? '1.5px solid var(--accent)' : '0.5px solid var(--border)',
                 background: mode === 'upload' ? 'var(--accent)' : 'transparent',
                 color: mode === 'upload' ? 'white' : 'var(--text-muted)',
               }}>Upload PDF</button>
-            </div>
-          )}
+          </div>
         </div>
 
         <div style={{ background: '#fffbeb', border: '0.5px solid #fcd34d', borderRadius: '8px', padding: '10px 14px', marginBottom: '14px', fontSize: '11px', color: '#92400e', lineHeight: '1.5' }}>
@@ -561,14 +572,14 @@ function SettingsPageClient() {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          {isPro && mode === 'upload' && (
-            <div style={{ border: '1px dashed var(--border)', borderRadius: '8px', padding: '24px', textAlign: 'center' }}>
+          {mode === 'upload' && (
+            <div style={{ border: '1px dashed var(--border)', borderRadius: '8px', padding: '24px', textAlign: 'center', opacity: isPro ? 1 : 0.55, pointerEvents: isPro ? 'auto' : 'none' }}>
               <div style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>PDF</div>
               <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '12px' }}>
                 Upload a PDF — text is pulled out for you to edit and approve
               </p>
               <input type="file" accept=".pdf" onChange={onUpload}
-                style={{ display: 'none' }} id={inputId} disabled={extracting} />
+                style={{ display: 'none' }} id={inputId} disabled={extracting || !isPro} />
               <label htmlFor={inputId} style={{
                 display: 'inline-block', padding: '7px 16px', fontSize: '12px', fontWeight: '700',
                 borderRadius: '6px', cursor: extracting ? 'not-allowed' : 'pointer',
@@ -631,11 +642,6 @@ function SettingsPageClient() {
             )}
           </div>
 
-          {!isPro && (
-            <div style={{ background: 'var(--bg-elevated)', border: '0.5px solid var(--border)', borderRadius: '8px', padding: '12px 14px', fontSize: '12px', color: 'var(--text-muted)' }}>
-              <strong>Pro/Enterprise:</strong> Upload a PDF waiver and edit the extracted text before saving.
-            </div>
-          )}
         </div>
       </div>
     )
@@ -1053,8 +1059,10 @@ function SettingsPageClient() {
             )}
           </div>
 
-          {isPro && (
-            <div>
+          <div style={{ opacity: isPro ? 1 : 0.65 }}>
+            {!isPro ? (
+              <DashboardPlanLockedHint feature="pick a public league page style (Classic, Bright, Midnight, and more)" />
+            ) : null}
               <label className="label">League theme</label>
               <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '12px' }}>
                 {isEnterprise
@@ -1071,6 +1079,7 @@ function SettingsPageClient() {
                       key={choiceId}
                       type="button"
                       title={meta.description}
+                      disabled={!isPro}
                       onClick={() =>
                         setForm({
                           ...form,
@@ -1084,7 +1093,7 @@ function SettingsPageClient() {
                         border: `2px solid ${selected ? 'var(--accent)' : 'var(--border)'}`,
                         padding: '8px 14px',
                         background: selected ? 'var(--accent-muted)' : 'var(--bg-surface)',
-                        cursor: 'pointer',
+                        cursor: isPro ? 'pointer' : 'not-allowed',
                         fontFamily: 'inherit',
                         fontWeight: 800,
                         fontSize: '12px',
@@ -1138,8 +1147,7 @@ function SettingsPageClient() {
               <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '12px', lineHeight: 1.45 }}>
                 Same look as your public league and sign-up pages. Save with the button at the bottom of Settings.
               </p>
-            </div>
-          )}
+          </div>
           
           <div>
             <label className="label">League Time Zone</label>
@@ -1171,57 +1179,87 @@ function SettingsPageClient() {
             </p>
           </div>
 
-          {isPro ? (
-            <div
-              className="card"
-              style={{ padding: '14px 16px', marginTop: '16px', border: '0.5px solid var(--border)' }}
-            >
-              <label
-                style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: '10px',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  color: 'var(--text-primary)',
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={form.game_email_reminders_enabled}
-                  onChange={(e) =>
-                    setForm({ ...form, game_email_reminders_enabled: e.target.checked })
-                  }
-                  style={{ marginTop: '3px' }}
-                />
-                <span>
-                  <strong>Game reminder emails</strong>
-                  <span
-                    style={{
-                      display: 'block',
-                      fontSize: '12px',
-                      color: 'var(--text-muted)',
-                      fontWeight: 400,
-                      marginTop: '4px',
-                      lineHeight: 1.45,
-                    }}
-                  >
-                    About 24 hours before each scheduled league game, email players on those teams
-                    who have an email on the roster.
-                  </span>
-                </span>
-              </label>
-            </div>
-          ) : (
-            <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '12px', lineHeight: 1.45 }}>
-              <strong>Pro or Enterprise:</strong> automatic game-tomorrow emails to roster players.
+          <div
+            className="card"
+            style={{ padding: '14px 16px', marginTop: '16px', border: '0.5px solid var(--border)' }}
+          >
+            {!isPro ? (
+              <DashboardPlanLockedHint feature="turn fan email alerts on or off for your league" />
+            ) : null}
+            <p style={{ margin: '0 0 12px', fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>
+              Fan email alerts
             </p>
-          )}
+              <p style={{ margin: '0 0 14px', fontSize: '12px', color: 'var(--text-muted)', lineHeight: 1.45 }}>
+                Automated emails to roster players or drop-in sign-ups who have an email on file.
+                Each type has its own unsubscribe link.
+              </p>
+              {(
+                [
+                  {
+                    key: 'game_email_reminders_enabled' as const,
+                    title: 'Game reminder emails',
+                    detail:
+                      'About 24 hours before each scheduled league game, email players on those teams.',
+                  },
+                  {
+                    key: 'fan_email_registration_opens_enabled' as const,
+                    title: 'Registration opens emails',
+                    detail:
+                      'When season online registration opens (scheduled or custom date), email roster players.',
+                  },
+                  {
+                    key: 'fan_email_dropin_reminders_enabled' as const,
+                    title: 'Drop-in reminder emails',
+                    detail:
+                      'About 24 hours before a drop-in session, email people signed up for that session.',
+                  },
+                ] as const
+              ).map((row, i) => (
+                <label
+                  key={row.key}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '10px',
+                    cursor: isPro ? 'pointer' : 'not-allowed',
+                    fontSize: '14px',
+                    color: 'var(--text-primary)',
+                    marginTop: i === 0 ? 0 : '12px',
+                    opacity: isPro ? 1 : 0.65,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={form[row.key]}
+                    disabled={!isPro}
+                    onChange={(e) => setForm({ ...form, [row.key]: e.target.checked })}
+                    style={{ marginTop: '3px' }}
+                  />
+                  <span>
+                    <strong>{row.title}</strong>
+                    <span
+                      style={{
+                        display: 'block',
+                        fontSize: '12px',
+                        color: 'var(--text-muted)',
+                        fontWeight: 400,
+                        marginTop: '4px',
+                        lineHeight: 1.45,
+                      }}
+                    >
+                      {row.detail}
+                    </span>
+                  </span>
+                </label>
+              ))}
+          </div>
 
-          {isPro ? (
-          <div>
+          <div style={{ marginTop: '16px' }}>
+            {!isPro ? (
+              <DashboardPlanLockedHint feature="set a headline banner on your public league site" />
+            ) : null}
             <label className="label">League News Banner</label>
-            <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
+            <div style={{ display: 'flex', gap: '12px', marginBottom: '12px', opacity: isPro ? 1 : 0.65 }}>
               <div style={{ flex: 1 }}>
                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px' }}>
                    Message to display at the top of your portal. Clear to hide.
@@ -1230,6 +1268,7 @@ function SettingsPageClient() {
                    className="input" 
                    rows={2} 
                    value={form.news_banner || ''}
+                   disabled={!isPro}
                    onChange={(e) => setForm({ ...form, news_banner: e.target.value })}
                    placeholder="e.g., Summer Registration is live!"
                    style={{ resize: 'vertical' }}
@@ -1240,32 +1279,13 @@ function SettingsPageClient() {
                 <input 
                   type="color" 
                   value={form.news_banner_color || '#5a7a2a'} 
+                  disabled={!isPro}
                   onChange={(e) => setForm({ ...form, news_banner_color: e.target.value })}
-                  style={{ width: '100%', height: '38px', borderRadius: '6px', border: '1.5px solid var(--border)', cursor: 'pointer', background: 'none', padding: '2px' }} 
+                  style={{ width: '100%', height: '38px', borderRadius: '6px', border: '1.5px solid var(--border)', cursor: isPro ? 'pointer' : 'not-allowed', background: 'none', padding: '2px' }} 
                 />
               </div>
             </div>
           </div>
-
-          ) : (
-            <div
-              style={{
-                marginTop: '12px',
-                padding: '12px 14px',
-                borderRadius: '10px',
-                border: '0.5px solid var(--border)',
-                background: 'var(--bg-elevated)',
-              }}
-            >
-              <span className="label" style={{ marginBottom: '6px', display: 'block' }}>
-                League News Banner
-              </span>
-              <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0, lineHeight: 1.45 }}>
-                <strong>Pro or Enterprise:</strong> show a headline at the top of your public league site (e.g.
-                registration open). Upgrade under the <strong>Plan</strong> tab to edit the banner.
-              </p>
-            </div>
-          )}
 
           {success && <div style={{ background: '#f0fdf4', border: '0.5px solid #bbf7d0', borderRadius: '8px', padding: '12px 16px', fontSize: '13px', color: '#16a34a', fontWeight: '600' }}>Settings saved.</div>}
           {error && <div style={{ background: '#fef2f2', border: '0.5px solid #fecaca', borderRadius: '8px', padding: '12px 16px', fontSize: '13px', color: '#dc2626' }}>{error}</div>}

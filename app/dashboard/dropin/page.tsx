@@ -7,7 +7,7 @@ import DropinDetail from './DropinDetail'
 import DropinStandings from './DropinStandings'
 import DropinHistory from './DropinHistory'
 import DropinHelpDialog from './DropinHelpDialog'
-import { DashboardPlanLockedCard } from '@/components/dashboard/DashboardPlanLockedCard'
+import { DashboardPlanLockedHint } from '@/components/dashboard/DashboardPlanLockedHint'
 import { isBasic, normalizeOrgPlan, type OrgPlanSlug } from '@/lib/org-plan-tier'
 export default function DropinPage() {
   const [activeTab, setActiveTab] = useState<'sessions' | 'standings' | 'history'>('sessions')
@@ -109,19 +109,16 @@ export default function DropinPage() {
           }}
         />
       )}
-      {activeTab === 'standings' && standingsLocked ? (
-        <DashboardPlanLockedCard
-          title="Drop-in standings"
-          body={
-            <>
-              On <strong>Basic</strong>, you can still run drop-in sessions and check people in. Upgrade to{' '}
-              <strong>Pro</strong> or <strong>Enterprise</strong> to track player reputation tiers (gold / silver /
-              warning) across sessions.
-            </>
-          }
-        />
+      {activeTab === 'standings' ? (
+        <div>
+          {standingsLocked ? (
+            <DashboardPlanLockedHint feature="track drop-in reputation tiers (gold / silver / warning) across sessions" />
+          ) : null}
+          <div style={{ opacity: standingsLocked ? 0.55 : 1, pointerEvents: standingsLocked ? 'none' : 'auto' }}>
+            <DropinStandings />
+          </div>
+        </div>
       ) : null}
-      {activeTab === 'standings' && !standingsLocked ? <DropinStandings /> : null}
       {activeTab === 'history' && <DropinHistory />}
     </div>
   )

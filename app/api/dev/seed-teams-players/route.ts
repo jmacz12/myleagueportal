@@ -14,20 +14,28 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
+/** Legacy marker — old demo rows may still start with this until cleanup script runs. */
 const SEED_PREFIX = '[SEED]'
 
+/** Portal showcase team names (no prefix — organizer-ready labels). */
 const PORTAL_TEAM_NAMES = [
-  `${SEED_PREFIX} Kitsilano Knights`,
-  `${SEED_PREFIX} Main St Motion`,
-  `${SEED_PREFIX} False Creek Forge`,
-  `${SEED_PREFIX} Commercial Drive`,
-  `${SEED_PREFIX} Riley Park Rebels`,
-  `${SEED_PREFIX} Trout Lake Tempo`,
-  `${SEED_PREFIX} Cambie Crossover`,
-  `${SEED_PREFIX} Fraserhood Flight`,
-  `${SEED_PREFIX} Downtown Runners`,
-  `${SEED_PREFIX} Hastings Hoopers`,
+  'Kitsilano Knights',
+  'Main St Motion',
+  'False Creek Forge',
+  'Commercial Drive',
+  'Riley Park Rebels',
+  'Trout Lake Tempo',
+  'Cambie Crossover',
+  'Fraserhood Flight',
+  'Downtown Runners',
+  'Hastings Hoopers',
 ]
+
+function isLegacyOrPortalDemoTeamName(name: string): boolean {
+  const n = String(name || '').trim()
+  if (n.startsWith(SEED_PREFIX)) return true
+  return PORTAL_TEAM_NAMES.includes(n)
+}
 
 const PORTAL_TEAM_COLORS = [
   '#b91c1c',
@@ -524,12 +532,12 @@ export async function POST(req: Request) {
       .from('teams')
       .select('id', { count: 'exact', head: true })
       .eq('organization_id', org.id)
-      .like('name', `${SEED_PREFIX}%`)
+      .in('name', [...PORTAL_TEAM_NAMES, ...PORTAL_TEAM_NAMES.map((n) => `${SEED_PREFIX} ${n}`)])
     if ((count ?? 0) > 0) {
       return NextResponse.json(
         {
           error:
-            '[SEED] demo teams already exist for this org. Re-run with replace: true to wipe prior seed teams/players and refresh the portal demo.',
+            'Portal demo teams already exist for this org. Re-run with replace: true to wipe prior demo teams/players and refresh the portal demo.',
         },
         { status: 400 }
       )
@@ -540,11 +548,11 @@ export async function POST(req: Request) {
     if (fullPortalDemo) {
       await wipeOrgCompetitionForPortalDemo(org.id)
     } else {
-      const { data: seedTeams } = await supabaseAdmin
+      const { data: allTeams } = await supabaseAdmin
         .from('teams')
-        .select('id')
+        .select('id, name')
         .eq('organization_id', org.id)
-        .like('name', `${SEED_PREFIX}%`)
+      const seedTeams = (allTeams || []).filter((t) => isLegacyOrPortalDemoTeamName(t.name))
 
       const seedTeamIds = (seedTeams || []).map((t) => t.id)
       if (seedTeamIds.length > 0) {
@@ -610,7 +618,7 @@ export async function POST(req: Request) {
     end.setMonth(end.getMonth() + 5)
 
     const insertRow: Record<string, unknown> = {
-      name: `${SEED_PREFIX} Demo season`,
+      name: 'Demo season',
       type: 'season',
       organization_id: org.id,
       is_active: true,
@@ -666,7 +674,6 @@ export async function POST(req: Request) {
   if (fullPortalDemo) {
     for (let t = 0; t < PORTAL_TEAM_NAMES.length; t++) {
       const streamSlug = PORTAL_TEAM_NAMES[t]
-        .replace(SEED_PREFIX, '')
         .trim()
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
@@ -813,8 +820,8 @@ export async function POST(req: Request) {
       console.warn('[seed] drop-in demo:', dropin.error)
     }
   } else {
-    const redName = `${SEED_PREFIX} Red Hots`
-    const blueName = `${SEED_PREFIX} Blue Notes`
+    const redName = 'Red Hots'
+    const blueName = 'Blue Notes'
 
     const { data: redTeam, error: redErr } = await supabaseAdmin
       .from('teams')
@@ -994,7 +1001,7 @@ export async function POST(req: Request) {
     ok: true,
     message:
       (fullPortalDemo
-        ? `Portal demo: ${teamsOut.length} teams, ${DEMO_SUMMER_SEASON_NAME}, Mon/Wed drop-ins, light schedule + upcoming games. Visit /league/${slug.trim()} and /join/${slug.trim()}/dropins. Delete [SEED] rows from dashboard when done.`
+        ? `Portal demo: ${teamsOut.length} teams, ${DEMO_SUMMER_SEASON_NAME}, Mon/Wed drop-ins, light schedule + upcoming games. Visit /league/${slug.trim()} and /join/${slug.trim()}/dropins.`
         : `Open /league/${slug.trim()} — seed teams: ${teamHint}. Remove later from Dashboard → Teams / Players if you like.`) +
       (gamesSeeded
         ? ` Games: ${gamesSeeded.games_created} finals, ${gamesSeeded.stats_rows} stat rows. Open a team page under /league/${slug.trim()}/teams/<teamId>.`

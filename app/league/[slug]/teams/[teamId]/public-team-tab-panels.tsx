@@ -10,6 +10,7 @@ import type { ThemePreset } from '@/lib/leagueTheme'
 import { fanStatLabelForTemplate, headlineFanStatsForTemplate, publicFanStatFootnoteForTemplate } from '@/lib/public-fan-stat-labels'
 import { PUBLIC_PRIMARY_STAT_ORDER, normalizePublicPrimaryStatKeys, type PublicPrimaryStatKey } from '@/lib/public-primary-stats'
 import { normalizeSportTemplateId } from '@/lib/sport-templates'
+import { demoPlanSwitcherSlugs } from '@/lib/demo-plan-switcher'
 import { PUBLIC_STREAM_HUB_UPSELL } from '@/lib/public-plan-copy'
 import type { PlayerTotalsRow, PublicTeamTab, TeamPayload } from './team-page-types'
 
@@ -252,19 +253,17 @@ function JerseyPollOverviewCard({
   )
 }
 
-const SEED_TEAM_NAME_PREFIX = '[SEED]'
-
-/** Enterprise team page: show a polished sponsor strip for `[SEED]` portal demo teams (no DB table yet). */
+/** Enterprise team page: show a polished sponsor strip on portal showcase leagues (no DB table yet). */
 function TeamSponsorsEnterpriseCard({
   teamId,
-  teamName,
+  leagueSlug,
   preset,
 }: {
   teamId: string
-  teamName: string
+  leagueSlug: string
   preset: ThemePreset
 }) {
-  if (!teamName.startsWith(SEED_TEAM_NAME_PREFIX)) {
+  if (!demoPlanSwitcherSlugs().has(leagueSlug.trim().toLowerCase())) {
     return (
       <p style={{ margin: '8px 0 0', fontSize: '13px', color: preset.body, lineHeight: 1.45 }}>
         No team sponsors added yet. Enterprise teams can feature local partner logos and links here.
@@ -1099,7 +1098,7 @@ export function PublicTeamTabPanels({
               <div style={{ fontSize: '11px', letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 800, color: preset.muted }}>
                 Team sponsors
               </div>
-              <TeamSponsorsEnterpriseCard teamId={team.id} teamName={team.name} preset={preset} />
+              <TeamSponsorsEnterpriseCard teamId={team.id} leagueSlug={slug} preset={preset} />
             </div>
           ) : null}
           {tier === 'basic' ? (

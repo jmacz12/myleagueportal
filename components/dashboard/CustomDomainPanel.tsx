@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
+import { DashboardPlanLockedHint } from '@/components/dashboard/DashboardPlanLockedHint'
 import { publicFanSiteOrigin } from '@/lib/public-site-origin'
 import { looksLikeValidHostname } from '@/lib/custom-domain'
 
@@ -130,13 +131,41 @@ export function CustomDomainPanel({
   if (!tierOk) {
     return (
       <div className="card" style={{ marginBottom: '16px' }}>
-        <span className="label" style={{ display: 'block', marginBottom: '8px' }}>
+        <DashboardPlanLockedHint feature="point your own domain at your public league and join links (DNS verification)" />
+        <span className="label" style={{ display: 'block', marginBottom: '6px' }}>
           Custom fan domain
         </span>
-        <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
-          <strong>Pro</strong> and <strong>Enterprise</strong> let you point your own domain at your public league and join
-          links (DNS verification). Upgrade above to connect it.
+        <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '0 0 14px', lineHeight: 1.55 }}>
+          Use a hostname you control (often <code style={{ fontSize: '12px' }}>www.</code> on your registrar). After DNS
+          and HTTPS work, visitors land on your league home the same as <strong>/league/{slug}</strong> on the portal.
         </p>
+        <div style={{ opacity: 0.55, pointerEvents: 'none' }}>
+          <label className="label">Hostname</label>
+          <input type="text" className="input" disabled placeholder="www.yourleague.com" />
+          <button type="button" className="btn-primary" style={{ fontSize: '12px', padding: '7px 14px', marginTop: '10px' }} disabled>
+            Save hostname
+          </button>
+          <div
+            style={{
+              background: 'var(--bg-elevated)',
+              border: '0.5px solid var(--border)',
+              borderRadius: '10px',
+              padding: '14px',
+              fontSize: '12px',
+              lineHeight: 1.55,
+              marginTop: '14px',
+            }}
+          >
+            <div style={{ fontWeight: 800, marginBottom: '8px', fontSize: '13px' }}>1. Point traffic (CNAME)</div>
+            <p style={{ margin: '0 0 8px', color: 'var(--text-muted)' }}>
+              Add a <strong>CNAME</strong> from your hostname to the portal target shown here after you upgrade.
+            </p>
+            <div style={{ fontWeight: 800, marginBottom: '8px', fontSize: '13px' }}>2. Prove ownership (TXT)</div>
+            <p style={{ margin: 0, color: 'var(--text-muted)' }}>
+              Add a TXT record to verify you control the domain.
+            </p>
+          </div>
+        </div>
       </div>
     )
   }
@@ -175,10 +204,6 @@ export function CustomDomainPanel({
         ) : null}
       </div>
     )
-  }
-
-  if (!payload.planOk) {
-    return null
   }
 
   const verified = !!payload.verifiedHostname

@@ -143,7 +143,7 @@ if (supabaseUrl && serviceKey) {
   const supabase = createClient(supabaseUrl, serviceKey)
   const { data: org, error } = await supabase
     .from('organizations')
-    .select('id, slug, plan, stripe_customer_id, stripe_subscription_id')
+    .select('id, slug, plan, plan_complimentary, stripe_customer_id, stripe_subscription_id')
     .eq('slug', slug)
     .maybeSingle()
 
@@ -151,12 +151,16 @@ if (supabaseUrl && serviceKey) {
   else if (!org) fail(`No org for slug "${slug}"`)
   else {
     pass(`Org "${slug}" plan in DB: ${org.plan}`)
-    if (org.plan === 'basic') {
-      fail('Demo org is still Basic — paid features may be gated')
+    const complimentary = org.plan_complimentary === true
+    if (complimentary) {
+      pass('plan_complimentary — demo/included tier (no Stripe customer expected)')
     }
-    if (org.plan === 'pro' || org.plan === 'enterprise') {
+    if (org.plan === 'basic' && !complimentary) {
+      fail('Org is still Basic — paid features may be gated')
+    }
+    if ((org.plan === 'pro' || org.plan === 'enterprise') && !complimentary) {
       if (!org.stripe_subscription_id) {
-        fail('Paid plan in DB but no stripe_subscription_id (upgrade may be manual or sync-only)')
+        fail('Paid plan in DB but no stripe_subscription_id (run live Checkout or sync-checkout)')
       } else {
         pass(`stripe_subscription_id present (${org.stripe_subscription_id.slice(0, 12)}…)`)
       }

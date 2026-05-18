@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import ScheduleImportPanel from './ScheduleImportPanel'
+import { DashboardPlanLockedHint } from '@/components/dashboard/DashboardPlanLockedHint'
 import { isProOrEnterprise, normalizeOrgPlan, type OrgPlanSlug } from '@/lib/org-plan-tier'
 
 interface Team { id: string; name: string; season_id: string }
@@ -122,42 +123,50 @@ export default function AddGamesForm({ onClose, onSuccess }: Props) {
             </button>
           </div>
 
-          {canImport ? (
-            <div style={{ display: 'flex', gap: '6px', marginBottom: '16px', flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                className={mode === 'import' ? 'btn-primary' : 'btn-secondary'}
-                style={{ fontSize: '12px', padding: '6px 12px' }}
-                onClick={() => setMode('import')}
-              >
-                Import spreadsheet
-              </button>
-              <button
-                type="button"
-                className={mode === 'manual' ? 'btn-primary' : 'btn-secondary'}
-                style={{ fontSize: '12px', padding: '6px 12px' }}
-                onClick={() => setMode('manual')}
-              >
-                Enter manually
-              </button>
-            </div>
-          ) : (
-            <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '16px', lineHeight: 1.5 }}>
-              <strong>Basic plan:</strong> add games one row at a time below.{' '}
-              <strong>Pro</strong> and <strong>Enterprise</strong> can import a CSV or Excel file — upgrade under{' '}
-              <strong>Dashboard → Settings → Plan</strong>.
-            </p>
-          )}
+          <div style={{ display: 'flex', gap: '6px', marginBottom: '16px', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className={mode === 'import' ? 'btn-primary' : 'btn-secondary'}
+              style={{ fontSize: '12px', padding: '6px 12px' }}
+              onClick={() => setMode('import')}
+            >
+              Import spreadsheet
+            </button>
+            <button
+              type="button"
+              className={mode === 'manual' ? 'btn-primary' : 'btn-secondary'}
+              style={{ fontSize: '12px', padding: '6px 12px' }}
+              onClick={() => setMode('manual')}
+            >
+              Enter manually
+            </button>
+          </div>
 
-          {canImport && mode === 'import' ? (
-            <ScheduleImportPanel
-              seasons={seasons}
-              seasonTeams={seasonTeams}
-              selectedSeason={selectedSeason}
-              onSeasonChange={setSelectedSeason}
-              onClose={onClose}
-              onSuccess={onSuccess}
-            />
+          {mode === 'import' ? (
+            canImport ? (
+              <ScheduleImportPanel
+                seasons={seasons}
+                seasonTeams={seasonTeams}
+                selectedSeason={selectedSeason}
+                onSeasonChange={setSelectedSeason}
+                onClose={onClose}
+                onSuccess={onSuccess}
+              />
+            ) : (
+              <>
+                <DashboardPlanLockedHint feature="import games from a CSV or Excel spreadsheet" />
+                <div style={{ opacity: 0.55, pointerEvents: 'none' }}>
+                  <ScheduleImportPanel
+                    seasons={seasons}
+                    seasonTeams={seasonTeams}
+                    selectedSeason={selectedSeason}
+                    onSeasonChange={setSelectedSeason}
+                    onClose={onClose}
+                    onSuccess={onSuccess}
+                  />
+                </div>
+              </>
+            )
           ) : (
             <>
               <div style={{ marginBottom: '14px' }}>

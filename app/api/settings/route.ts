@@ -39,7 +39,7 @@ export async function GET() {
   let { data: orgWithTz, error: orgWithTzError } = await supabaseAdmin
     .from('organizations')
     .select(
-      'id, name, slug, primary_color, logo_url, plan, plan_complimentary, stripe_customer_id, stripe_subscription_id, news_banner, news_banner_color, league_timezone, league_theme_preset, league_appearance_mode, brand_color_change_count, brand_color_change_period_start, league_name_change_count, league_name_last_changed_at, game_email_reminders_enabled'
+      'id, name, slug, primary_color, logo_url, plan, plan_complimentary, stripe_customer_id, stripe_subscription_id, news_banner, news_banner_color, league_timezone, league_theme_preset, league_appearance_mode, brand_color_change_count, brand_color_change_period_start, league_name_change_count, league_name_last_changed_at, game_email_reminders_enabled, fan_email_registration_opens_enabled, fan_email_dropin_reminders_enabled'
     )
     .eq('id', access.organization.id)
     .single()
@@ -60,6 +60,8 @@ export async function GET() {
         league_name_change_count: 0,
         league_name_last_changed_at: null,
         game_email_reminders_enabled: true,
+        fan_email_registration_opens_enabled: true,
+        fan_email_dropin_reminders_enabled: true,
         plan_complimentary: r2Complimentary,
       } as typeof orgWithTz
       orgWithTzError = null
@@ -104,6 +106,12 @@ export async function GET() {
     ...org,
     game_email_reminders_enabled:
       (org as { game_email_reminders_enabled?: boolean }).game_email_reminders_enabled !== false,
+    fan_email_registration_opens_enabled:
+      (org as { fan_email_registration_opens_enabled?: boolean }).fan_email_registration_opens_enabled !==
+      false,
+    fan_email_dropin_reminders_enabled:
+      (org as { fan_email_dropin_reminders_enabled?: boolean }).fan_email_dropin_reminders_enabled !==
+      false,
     plan_complimentary: planComplimentary,
     demo_plan_switcher_enabled: demoPlanSwitcherAllowed(slug, planComplimentary),
   }
@@ -156,6 +164,8 @@ export async function PATCH(req: Request) {
     league_theme_preset,
     league_appearance_mode,
     game_email_reminders_enabled,
+    fan_email_registration_opens_enabled,
+    fan_email_dropin_reminders_enabled,
   } = await req.json()
 
   if (!name || !slug) {
@@ -216,6 +226,12 @@ export async function PATCH(req: Request) {
     updateData.league_appearance_mode = tm.mode
     if (typeof game_email_reminders_enabled === 'boolean') {
       updateData.game_email_reminders_enabled = game_email_reminders_enabled
+    }
+    if (typeof fan_email_registration_opens_enabled === 'boolean') {
+      updateData.fan_email_registration_opens_enabled = fan_email_registration_opens_enabled
+    }
+    if (typeof fan_email_dropin_reminders_enabled === 'boolean') {
+      updateData.fan_email_dropin_reminders_enabled = fan_email_dropin_reminders_enabled
     }
   }
 

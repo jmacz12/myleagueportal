@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { BarChart3, Lock } from 'lucide-react'
+import { BarChart3 } from 'lucide-react'
+import { DashboardPlanLockedHint } from '@/components/dashboard/DashboardPlanLockedHint'
 import GameStatsImportPanel from './GameStatsImportPanel'
 import GameBoxScorePanel from './GameBoxScorePanel'
 import { isBasic, isProOrEnterprise, normalizeOrgPlan, type OrgPlanSlug } from '@/lib/org-plan-tier'
@@ -63,6 +64,7 @@ export default function StatsTab() {
   const [downloadingGameId, setDownloadingGameId] = useState<string | null>(null)
 
   const canUseStatsHub = plan !== null && isProOrEnterprise(plan)
+  const statsLocked = plan !== null && (locked || isBasic(plan))
 
   async function fetchData(opts?: { seasonId?: string; teamId?: string }) {
     setLoading(true)
@@ -115,55 +117,16 @@ export default function StatsTab() {
     setBoxScoreGameId(null)
   }
 
-  if (loading && seasons.length === 0 && !locked) {
+  if (loading && seasons.length === 0 && !statsLocked) {
     return <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Loading…</p>
-  }
-
-  if (plan !== null && (locked || isBasic(plan))) {
-    return (
-      <div
-        className="card"
-        style={{
-          padding: '28px 24px',
-          textAlign: 'center',
-          border: '0.5px solid var(--border)',
-        }}
-      >
-        <div
-          style={{
-            width: 48,
-            height: 48,
-            borderRadius: '12px',
-            background: 'var(--bg-elevated)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            margin: '0 auto 16px',
-            color: 'var(--text-muted)',
-          }}
-        >
-          <Lock size={24} aria-hidden />
-        </div>
-        <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '10px' }}>
-          Stats hub — Pro or Enterprise
-        </h2>
-        <p style={{ fontSize: '14px', color: 'var(--text-muted)', lineHeight: 1.55, maxWidth: '420px', margin: '0 auto 20px' }}>
-          On <strong>Basic</strong>, enter stats live under{' '}
-          <Link href="/dashboard/games" style={{ color: 'var(--accent)', fontWeight: 600 }}>
-            Games
-          </Link>
-          . Upgrade for season <strong>leaders</strong>, game stat history, and{' '}
-          <strong>offline Excel sheets</strong> you fill in and import after the game.
-        </p>
-        <Link href="/dashboard/settings?tab=plan" className="btn-primary" style={{ textDecoration: 'none' }}>
-          Compare plans
-        </Link>
-      </div>
-    )
   }
 
   return (
     <div>
+      {statsLocked ? (
+        <DashboardPlanLockedHint feature="use the stats hub for season leaders, game history, and Excel import after games" />
+      ) : null}
+      <div style={{ opacity: statsLocked ? 0.55 : 1, pointerEvents: statsLocked ? 'none' : 'auto' }}>
       <div
         style={{
           display: 'flex',
@@ -396,6 +359,7 @@ export default function StatsTab() {
           })}
         </div>
       )}
+      </div>
     </div>
   )
 }

@@ -26,7 +26,7 @@ export async function GET() {
       .order('registered_at', { ascending: false }),
     supabaseAdmin
       .from('organizations')
-      .select('plan, game_email_reminders_enabled')
+      .select('plan, game_email_reminders_enabled, fan_email_registration_opens_enabled')
       .eq('id', org.id)
       .single(),
   ])
@@ -35,12 +35,17 @@ export async function GET() {
   const gameEmailRemindersEnabled =
     (orgRow as { game_email_reminders_enabled?: boolean } | null)?.game_email_reminders_enabled !==
     false
+  const registrationOpensEnabled =
+    (orgRow as { fan_email_registration_opens_enabled?: boolean } | null)
+      ?.fan_email_registration_opens_enabled !== false
 
   return NextResponse.json({
     players: players || [],
     org_plan: orgPlan,
     game_email_reminders_enabled: gameEmailRemindersEnabled,
+    fan_email_registration_opens_enabled: registrationOpensEnabled,
     game_reminders_available: isProOrEnterprise(orgPlan),
+    fan_alerts_available: isProOrEnterprise(orgPlan),
   })
 }
 
@@ -53,7 +58,13 @@ export async function PATCH(req: Request) {
 
   const org = { id: access.organization.id }
 
-  const { player_id, team_id, jersey_number, game_reminders_opt_out } = await req.json()
+  const {
+    player_id,
+    team_id,
+    jersey_number,
+    game_reminders_opt_out,
+    fan_email_registration_opens_opt_out,
+  } = await req.json()
   if (!player_id) return NextResponse.json({ error: 'player_id is required' }, { status: 400 })
 
   const { data: player } = await supabaseAdmin
@@ -102,6 +113,9 @@ export async function PATCH(req: Request) {
 
   if (game_reminders_opt_out !== undefined) {
     update.game_reminders_opt_out = game_reminders_opt_out === true
+  }
+  if (fan_email_registration_opens_opt_out !== undefined) {
+    update.fan_email_registration_opens_opt_out = fan_email_registration_opens_opt_out === true
   }
 
   if (Object.keys(update).length === 0) {
