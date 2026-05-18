@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { auth } from '@clerk/nextjs/server'
 import { requireOwnerOrgForDashboard } from '@/lib/org-access'
+import { maxActiveDropinSessionsForPlan, normalizeOrgPlan } from '@/lib/org-plan-tier'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -70,6 +71,48 @@ export async function POST(req: Request) {
 
   if (!name || !date || !start_time) {
     return NextResponse.json({ error: 'Name, date and start time required' }, { status: 400 })
+  }
+
+  const { data: orgRow } = await supabaseAdmin
+    .from('organizations')
+    .select('plan')
+    .eq('id', gate.organizationId)
+    .maybeSingle()
+
+  const sessionCap = maxActiveDropinSessionsForPlan(orgRow?.plan)
+  if (sessionCap !== null) {
+    const { count: activeCount } = await supabaseAdmin
+      .from('dropin_sessions')
+      .select('*', { count: 'exact', head: true })
+      .eq('organization_id', gate.organizationId)
+      .eq('status', 'upcoming')
+
+    const current = activeCount ?? 0
+    const datesPreview: string[] = [date]
+    if (is_recurring && recurring_until && recurring_frequency) {
+      const end = new Date(recurring_until)
+      const currentDate = new Date(date)
+      const increment =
+        recurring_frequency === 'weekly' ? 7 : recurring_frequency === 'biweekly' ? 14 : 30
+      while (true) {
+        currentDate.setDate(currentDate.getDate() + increment)
+        if (currentDate > end) break
+        datesPreview.push(currentDate.toISOString().split('T')[0])
+        if (datesPreview.length > 52) break
+      }
+    }
+    if (current + datesPreview.length > sessionCap) {
+      const planLabel = normalizeOrgPlan(orgRow?.plan) === 'basic' ? 'Basic' : 'Pro'
+      return NextResponse.json(
+        {
+          error:
+            sessionCap === 1
+              ? `${planLabel} allows 1 active drop-in session at a time. End or delete your current session, or upgrade for more.`
+              : `${planLabel} allows up to ${sessionCap} active drop-in sessions. You have ${current}; this would add ${datesPreview.length} more.`,
+        },
+        { status: 403 }
+      )
+    }
   }
 
   const dates: string[] = [date]

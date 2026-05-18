@@ -19,6 +19,14 @@ export function seasonLimitForPlan(plan: unknown): number {
   return 1
 }
 
+/** Upcoming drop-in sessions allowed at once; `null` = unlimited (Enterprise). */
+export function maxActiveDropinSessionsForPlan(plan: unknown): number | null {
+  const n = normalizeOrgPlan(plan)
+  if (n === 'enterprise') return null
+  if (n === 'pro') return 10
+  return 1
+}
+
 export function isBasic(plan: unknown): boolean {
   return normalizeOrgPlan(plan) === 'basic'
 }

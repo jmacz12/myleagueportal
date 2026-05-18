@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import GamesTab from './GamesTab'
 import DropinTab from './DropinTab'
+import { DashboardHelpLauncher } from '@/components/dashboard/DashboardHelpLauncher'
 
 export default function GamesPage() {
   const [activeTab, setActiveTab] = useState<'games' | 'dropin'>('games')
@@ -10,9 +11,23 @@ export default function GamesPage() {
   return (
     <div style={{ maxWidth: '860px' }}>
 
-      {/* Header */}
-      <div style={{ marginBottom: '24px' }}>
-        <h1 className="page-title">Games & Sessions</h1>
+      <div
+        style={{
+          marginBottom: '24px',
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: '12px',
+          flexWrap: 'wrap',
+        }}
+      >
+        <div>
+          <h1 className="page-title" style={{ margin: 0 }}>
+            Games & Sessions
+          </h1>
+          <p className="page-subtitle">Schedule league games and open drop-in nights</p>
+        </div>
+        <DashboardHelpLauncher topic="games" />
       </div>
 
       {/* Tab switcher */}

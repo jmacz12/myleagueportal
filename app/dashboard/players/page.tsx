@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
+import { DashboardHelpLauncher } from '@/components/dashboard/DashboardHelpLauncher'
 
 interface Player {
   id: string
@@ -41,15 +42,12 @@ export default function PlayersPage() {
   const [players, setPlayers] = useState<Player[]>([])
   const [teams, setTeams] = useState<Team[]>([])
   const [seasons, setSeasons] = useState<Season[]>([])
-  const [orgSlug, setOrgSlug] = useState('')
   const [loading, setLoading] = useState(true)
   const [selectedSeason, setSelectedSeason] = useState<string>('all')
   const [selectedTeam, setSelectedTeam] = useState<string>('all')
   const [playerSearch, setPlayerSearch] = useState('')
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [assigningId, setAssigningId] = useState<string | null>(null)
-  const [pollHelpOpen, setPollHelpOpen] = useState(false)
-  const [orgPlan, setOrgPlan] = useState<'basic' | 'pro' | 'enterprise'>('basic')
   const [gameRemindersAvailable, setGameRemindersAvailable] = useState(false)
   const [gameEmailRemindersEnabled, setGameEmailRemindersEnabled] = useState(true)
   const [reminderToggleId, setReminderToggleId] = useState<string | null>(null)
@@ -67,9 +65,6 @@ export default function PlayersPage() {
     const [pd, td, sd] = await Promise.all([playersRes.json(), teamsRes.json(), seasonsRes.json()])
     setPlayers(pd.players || [])
     setTeams(td.teams || [])
-    setOrgSlug(typeof td.org_slug === 'string' ? td.org_slug : '')
-    const pr = String(pd.org_plan || td.org_plan || 'basic').toLowerCase()
-    setOrgPlan(pr === 'enterprise' ? 'enterprise' : pr === 'pro' ? 'pro' : 'basic')
     setGameRemindersAvailable(pd.game_reminders_available === true)
     setGameEmailRemindersEnabled(pd.game_email_reminders_enabled !== false)
     setSeasons(sd.seasons || [])
@@ -156,9 +151,6 @@ export default function PlayersPage() {
   const teamsForFilter = selectedSeason === 'all' ? teams : teams.filter((t) => t.season_id === selectedSeason)
   const getSeasonTeams = (seasonId: string) => teams.filter((t) => t.season_id === seasonId)
 
-  const teamsForPollModal =
-    selectedSeason === 'all' ? teams : teams.filter((t) => t.season_id === selectedSeason)
-
   return (
     <div style={{ maxWidth: '960px' }}>
       <div className="page-header">
@@ -182,9 +174,7 @@ export default function PlayersPage() {
             ) : null}
           </p>
         </div>
-        <button type="button" className="btn-secondary" style={{ fontSize: '12px', fontWeight: 700 }} onClick={() => setPollHelpOpen(true)}>
-          Jersey polls
-        </button>
+        <DashboardHelpLauncher topic="players" />
       </div>
 
       <div className="card-sm" style={{ marginBottom: '16px', display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
@@ -455,63 +445,6 @@ export default function PlayersPage() {
         </div>
       )}
 
-      {pollHelpOpen ? (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="poll-help-title"
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 100,
-            background: 'rgba(15, 23, 42, 0.45)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '16px',
-          }}
-          onClick={() => setPollHelpOpen(false)}
-        >
-          <div className="card" style={{ maxWidth: '440px', width: '100%', maxHeight: '88vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
-            <h2 id="poll-help-title" style={{ fontSize: '17px', fontWeight: 800, margin: '0 0 8px', color: 'var(--text-primary)' }}>
-              Jersey number polls
-            </h2>
-            <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '0 0 14px', lineHeight: 1.5 }}>
-              <strong>Pro and Enterprise.</strong> Open a poll from <strong>Dashboard → Teams</strong>. Players pick on the public team page while signed in; <strong>first save wins</strong> on each number. You see the full roster with who has not picked yet.
-            </p>
-            {orgPlan === 'basic' ? (
-              <p style={{ fontSize: '12px', color: 'var(--text-primary)', margin: '0 0 14px', lineHeight: 1.5, padding: '10px 12px', borderRadius: '8px', background: 'var(--bg-elevated)', border: '0.5px solid var(--border)' }}>
-                Your league is on <strong>Basic</strong>. Upgrade under{' '}
-                <Link href="/dashboard/settings" style={{ fontWeight: 700, color: 'var(--accent)' }}>
-                  Dashboard → Settings
-                </Link>{' '}
-                to use jersey polls.
-              </p>
-            ) : null}
-            <p style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 8px' }}>Where to open the poll</p>
-            <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 10px', lineHeight: 1.45 }}>
-              Open <strong>Dashboard → Teams</strong>, or go to each team&apos;s public page, sign in as owner or staff, and use <strong>Manage team</strong> →{' '}
-              <strong>Logo &amp; poll</strong>. Players see an entry on the team page <strong>Overview</strong> tab when a poll is open.
-            </p>
-            {orgSlug && teamsForPollModal.length > 0 ? (
-              <ul style={{ margin: '0 0 16px', paddingLeft: '18px', fontSize: '13px', color: 'var(--text-primary)' }}>
-                {teamsForPollModal.map((t) => (
-                  <li key={t.id} style={{ marginBottom: '6px' }}>
-                    <Link href={`/league/${orgSlug}/teams/${t.id}?manage=1&panel=jersey`} style={{ color: 'var(--accent)', fontWeight: 700 }}>
-                      {t.name}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 16px' }}>Create teams first, then use the links above from each public page.</p>
-            )}
-            <button type="button" className="btn-secondary" style={{ width: '100%' }} onClick={() => setPollHelpOpen(false)}>
-              Close
-            </button>
-          </div>
-        </div>
-      ) : null}
     </div>
   )
 }

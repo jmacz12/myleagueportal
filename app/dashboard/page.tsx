@@ -2,6 +2,7 @@ import { auth } from '@clerk/nextjs/server'
 import { createClient } from '@supabase/supabase-js'
 import Link from 'next/link'
 import { CalendarClock } from 'lucide-react'
+import { OverviewHelpAction } from '@/app/dashboard/OverviewHelpAction'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -74,19 +75,30 @@ export default async function DashboardPage() {
 
   return (
     <div style={{ maxWidth: '860px' }}>
-      {/* Header */}
-      <div style={{ marginBottom: '28px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
-          <h1 style={{ fontSize: '22px', fontWeight: '800', color: 'var(--text-primary)' }}>
-            {org?.name || 'My League'}
-          </h1>
-          <span className={`badge badge-${org?.plan || 'basic'}`}>
-            {org?.plan || 'basic'}
-          </span>
+      <div
+        style={{
+          marginBottom: '28px',
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: '12px',
+          flexWrap: 'wrap',
+        }}
+      >
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+            <h1 style={{ fontSize: '22px', fontWeight: '800', color: 'var(--text-primary)' }}>
+              {org?.name || 'My League'}
+            </h1>
+            <span className={`badge badge-${org?.plan || 'basic'}`}>
+              {org?.plan || 'basic'}
+            </span>
+          </div>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+            Here&apos;s your league at a glance
+          </p>
         </div>
-        <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-          Here&apos;s your league at a glance
-        </p>
+        <OverviewHelpAction />
       </div>
 
       {nextGameStrip ? (

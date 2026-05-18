@@ -8,6 +8,7 @@ import GameHighlights from '../../GameHighlights'
 import { contrastTextOnColor } from '@/lib/contrast-text-on-color'
 import { publicFanSiteOrigin } from '@/lib/public-site-origin'
 import { parseStarterSlotArray } from '@/lib/starter-slot-array'
+import { DashboardHelpLauncher } from '@/components/dashboard/DashboardHelpLauncher'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -641,6 +642,27 @@ export default function ScoringPage() {
       >
         ← Back to Games
       </button>
+
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: '12px',
+          flexWrap: 'wrap',
+          marginBottom: '16px',
+        }}
+      >
+        <div>
+          <h1 className="page-title" style={{ margin: 0 }}>
+            Live scoring
+          </h1>
+          <p className="page-subtitle" style={{ marginBottom: 0 }}>
+            {homeTeam?.name || 'Home'} vs {awayTeam?.name || 'Away'}
+          </p>
+        </div>
+        <DashboardHelpLauncher topic="live-scoring" />
+      </div>
 
       <div className="card" style={{ marginBottom: '20px', padding: '20px' }}>
         <div

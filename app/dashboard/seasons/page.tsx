@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { CalendarDays } from 'lucide-react'
 import { inferSignupMode, effectiveSignupOpensAtIso } from '@/lib/seasonSignup'
 import SeasonSignupTimingFields from './SeasonSignupTimingFields'
+import { DashboardHelpLauncher } from '@/components/dashboard/DashboardHelpLauncher'
 
 interface Season {
   id: string
@@ -269,13 +270,16 @@ export default function SeasonsPage() {
             .
           </p>
         </div>
-        <button
-          onClick={() => !atLimit && setShowForm(!showForm)}
-          className="btn-primary"
-          style={{ opacity: atLimit ? 0.5 : 1, cursor: atLimit ? 'not-allowed' : 'pointer' }}
-        >
-          + New Season
-        </button>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', flexShrink: 0 }}>
+          <DashboardHelpLauncher topic="seasons" />
+          <button
+            onClick={() => !atLimit && setShowForm(!showForm)}
+            className="btn-primary"
+            style={{ opacity: atLimit ? 0.5 : 1, cursor: atLimit ? 'not-allowed' : 'pointer' }}
+          >
+            + New Season
+          </button>
+        </div>
       </div>
 
       {/* Upgrade Banner */}

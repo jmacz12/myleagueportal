@@ -9,6 +9,7 @@ import {
   requestCloseJerseyPoll,
   requestOpenJerseyPoll,
 } from '@/lib/jersey-poll-dashboard-client'
+import { DashboardHelpLauncher } from '@/components/dashboard/DashboardHelpLauncher'
 
 interface Team {
   id: string
@@ -234,14 +235,17 @@ export default function TeamsPage() {
             <strong>Manage team</strong>, for stream, news, schedule, logo, and jersey polls.
           </p>
         </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          disabled={seasons.length === 0 || !canManageTeams}
-          className="btn-primary"
-          style={{ opacity: seasons.length === 0 || !canManageTeams ? 0.5 : 1 }}
-        >
-          + New Team
-        </button>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', flexShrink: 0 }}>
+          <DashboardHelpLauncher topic="teams" />
+          <button
+            onClick={() => setShowForm(!showForm)}
+            disabled={seasons.length === 0 || !canManageTeams}
+            className="btn-primary"
+            style={{ opacity: seasons.length === 0 || !canManageTeams ? 0.5 : 1 }}
+          >
+            + New Team
+          </button>
+        </div>
       </div>
 
       <div

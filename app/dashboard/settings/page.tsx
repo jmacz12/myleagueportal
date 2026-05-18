@@ -13,6 +13,7 @@ import {
   type LeagueThemeChoiceId,
 } from '@/lib/league-theme-choice'
 import { leagueIdentityUiHint } from '@/lib/league-identity-change-policy'
+import { DashboardHelpLauncher } from '@/components/dashboard/DashboardHelpLauncher'
 import { broadcastLeagueAppearanceUpdated, subscribeLeagueAppearanceUpdated } from '@/lib/league-appearance-sync'
 import {
   PRO_BRAND_COLOR_CHANGES_PER_MONTH,
@@ -652,9 +653,23 @@ function SettingsPageClient() {
   return (
     <div style={{ maxWidth: '640px' }}>
 
-      <div style={{ marginBottom: '28px' }}>
-        <h1 className="page-title">Settings</h1>
-        <p className="page-subtitle">Manage your league profile and subscription</p>
+      <div
+        style={{
+          marginBottom: '28px',
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: '12px',
+          flexWrap: 'wrap',
+        }}
+      >
+        <div>
+          <h1 className="page-title" style={{ margin: 0 }}>
+            Settings
+          </h1>
+          <p className="page-subtitle">Manage your league profile and subscription</p>
+        </div>
+        <DashboardHelpLauncher topic="settings" />
       </div>
 
       <div

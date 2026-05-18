@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { maxActiveDropinSessionsForPlan, normalizeOrgPlan, type OrgPlanSlug } from '@/lib/org-plan-tier'
 import { CalendarDays, ChevronDown } from 'lucide-react'
 
 interface Session {
@@ -313,8 +314,15 @@ export default function DropinList({ onSelectSession }: Props) {
   const [editSubmitting, setEditSubmitting] = useState(false)
   const [editError, setEditError] = useState('')
   const [form, setForm] = useState<DropinFormState>(() => emptyDropinForm())
+  const [orgPlan, setOrgPlan] = useState<OrgPlanSlug>('basic')
 
-  useEffect(() => { fetchSessions() }, [])
+  useEffect(() => {
+    void fetch('/api/teams')
+      .then((r) => r.json())
+      .then((d) => setOrgPlan(normalizeOrgPlan(d.org_plan)))
+      .catch(() => {})
+    fetchSessions()
+  }, [])
 
   async function fetchSessions() {
     const res = await fetch('/api/dropin')
@@ -474,11 +482,25 @@ export default function DropinList({ onSelectSession }: Props) {
     })
   }
 
+  const sessionCap = maxActiveDropinSessionsForPlan(orgPlan)
+  const atSessionLimit = sessionCap !== null && sessions.length >= sessionCap
+  const sessionCountLabel =
+    sessionCap !== null
+      ? `${sessions.length} / ${sessionCap} active session${sessionCap !== 1 ? 's' : ''}`
+      : `${sessions.length} active session${sessions.length !== 1 ? 's' : ''}`
+
   return (
     <div>
       <div className="page-header">
-        <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-          {sessions.length} active session{sessions.length !== 1 ? 's' : ''}
+        <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>
+          {sessionCountLabel}
+          {atSessionLimit ? (
+            <span style={{ display: 'block', fontSize: '12px', marginTop: '4px', color: 'var(--text-secondary)' }}>
+              {sessionCap === 1
+                ? 'Basic allows one upcoming session. Delete or finish the current one, or upgrade for more.'
+                : `Your plan allows up to ${sessionCap} upcoming sessions.`}
+            </span>
+          ) : null}
         </p>
         <button
           type="button"
@@ -487,6 +509,11 @@ export default function DropinList({ onSelectSession }: Props) {
             setShowForm(!showForm)
           }}
           className="btn-primary"
+          disabled={atSessionLimit && !showForm}
+          style={{
+            opacity: atSessionLimit && !showForm ? 0.5 : 1,
+            cursor: atSessionLimit && !showForm ? 'not-allowed' : 'pointer',
+          }}
         >
           + New Session
         </button>

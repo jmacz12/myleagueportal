@@ -7,6 +7,7 @@ import { ExternalLink } from 'lucide-react'
 import { LeagueSiteAccessPanel } from '@/components/dashboard/LeagueSiteAccessPanel'
 import { subscribeLeagueAppearanceUpdated } from '@/lib/league-appearance-sync'
 import { getPublicSiteOrigin, publicFanSiteOrigin } from '@/lib/public-site-origin'
+import { DashboardHelpLauncher } from '@/components/dashboard/DashboardHelpLauncher'
 
 type EditorRow = {
   id: string
@@ -145,13 +146,28 @@ function LeagueSitePageClient() {
 
   return (
     <div style={{ maxWidth: '720px' }}>
-      <h1 style={{ fontSize: '22px', fontWeight: 800, margin: '0 0 8px', color: 'var(--sidebar-text-active)' }}>
-        League website
-      </h1>
-      <p style={{ fontSize: '14px', color: 'var(--sidebar-text)', margin: '0 0 24px', lineHeight: 1.55 }}>
-        Preview your public league home, then open <strong>Edit website</strong> to change the hero, news blocks, and page
-        sections — the same editor fans see, with <strong>Save draft</strong> and <strong>Publish</strong> on that page.
-      </p>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: '12px',
+          flexWrap: 'wrap',
+          marginBottom: '24px',
+        }}
+      >
+        <div>
+          <h1 style={{ fontSize: '22px', fontWeight: 800, margin: '0 0 8px', color: 'var(--sidebar-text-active)' }}>
+            League website
+          </h1>
+          <p style={{ fontSize: '14px', color: 'var(--sidebar-text)', margin: 0, lineHeight: 1.55, maxWidth: '520px' }}>
+            Preview your public league home, then open <strong>Edit website</strong> to change the hero, news blocks, and
+            page sections — the same editor fans see, with <strong>Save draft</strong> and <strong>Publish</strong> on
+            that page.
+          </p>
+        </div>
+        <DashboardHelpLauncher topic="league-site" />
+      </div>
 
       {role === 'owner' ? (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '18px' }}>
