@@ -1,0 +1,26 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//MyLeaguePortal//Schedule import test//EN
+CALSCALE:GREGORIAN
+BEGIN:VEVENT
+UID:schedule-import-test-1@myleagueportal.test
+DTSTAMP:20260519T120000Z
+DTSTART:20260620T190000
+SUMMARY:[SEED] Kitsilano Knights vs [SEED] Main St Motion
+LOCATION:Court 1
+END:VEVENT
+BEGIN:VEVENT
+UID:schedule-import-test-2@myleagueportal.test
+DTSTAMP:20260519T120000Z
+DTSTART:20260622T190000
+SUMMARY:[SEED] False Creek Forge @ [SEED] Commercial Drive
+LOCATION:Main gym
+END:VEVENT
+BEGIN:VEVENT
+UID:schedule-import-test-cancelled@myleagueportal.test
+DTSTAMP:20260519T120000Z
+DTSTART:20260625T190000
+SUMMARY:Cancelled scrimmage
+STATUS:CANCELLED
+END:VEVENT
+END:VCALENDAR

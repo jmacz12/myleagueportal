@@ -13,6 +13,7 @@ import {
 } from '@/lib/games-schedule-csv'
 import {
   detectScheduleFileKind,
+  scheduleImportRowsFromUpload,
   scheduleImportTextFromUpload,
 } from '@/lib/games-schedule-import'
 
@@ -142,11 +143,36 @@ export async function POST(req: Request) {
       const kind = detectScheduleFileKind(file.name, file.type || '')
       if (!kind) {
         return NextResponse.json(
-          { error: 'Use a .csv or .xlsx file (Excel or exported spreadsheet).' },
+          {
+            error:
+              'Use a .csv, .xlsx (spreadsheet), or .ics file (Google Calendar / Apple Calendar export).',
+          },
           { status: 400 }
         )
       }
       const buffer = await file.arrayBuffer()
+      if (kind === 'ics') {
+        const parsed = scheduleImportRowsFromUpload(buffer, kind)
+        if (parsed.length === 0) {
+          return NextResponse.json(
+            {
+              error:
+                'No games found in that calendar. Event titles should look like “Home Team vs Away Team” or “Away @ Home”.',
+            },
+            { status: 400 }
+          )
+        }
+        const rows = finalizeScheduleImportPreview(buildScheduleImportPreview(parsed, ctx.teams))
+        const readyRows = rows.filter((r) => r.ready)
+        return NextResponse.json({
+          preview: true,
+          rows,
+          readyCount: readyRows.length,
+          totalCount: rows.length,
+          truncated: parsed.length >= GAMES_SCHEDULE_CSV_MAX_ROWS,
+          source: 'ics',
+        })
+      }
       csvText = scheduleImportTextFromUpload(buffer, kind)
     }
 
@@ -158,7 +184,7 @@ export async function POST(req: Request) {
     if (parsed.length === 0) {
       return NextResponse.json(
         {
-          error: `No games found. First row: home team, away team, date, time, location (max ${GAMES_SCHEDULE_CSV_MAX_ROWS} games).`,
+          error: `No games found. Use spreadsheet columns (home, away, date, time) or calendar titles like “Team A vs Team B” (max ${GAMES_SCHEDULE_CSV_MAX_ROWS} games).`,
         },
         { status: 400 }
       )
@@ -227,7 +253,7 @@ export async function POST(req: Request) {
   if (parsed.length === 0) {
     return NextResponse.json(
       {
-        error: `No games found. First row: home team, away team, date, time, location (max ${GAMES_SCHEDULE_CSV_MAX_ROWS} games).`,
+        error: `No games found. Use spreadsheet columns (home, away, date, time) or calendar titles like “Team A vs Team B” (max ${GAMES_SCHEDULE_CSV_MAX_ROWS} games).`,
       },
       { status: 400 }
     )

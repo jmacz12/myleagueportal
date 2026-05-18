@@ -23,6 +23,7 @@
     "verify:stats-db": "tsx scripts/verify-stats-db-sample.ts",
     "verify:game-reminders": "tsx scripts/verify-game-reminders-dry.ts",
     "verify:fan-alerts": "tsx scripts/verify-fan-alerts-dry.ts",
+    "verify:fan-alerts-production": "node scripts/verify-fan-alerts-production-cutover.mjs",
     "send:fan-email-tests": "tsx scripts/send-fan-email-tests.ts",
     "run:game-week": "tsx scripts/run-game-week-playbook.ts --slug=vancouvarites",
     "cleanup:demo-team-names": "node scripts/cleanup-demo-team-names.mjs --slug=vancouvarites"

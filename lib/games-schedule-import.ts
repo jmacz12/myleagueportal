@@ -4,10 +4,13 @@ import {
   columnIndexForHeader,
   looksLikeHeader,
   normalizeHeader,
+  parseGamesScheduleCsv,
   type GamesScheduleCsvColumn,
+  type ParsedScheduleCsvRow,
 } from './games-schedule-csv'
+import { parseGamesScheduleIcs } from './games-schedule-ics'
 
-export type ScheduleImportFileKind = 'csv' | 'excel' | 'text'
+export type ScheduleImportFileKind = 'csv' | 'excel' | 'ics' | 'text'
 
 /** Rows on the Schedule tab that organizers can fill (dropdowns + date/time pickers). */
 export const SCHEDULE_TEMPLATE_DATA_ROW_COUNT = 60
@@ -284,6 +287,14 @@ export function excelBufferToCsvText(buffer: ArrayBuffer): string {
 export function detectScheduleFileKind(filename: string, mime: string): ScheduleImportFileKind | null {
   const lower = filename.toLowerCase()
   if (lower.endsWith('.xlsx') || lower.endsWith('.xls')) return 'excel'
+  if (
+    lower.endsWith('.ics') ||
+    lower.endsWith('.ical') ||
+    mime.includes('text/calendar') ||
+    mime.includes('application/ics')
+  ) {
+    return 'ics'
+  }
   if (lower.endsWith('.csv') || mime.includes('csv') || mime.includes('text')) return 'csv'
   return null
 }
@@ -294,4 +305,15 @@ export function scheduleImportTextFromUpload(
 ): string {
   if (kind === 'excel') return excelBufferToCsvText(buffer)
   return new TextDecoder('utf-8').decode(buffer)
+}
+
+/** Parse an uploaded schedule file into import rows (CSV path or ICS). */
+export function scheduleImportRowsFromUpload(
+  buffer: ArrayBuffer,
+  kind: ScheduleImportFileKind
+): ParsedScheduleCsvRow[] {
+  if (kind === 'ics') {
+    return parseGamesScheduleIcs(scheduleImportTextFromUpload(buffer, kind))
+  }
+  return parseGamesScheduleCsv(scheduleImportTextFromUpload(buffer, kind))
 }

@@ -129,7 +129,7 @@ export default function ScheduleImportPanel({
       return
     }
     if (!uploadedFile) {
-      setError('Upload your filled-in CSV or Excel file first.')
+      setError('Upload your spreadsheet (.csv / .xlsx) or calendar file (.ics) first.')
       return
     }
 
@@ -301,8 +301,10 @@ export default function ScheduleImportPanel({
       {!previewRows ? (
         <>
           <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '14px', lineHeight: 1.5 }}>
-            Download <strong>Excel</strong>, fill the <strong>Schedule</strong> tab using the dropdowns, then upload
-            here. A few games? Use <strong>Enter manually</strong> instead.
+            Download <strong>Excel</strong> and fill the <strong>Schedule</strong> tab, or export your season from{' '}
+            <strong>Google Calendar / Apple Calendar</strong> as <strong>.ics</strong>. Event titles should look like{' '}
+            <strong>Home vs Away</strong> or <strong>Away @ Home</strong>. A few games? Use{' '}
+            <strong>Enter manually</strong> instead.
           </p>
 
           <div style={{ display: 'flex', gap: '10px', marginBottom: uploadedFile ? '8px' : '14px' }}>
@@ -326,7 +328,7 @@ export default function ScheduleImportPanel({
             <input
               ref={fileRef}
               type="file"
-              accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+              accept=".csv,.xlsx,.xls,.ics,.ical,text/csv,text/calendar,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
               style={{ display: 'none' }}
               onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)}
             />

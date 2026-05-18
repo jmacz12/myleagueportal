@@ -9,10 +9,12 @@ import {
   buildScheduleDownloadTemplate,
   buildScheduleDownloadTemplateXlsx,
   scheduleImportTextFromUpload,
+  scheduleImportRowsFromUpload,
   detectScheduleFileKind,
   formatExcelScheduleDateCell,
   formatExcelScheduleTimeCell,
 } from '../lib/games-schedule-import'
+import { parseGamesScheduleIcs, parseTeamsFromIcsSummary } from '../lib/games-schedule-ics'
 import {
   parseGamesScheduleCsv,
   buildScheduleImportPreview,
@@ -24,6 +26,7 @@ import {
 
 const FIXTURE_CSV = join(__dirname, 'fixtures', 'schedule-import-test.csv')
 const FIXTURE_XLSX = join(__dirname, 'fixtures', 'schedule-import-test.xlsx')
+const FIXTURE_ICS = join(__dirname, 'fixtures', 'schedule-import-test.ics')
 
 const MOCK_TEAMS = [
   { id: 'team-a', name: '[SEED] Kitsilano Knights' },
@@ -118,6 +121,30 @@ function runInAppTeamFix() {
   console.log('✓ In-app team pick fixes typo row without re-upload')
 }
 
+function runIcsFixture() {
+  const text = readFileSync(FIXTURE_ICS, 'utf8')
+  const kind = detectScheduleFileKind('schedule-import-test.ics', 'text/calendar')
+  assert(kind === 'ics', 'Expected ics file kind')
+
+  const vsTeams = parseTeamsFromIcsSummary('Knights vs Motion')
+  assert(vsTeams?.home_team === 'Knights' && vsTeams.away_team === 'Motion', 'vs parsing failed')
+
+  const atTeams = parseTeamsFromIcsSummary('Forge @ Drive')
+  assert(atTeams?.home_team === 'Drive' && atTeams.away_team === 'Forge', '@ parsing failed')
+
+  const parsed = parseGamesScheduleIcs(text)
+  assert(parsed.length === 2, `ICS: expected 2 events (cancelled skipped), got ${parsed.length}`)
+
+  const buffer = readFileSync(FIXTURE_ICS).buffer
+  const fromUpload = scheduleImportRowsFromUpload(buffer, 'ics')
+  assert(fromUpload.length === 2, 'ICS upload path should yield 2 rows')
+
+  const preview = buildScheduleImportPreview(fromUpload, MOCK_TEAMS)
+  const ready = preview.filter((r) => r.ready)
+  assert(ready.length === 2, `ICS: expected 2 ready rows, got ${ready.length}`)
+  console.log('✓ ICS fixture: vs and @ titles parse; cancelled events skipped')
+}
+
 function runPlaceholderDetection() {
   assert(
     isScheduleTemplatePlaceholderRow({
@@ -138,6 +165,7 @@ async function main() {
   runPlaceholderDetection()
   runTemplateSkip()
   runCsvFixture()
+  runIcsFixture()
   await runExcelRoundTrip()
   console.log('\nAll schedule import smoke checks passed.')
 }

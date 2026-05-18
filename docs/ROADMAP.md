@@ -7,7 +7,7 @@ Readable breakdown of what exists today versus what is planned. Update this file
 ## Roadmap structure (past / current / future)
 
 - **Past (shipped):** `Phase 1–3 — Foundation & core`, **`Phase 4 — Communication & logistics`**, **`Phase 5 — Team organizer & player tools`** (**completed 2026-05-26** for shipped organizer + public-fan scope; larger items under that heading stay **future / deferred**), plus dated entries in **Changelog**.
-- **Current (active):** `Phase 6 — Advanced scheduling & AI` — **fan alerts + email test tab shipped (2026-05-19)**; **Suggested next focus #14** (production DB + live email check), then **#15** calendar **`.ics` import** or **#16** scoring quick-adjust / NL play entry (Pro assist layer).
+- **Current (active):** `Phase 6 — Advanced scheduling & AI` — **calendar `.ics` import shipped 2026-05-19**; **Suggested next focus #16** scoring quick-adjust / NL play entry (Pro assist layer).
 - **Future (planned):** **`Phase 7`** (custom domains **v1 shipped**; overlays, multi-admin, domain **Phase 7+** polish still future), `Phase 8`, `Phase 9` (platform ops), and `Product direction` bullets marked planned/deferred.
 - **History log:** `Changelog` is the authoritative timeline of delivered changes.
 
@@ -107,7 +107,7 @@ Most of this is **not built yet**; this section records **Basic / Pro / Enterpri
 - **Lightweight file stash** (parking PDFs, permit scans, music links).
 - **Simple roles** later (coach vs player vs parent) if one “member” view is too blunt.
 
-**Status:** **Not started** — park after **League home**; **invites and permissions** (who is a team manager, roster membership) need explicit modeling so team tools don’t grant league-admin powers.
+**Status:** **Not started** — park after **League home** and current **Phase 6** league tools (**#16** scoring assist next); **invites and permissions** (who is a team manager, roster membership) need explicit modeling so team tools don’t grant league-admin powers. **Product note (2026-05-19):** Owner wants **`.ics` import on the solo team-manager individual page** (not league **Games** import) — reuse **`lib/games-schedule-ics.ts`** parsing; ship when **team workspace** becomes active focus (likely **after #16** unless reprioritized).
 
 ### League shop & merchandising (**Enterprise** — future)
 
@@ -248,8 +248,8 @@ Most of this is **not built yet**; this section records **Basic / Pro / Enterpri
 11. **Stats — paper sheet + Dashboard Stats tab:** **Shipped (complete, 2026-05-17)** — team filter, **View box score**, **`verify:stats-import`**. **Before** wide **NL** scoring assists.
 12. **Dashboard plan gates — visible but locked on Basic (shipped 2026-05-18):** Pro/Enterprise features stay on screen (fan email alerts, league theme, news banner, waiver PDF upload, custom domain preview, schedule import tab, drop-in standings, stats hub, per-player email prefs) with **`DashboardPlanLockedHint`** + disabled controls — same pattern as public **Stream** tab on Basic.
 13. **Paid Stripe checkout E2E — completed (2026-05-18):** **`npm run verify:stripe-checkout-e2e`** (see **Maintenance notes → Verification checklist — Stripe live webhook**). **Optional:** one manual browser upgrade with a real/test card for UX only.
-14. **Production cutover — fan alerts round 2 (ops, after deploy):** On **production** Supabase run **`npm run db:apply-pending`** (includes **`20260519160000_fan_email_alerts_round2.sql`**). Confirm **myleagueportal** Vercel deploy is **Ready**; **Settings → Email notifications** → send **[TEST]** sample to your inbox; publish league news or finalize a game with stats on a Pro league and confirm real alerts (not just tests) within ~25h cron window—or trigger cron manually in ops if needed.
-15. **Calendar `.ics` import (Phase 6 — not started):** **Dashboard → Games → Import** today supports **CSV/Excel** only; add **`.ics`** (Google/Apple export) → same **preview → confirm** flow as spreadsheet import. **`.ics`** + **team-manager** calendars remain in **Phase 6**.
+14. **Production cutover — fan alerts round 2 — completed (2026-05-19):** **`npm run db:apply-pending`** on production Supabase; **`npm run verify:fan-alerts-production`** (schema + live cron dry-run on **`www.myleagueportal.com`**); **myleagueportal** deploy **Ready**. **Manual (organizer):** **Settings → Email notifications** → **[TEST]** to your inbox; optional real trigger (publish news / final game + stats). See **Maintenance notes → Verification checklist — Fan email alerts (production)**.
+15. **Calendar `.ics` import — shipped (2026-05-19):** **Dashboard → Games → Import** accepts **`.ics`** (Google/Apple export) plus **CSV/Excel** — same **preview → confirm** flow; titles like **“Home vs Away”** or **“Away @ Home”**; **`lib/games-schedule-ics.ts`**; **`npm run verify:schedule-import`** includes ICS fixture. **Team-manager** calendar **`.ics`** remains future.
 16. **Scoring assist — quick adjust + NL play entry (Phase 6 — not started):** **Pro** “type a fix, preview, confirm” for stat corrections and narrow **NL play patterns** on the live scorer (**confirm-before-apply**); see **Product direction — Organizer assist**.
 
 ---
@@ -299,7 +299,7 @@ Most of this is **not built yet**; this section records **Basic / Pro / Enterpri
 ## Phase 6 — Advanced scheduling & AI (**future**)
 
 - **Organizer assist (Pro vs Enterprise):** **Pro** **speed layer** vs **Enterprise** **copilot** — imports, drafts, **confirm-before-apply** stat fixes, optional **NL play entry** on the scorer; timing and safety rails in **Product direction — Organizer assist — Pro “speed layer” vs Enterprise “copilot”**.
-- **Calendar imports:** `.ics` / `.csv` bulk upload (league and, later, **team manager** calendars—see **Team manager / club workspace**). **Shipped (v1 — league games CSV/Excel):** **Dashboard → Games → Add Games → Import spreadsheet** — download template, upload **`.csv`** / **`.xlsx`**; **`POST /api/games/import`** preview then **`confirm: true`** to insert; **`lib/games-schedule-csv.ts`** + **`lib/games-schedule-import.ts`** (Excel **date/time serial** normalization, BOM-tolerant CSV, **`npm run verify:schedule-import`**). **`.ics`** and **team-manager** calendars remain future.
+- **Calendar imports:** `.ics` / `.csv` bulk upload (league and, later, **team manager** calendars—see **Team manager / club workspace**). **Shipped (league games):** **Dashboard → Games → Add Games → Import** — **CSV/Excel** template + **`.ics`** from Google/Apple Calendar; **`POST /api/games/import`** preview then **`confirm: true`**; **`lib/games-schedule-csv.ts`**, **`lib/games-schedule-import.ts`**, **`lib/games-schedule-ics.ts`**; **`npm run verify:schedule-import`**. **Team-manager** calendar **`.ics`** remains future.
 - **Game stats — paper template + upload (shipped v1):** **Pro** / **Enterprise** — per-game Excel with prefilled roster, **Home/Away** dropdown, play log (`2` / `3` / `1`) or totals columns; **`Dashboard → Stats`** upload → **preview → confirm** (`lib/game-stats-sheet-*`, **`POST /api/games/[gameId]/stats/import`**). **Dashboard → Stats** tab — season leaders + live/final game list — **`GET /api/stats`**.
 - **Automated reminders (v1 + fan alerts round 2 — live 2026-05-17–19):** **Daily** Vercel cron **`/api/cron/game-reminders`** (**`0 8 * * *` UTC**) runs **game-tomorrow**, **registration opens**, **drop-in tomorrow**, **league/team news publish** (`**run-league-news-emails**`), and **stats highlights** (`**run-stats-highlight-emails**`). **Pro / Enterprise**; organizer toggles + **Send test emails** on **Settings → Email notifications**; per-player opt-out on **Players** + unsubscribe links. Dedupe: **`game_reminder_sends`**, **`registration_opens_email_sends`**, **`dropin_reminder_sends`**, **`league_site_news_email_sends`**, **`team_news_email_sends`**, **`stats_highlight_email_sends`**. Migrations **`20260518150000_fan_email_alerts.sql`**, **`20260519160000_fan_email_alerts_round2.sql`**. **`npm run verify:fan-alerts`** (dry-run all five). **Resend** + deliverability: **Maintenance notes → Email deliverability**. **Not yet:** SMS.
 - **AI schedule generator:** Natural-language prompts → **proposed** season schedules (organizer confirms before games are committed to the database). **Product intent:** ship as part of the **Enterprise** AI assistant bundle (see **Product direction — AI-assisted setup**); Basic/Pro remain manual.
@@ -428,6 +428,23 @@ Use this when validating `**league_site_content`**, organization_editors, and `*
 3. **Send test event** (same webhook page): e.g. **`checkout.session.completed`** — expect **2xx** in **Event deliveries** (not repeated **4xx**).
 4. **Automated E2E (completed 2026-05-18):** **`npm run verify:stripe-checkout-e2e`** — disposable **non-complimentary** org; **LIVE** keys; trialing subscription + signed **`checkout.session.completed`** / **`customer.subscription.deleted`** to production **`/api/webhooks/stripe`**; asserts DB **Pro** then **Basic**; cleanup. **Optional manual:** owner **Settings → Plan → Upgrade** in browser with a card (UX only). **Complimentary** demo slugs (**`vancouvarites`**) — no Stripe row; checkout API **403**.
 
+### Verification checklist — Fan email alerts (production) (**completed 2026-05-19**)
+
+**Automated (from repo with production `.env.local`):**
+
+1. **`npm run db:apply-pending`** — applies **`20260518150000_fan_email_alerts.sql`** + **`20260519160000_fan_email_alerts_round2.sql`** (and prior pending files).
+2. **`npm run verify:fan-alerts-production`** — confirms round-2 **columns/tables**, **Resend** env present, **`GET https://www.myleagueportal.com`** **200**, and **live** cron dry-run **`/api/cron/game-reminders?dry_run=1`** (needs **`CRON_SECRET`** in `.env.local`) with **`leagueNews`** + **`statsHighlights`** runners healthy.
+3. **`npm run verify:fan-alerts`** — local dry-run all five alert types against the same database.
+
+**Manual (5–10 min, owner on a Pro/Enterprise league):**
+
+1. Sign in at **`https://www.myleagueportal.com`** → **Dashboard → Settings → Email notifications**.
+2. Enter your email → **Send all samples** (or each button) — subjects start with **`[TEST]`**; check inbox + spam.
+3. Confirm toggles **Save notification settings** sticks after refresh.
+4. **Optional real triggers:** Publish league website news, post **team news**, or mark a game **final** with stats — roster players with email should get non-test mail on the next **08:00 UTC** cron (or ops hits cron with **`CRON_SECRET`**).
+
+**Done once (2026-05-19):** Steps 1–3 automated; production schema + live cron dry-run green.
+
 ### Verification checklist — Game reminder emails (**shipped 2026-05-17**)
 
 **Done once:** Resend domain **Verified**; test email **delivered**; Settings toggle **ON**; Vercel **`RESEND_FROM`** = `MyLeaguePortal <reminders@myleagueportal.com>`.
@@ -492,6 +509,8 @@ Use this when validating `**league_site_content`**, organization_editors, and `*
 - **2026-05-18:** **Dashboard — visible plan locks on Basic:** Fan email alerts, league theme, news banner, waiver PDF upload, custom domain panel, games import tab, drop-in standings, stats hub, and per-player email prefs always show; **Basic** gets **`DashboardPlanLockedHint`** + disabled controls (public **Stream**-style). **ROADMAP** — **Suggested next focus #12**.
 - **2026-05-18:** **Stripe checkout E2E (disposable league):** **`npm run verify:stripe-checkout-e2e`** — non-complimentary org, **LIVE** trialing subscription, production webhooks → **Pro** / **Basic** in DB, sync-checkout path, cleanup. **ROADMAP** — **#2b**, **#13**, **Verification checklist — Stripe** step 4.
 - **2026-05-18:** **Stripe live ops re-verified:** **`npm run verify:stripe-money-path`** + **`verify-stripe-env.mjs`** pass on **LIVE** keys; audit script skips missing Stripe ids when **`plan_complimentary`**. **ROADMAP** — **#2b** + **Verification checklist — Stripe** (ops).
+- **2026-05-19:** **Calendar `.ics` import:** **Dashboard → Games → Import** accepts Google/Apple **`.ics`** exports (same preview → confirm as spreadsheet); event titles **vs** / **@**; **`lib/games-schedule-ics.ts`**; **`verify:schedule-import`** ICS fixture.
+- **2026-05-19:** **Fan alerts — production cutover:** **`npm run verify:fan-alerts-production`**; **`db:apply-pending`** on live Supabase; live **`www.myleagueportal.com`** cron dry-run **200** for news + stats runners. **ROADMAP** — **#14** + **Verification checklist — Fan email alerts (production)**.
 - **2026-05-19:** **Vercel cleanup:** Deleted duplicate **`horizon-leagues`** project; **`myleagueportal`** remains production (**`www.myleagueportal.com`**).
 - **2026-05-19:** **Email sender fix:** **`lib/email/resend-from.ts`** normalizes **`RESEND_FROM`** and falls back to **`MyLeaguePortal <reminders@myleagueportal.com>`** when local env uses an invalid/old address (fixes test sends + dashboard **Send test emails**). **Deploy note:** disconnect **`horizon-leagues`** Vercel project in dashboard only (not **`git.deploymentEnabled`** in repo — that blocked **`myleagueportal`** deploys too).
 - **2026-05-19:** **Settings → Email notifications tab:** Dedicated tab for fan email toggles + **Send test emails** (organizer enters inbox; `[TEST]` samples for all five alert types). API **`/api/settings/notifications`**, **`/api/settings/fan-email-test`**; **`npm run send:fan-email-tests`** for ops.
