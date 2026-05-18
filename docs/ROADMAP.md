@@ -7,7 +7,7 @@ Readable breakdown of what exists today versus what is planned. Update this file
 ## Roadmap structure (past / current / future)
 
 - **Past (shipped):** `Phase 1–3 — Foundation & core`, **`Phase 4 — Communication & logistics`**, **`Phase 5 — Team organizer & player tools`** (**completed 2026-05-26** for shipped organizer + public-fan scope; larger items under that heading stay **future / deferred**), plus dated entries in **Changelog**.
-- **Current (active):** `Phase 6 — Advanced scheduling & AI` — **launch rehearsal (game week) completed 2026-05-18**; **fan alerts (email-first) shipped through round 2 (2026-05-19)** — see **Suggested next focus #10**; next slices per **Product direction** (SMS, AI scheduling, etc.).
+- **Current (active):** `Phase 6 — Advanced scheduling & AI` — **fan alerts + email test tab shipped (2026-05-19)**; **Suggested next focus #14** (production DB + live email check), then **#15** calendar **`.ics` import** or **#16** scoring quick-adjust / NL play entry (Pro assist layer).
 - **Future (planned):** **`Phase 7`** (custom domains **v1 shipped**; overlays, multi-admin, domain **Phase 7+** polish still future), `Phase 8`, `Phase 9` (platform ops), and `Product direction` bullets marked planned/deferred.
 - **History log:** `Changelog` is the authoritative timeline of delivered changes.
 
@@ -248,6 +248,9 @@ Most of this is **not built yet**; this section records **Basic / Pro / Enterpri
 11. **Stats — paper sheet + Dashboard Stats tab:** **Shipped (complete, 2026-05-17)** — team filter, **View box score**, **`verify:stats-import`**. **Before** wide **NL** scoring assists.
 12. **Dashboard plan gates — visible but locked on Basic (shipped 2026-05-18):** Pro/Enterprise features stay on screen (fan email alerts, league theme, news banner, waiver PDF upload, custom domain preview, schedule import tab, drop-in standings, stats hub, per-player email prefs) with **`DashboardPlanLockedHint`** + disabled controls — same pattern as public **Stream** tab on Basic.
 13. **Paid Stripe checkout E2E — completed (2026-05-18):** **`npm run verify:stripe-checkout-e2e`** (see **Maintenance notes → Verification checklist — Stripe live webhook**). **Optional:** one manual browser upgrade with a real/test card for UX only.
+14. **Production cutover — fan alerts round 2 (ops, after deploy):** On **production** Supabase run **`npm run db:apply-pending`** (includes **`20260519160000_fan_email_alerts_round2.sql`**). Confirm **myleagueportal** Vercel deploy is **Ready**; **Settings → Email notifications** → send **[TEST]** sample to your inbox; publish league news or finalize a game with stats on a Pro league and confirm real alerts (not just tests) within ~25h cron window—or trigger cron manually in ops if needed.
+15. **Calendar `.ics` import (Phase 6 — not started):** **Dashboard → Games → Import** today supports **CSV/Excel** only; add **`.ics`** (Google/Apple export) → same **preview → confirm** flow as spreadsheet import. **`.ics`** + **team-manager** calendars remain in **Phase 6**.
+16. **Scoring assist — quick adjust + NL play entry (Phase 6 — not started):** **Pro** “type a fix, preview, confirm” for stat corrections and narrow **NL play patterns** on the live scorer (**confirm-before-apply**); see **Product direction — Organizer assist**.
 
 ---
 
@@ -397,7 +400,7 @@ If **GitHub** shows a new commit but **www.myleagueportal.com** still looks old:
 2. If the latest deploy **failed**, read the error. **Hobby** rejects **`vercel.json`** crons that run **more than once per day** (e.g. **`0 * * * *`** for game reminders). **Fix:** daily schedule only (**shipped 2026-05-17:** **`0 8 * * *`** for **`/api/cron/game-reminders`**).
 3. After a green deploy, hard-refresh the browser (**Ctrl+F5**) or use a private window.
 
-**Stop failed-deploy emails from the old `horizon-leagues` Vercel project:** Production uses the **`myleagueportal`** Vercel project only — do **not** set **`git.deploymentEnabled": false`** in **`vercel.json`** (that blocks deploys on **every** Vercel project linked to this repo, including **`myleagueportal`**). Instead: Vercel → project **`horizon-leagues`** → **Settings → Git** → **Disconnect** (or mute email notifications for that project). Keep **`myleagueportal`** connected to **`jmacz12/myleagueportal`** on **`main`**.
+**Vercel (single project):** Production is **`myleagueportal`** only → **https://www.myleagueportal.com**. Legacy **`horizon-leagues`** Vercel project **removed 2026-05-19** (duplicate hookup; was sending failure emails). Do **not** set **`git.deploymentEnabled": false`** in **`vercel.json`** — that blocks **`myleagueportal`** deploys too.
 
 ### Verification checklist — League website CMS (after deploy / migration)
 
@@ -489,6 +492,7 @@ Use this when validating `**league_site_content`**, organization_editors, and `*
 - **2026-05-18:** **Dashboard — visible plan locks on Basic:** Fan email alerts, league theme, news banner, waiver PDF upload, custom domain panel, games import tab, drop-in standings, stats hub, and per-player email prefs always show; **Basic** gets **`DashboardPlanLockedHint`** + disabled controls (public **Stream**-style). **ROADMAP** — **Suggested next focus #12**.
 - **2026-05-18:** **Stripe checkout E2E (disposable league):** **`npm run verify:stripe-checkout-e2e`** — non-complimentary org, **LIVE** trialing subscription, production webhooks → **Pro** / **Basic** in DB, sync-checkout path, cleanup. **ROADMAP** — **#2b**, **#13**, **Verification checklist — Stripe** step 4.
 - **2026-05-18:** **Stripe live ops re-verified:** **`npm run verify:stripe-money-path`** + **`verify-stripe-env.mjs`** pass on **LIVE** keys; audit script skips missing Stripe ids when **`plan_complimentary`**. **ROADMAP** — **#2b** + **Verification checklist — Stripe** (ops).
+- **2026-05-19:** **Vercel cleanup:** Deleted duplicate **`horizon-leagues`** project; **`myleagueportal`** remains production (**`www.myleagueportal.com`**).
 - **2026-05-19:** **Email sender fix:** **`lib/email/resend-from.ts`** normalizes **`RESEND_FROM`** and falls back to **`MyLeaguePortal <reminders@myleagueportal.com>`** when local env uses an invalid/old address (fixes test sends + dashboard **Send test emails**). **Deploy note:** disconnect **`horizon-leagues`** Vercel project in dashboard only (not **`git.deploymentEnabled`** in repo — that blocked **`myleagueportal`** deploys too).
 - **2026-05-19:** **Settings → Email notifications tab:** Dedicated tab for fan email toggles + **Send test emails** (organizer enters inbox; `[TEST]` samples for all five alert types). API **`/api/settings/notifications`**, **`/api/settings/fan-email-test`**; **`npm run send:fan-email-tests`** for ops.
 - **2026-05-19:** **Fan email alerts round 2 (news + stats highlights):** **`run-league-news-emails`** (league site publish via **`published_at`** + team **`team_news_posts`**), **`run-stats-highlight-emails`** (final games with stats); migration **`20260519160000_fan_email_alerts_round2.sql`**; **Settings** / **Players** toggles; **`/unsubscribe/league-news`**, **`/unsubscribe/stats-highlights`**; cron + **`npm run verify:fan-alerts`** extended.
