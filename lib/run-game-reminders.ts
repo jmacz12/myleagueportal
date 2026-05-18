@@ -91,21 +91,32 @@ export async function runGameReminders(
   if (dueGames.length === 0) return result
 
   const orgIds = [...new Set(dueGames.map((g) => g.organization_id))]
-  const { data: orgRows, error: orgErr } = await admin
+  const orgSelectWithTz =
+    'id, name, slug, plan, league_timezone, game_email_reminders_enabled, custom_domain, custom_domain_verified_at'
+  const orgSelectFallback =
+    'id, name, slug, plan, game_email_reminders_enabled, custom_domain, custom_domain_verified_at'
+
+  let { data: orgData, error: orgLoadErr } = await admin
     .from('organizations')
-    .select(
-      'id, name, slug, plan, league_timezone, game_email_reminders_enabled, custom_domain, custom_domain_verified_at'
-    )
+    .select(orgSelectWithTz)
     .in('id', orgIds)
 
-  if (orgErr) {
-    result.errors.push(orgErr.message || 'Failed to load organizations')
+  if (orgLoadErr?.message?.includes('league_timezone')) {
+    const retry = await admin.from('organizations').select(orgSelectFallback).in('id', orgIds)
+    orgData = (retry.data ?? []).map((o) => ({ ...o, league_timezone: null }))
+    orgLoadErr = retry.error
+  }
+
+  if (orgLoadErr) {
+    result.errors.push(orgLoadErr.message || 'Failed to load organizations')
     return result
   }
 
+  const orgRows = (orgData ?? []) as OrgRow[]
+
   const orgById = new Map<string, OrgRow>()
   for (const o of orgRows ?? []) {
-    orgById.set(o.id as string, o as OrgRow)
+    orgById.set(o.id as string, o)
   }
 
   const teamIds = [
