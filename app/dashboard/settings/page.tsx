@@ -1203,6 +1203,7 @@ function SettingsPageClient() {
             </p>
           )}
 
+          {isPro ? (
           <div>
             <label className="label">League News Banner</label>
             <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
@@ -1230,6 +1231,26 @@ function SettingsPageClient() {
               </div>
             </div>
           </div>
+
+          ) : (
+            <div
+              style={{
+                marginTop: '12px',
+                padding: '12px 14px',
+                borderRadius: '10px',
+                border: '0.5px solid var(--border)',
+                background: 'var(--bg-elevated)',
+              }}
+            >
+              <span className="label" style={{ marginBottom: '6px', display: 'block' }}>
+                League News Banner
+              </span>
+              <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0, lineHeight: 1.45 }}>
+                <strong>Pro or Enterprise:</strong> show a headline at the top of your public league site (e.g.
+                registration open). Upgrade under the <strong>Plan</strong> tab to edit the banner.
+              </p>
+            </div>
+          )}
 
           {success && <div style={{ background: '#f0fdf4', border: '0.5px solid #bbf7d0', borderRadius: '8px', padding: '12px 16px', fontSize: '13px', color: '#16a34a', fontWeight: '600' }}>Settings saved.</div>}
           {error && <div style={{ background: '#fef2f2', border: '0.5px solid #fecaca', borderRadius: '8px', padding: '12px 16px', fontSize: '13px', color: '#dc2626' }}>{error}</div>}

@@ -2,11 +2,30 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { auth } from '@clerk/nextjs/server'
 import { requireOwnerOrgForDashboard } from '@/lib/org-access'
+import { isProOrEnterprise, normalizeOrgPlan } from '@/lib/org-plan-tier'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
+
+async function requireProStandings(gate: { ok: true; organizationId: string }) {
+  const { data: org } = await supabaseAdmin
+    .from('organizations')
+    .select('plan')
+    .eq('id', gate.organizationId)
+    .single()
+  if (!isProOrEnterprise(normalizeOrgPlan(org?.plan))) {
+    return NextResponse.json(
+      {
+        error: 'Drop-in standings are available on Pro and Enterprise.',
+        code: 'plan_required',
+      },
+      { status: 403 }
+    )
+  }
+  return null
+}
 
 export async function GET() {
   const { userId } = await auth()
@@ -14,6 +33,9 @@ export async function GET() {
 
   const gate = await requireOwnerOrgForDashboard(userId)
   if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status })
+
+  const planBlock = await requireProStandings(gate)
+  if (planBlock) return planBlock
 
   const { data: standings } = await supabaseAdmin
     .from('player_reputation')
@@ -30,6 +52,9 @@ export async function PATCH(req: Request) {
 
   const gate = await requireOwnerOrgForDashboard(userId)
   if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status })
+
+  const planBlock = await requireProStandings(gate)
+  if (planBlock) return planBlock
 
   const { player_id, points_change, reason, inactive_action } = await req.json()
 

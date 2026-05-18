@@ -200,17 +200,16 @@ export async function PATCH(req: Request) {
     incomingSlug: slug,
   })
 
-  // Allow update of name, slug, and news_banner
   const updateData: Record<string, unknown> = {
     name,
     slug,
-    news_banner,
-    news_banner_color,
     league_timezone: league_timezone || null,
   }
 
-  // Only allow color / theme / appearance mode on pro/enterprise
+  // Pro / Enterprise: brand, theme, news banner, reminder toggle
   if (isProOrEnterprise(org.plan)) {
+    updateData.news_banner = news_banner
+    updateData.news_banner_color = news_banner_color
     updateData.primary_color = primary_color
     const tm = sanitizePresetAndMode(league_theme_preset, league_appearance_mode)
     updateData.league_theme_preset = tm.preset

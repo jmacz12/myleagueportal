@@ -1,16 +1,33 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import DropinList from './DropinList'
 import DropinDetail from './DropinDetail'
 import DropinStandings from './DropinStandings'
 import DropinHistory from './DropinHistory'
+import { DashboardPlanLockedCard } from '@/components/dashboard/DashboardPlanLockedCard'
+import { isBasic, normalizeOrgPlan, type OrgPlanSlug } from '@/lib/org-plan-tier'
+import { PUBLIC_LOCKED_PRO_ENTERPRISE_BADGE } from '@/lib/public-plan-copy'
 
 export default function DropinPage() {
   const [activeTab, setActiveTab] = useState<'sessions' | 'standings' | 'history'>('sessions')
+  const [orgPlan, setOrgPlan] = useState<OrgPlanSlug>('basic')
+  const [planLoaded, setPlanLoaded] = useState(false)
   const [selectedSession, setSelectedSession] = useState<string | null>(null)
   const [defaultTab, setDefaultTab] = useState<'checkin' | 'payments' | 'teams'>('checkin')
   const [showHelp, setShowHelp] = useState(false)
+
+  useEffect(() => {
+    void fetch('/api/teams')
+      .then((r) => r.json())
+      .then((d) => {
+        setOrgPlan(normalizeOrgPlan(d.org_plan))
+        setPlanLoaded(true)
+      })
+      .catch(() => setPlanLoaded(true))
+  }, [])
+
+  const standingsLocked = planLoaded && isBasic(orgPlan)
 
   if (selectedSession) {
     return (
@@ -278,7 +295,9 @@ export default function DropinPage() {
           { id: 'sessions', label: 'Sessions' },
           { id: 'standings', label: 'Standings' },
           { id: 'history', label: 'History' },
-        ].map((tab) => (
+        ].map((tab) => {
+          const locked = tab.id === 'standings' && standingsLocked
+          return (
           <button
             key={tab.id}
             type="button"
@@ -297,8 +316,21 @@ export default function DropinPage() {
             }}
           >
             {tab.label}
+            {locked ? (
+              <span
+                style={{
+                  marginLeft: '6px',
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  opacity: 0.85,
+                }}
+              >
+                {PUBLIC_LOCKED_PRO_ENTERPRISE_BADGE}
+              </span>
+            ) : null}
           </button>
-        ))}
+          )
+        })}
       </div>
 
       {activeTab === 'sessions' && (
@@ -309,7 +341,19 @@ export default function DropinPage() {
           }}
         />
       )}
-      {activeTab === 'standings' && <DropinStandings />}
+      {activeTab === 'standings' && standingsLocked ? (
+        <DashboardPlanLockedCard
+          title={`Drop-in standings — ${PUBLIC_LOCKED_PRO_ENTERPRISE_BADGE}`}
+          body={
+            <>
+              On <strong>Basic</strong>, you can still run drop-in sessions and check people in. Upgrade to{' '}
+              <strong>Pro</strong> or <strong>Enterprise</strong> to track player reputation tiers (gold / silver /
+              warning) across sessions.
+            </>
+          }
+        />
+      ) : null}
+      {activeTab === 'standings' && !standingsLocked ? <DropinStandings /> : null}
       {activeTab === 'history' && <DropinHistory />}
     </div>
   )
