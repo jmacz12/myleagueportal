@@ -160,19 +160,19 @@ export default async function DashboardPage() {
       {org?.slug && (
         <div className="card" style={{ marginBottom: '20px' }}>
           <div style={{ marginBottom: '10px' }}>
-            <span className="label">Player registration link</span>
+            <span className="label">Share with players</span>
           </div>
-          <div style={{
-            background: 'var(--bg-elevated)',
-            border: '0.5px solid var(--border)',
-            borderRadius: '8px',
-            padding: '10px 14px',
-            fontFamily: 'monospace',
-            fontSize: '13px',
-            color: 'var(--accent)',
-          }}>
-            myleagueportal.com/join/{org.slug}
-          </div>
+          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
+            Copy links from{' '}
+            <Link href="/dashboard/settings?tab=league" style={{ color: 'var(--accent)', fontWeight: 700 }}>
+              Settings
+            </Link>{' '}
+            or{' '}
+            <Link href="/dashboard/league-site" style={{ color: 'var(--accent)', fontWeight: 700 }}>
+              League website
+            </Link>
+            .
+          </p>
         </div>
       )}
 

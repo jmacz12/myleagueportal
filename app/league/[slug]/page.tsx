@@ -1081,7 +1081,7 @@ function LeagueHomeFeaturedGameCard({
     display?.type === 'season_game'
       ? leagueSeasonGamePublicHref(slug, display.source_id)
       : `/join/${slug}/dropins`
-  const primaryLabel = display?.type === 'season_game' ? 'Box score' : 'Reserve spot'
+  const primaryLabel = display?.type === 'season_game' ? 'Stream' : 'Reserve spot'
 
   const eyebrow = showLastResult ? 'Latest result' : 'Featured next'
   const scoreLine =
@@ -1306,7 +1306,7 @@ function LeagueHomeFeaturedGameCard({
                     textDecoration: 'none',
                   }}
                 >
-                  {secondaryLastFinal.type === 'season_game' ? 'Box score' : 'Drop-ins'}
+                  {secondaryLastFinal.type === 'season_game' ? 'Stream' : 'Drop-ins'}
                   <ChevronRight size={16} aria-hidden />
                 </Link>
               </div>
@@ -2238,15 +2238,17 @@ function LeagueHomeContent() {
               {org.name}
             </div>
           </div>
-          <PublicSectionMobileMenu
-            active={activeTab}
-            onChange={setLeagueTab}
-            tabs={leagueTabsForBar}
-            preset={preset}
-            headingFontFamily={portalOriginalLayout ? publicHeadingFontStack : undefined}
-            menuAlign="right"
-            compact
-          />
+          {stickyVisible ? (
+            <PublicSectionMobileMenu
+              active={activeTab}
+              onChange={setLeagueTab}
+              tabs={leagueTabsForBar}
+              preset={preset}
+              headingFontFamily={portalOriginalLayout ? publicHeadingFontStack : undefined}
+              menuAlign="right"
+              compact
+            />
+          ) : null}
         </div>
       </div>
       ) : null}
@@ -2960,7 +2962,7 @@ function LeagueHomeContent() {
                             alignSelf: 'flex-start',
                           }}
                         >
-                          {isDropin ? (item.is_user_playing ? 'Manage spot →' : 'Reserve spot →') : 'Scoreboard →'}
+                          {isDropin ? (item.is_user_playing ? 'Manage spot →' : 'Reserve spot →') : 'Stream →'}
                         </span>
                       </div>
                     )

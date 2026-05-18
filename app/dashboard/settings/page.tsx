@@ -82,6 +82,7 @@ function SettingsPageClient() {
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
+  const [copiedLeague, setCopiedLeague] = useState(false)
   const [verifiedFanHostname, setVerifiedFanHostname] = useState<string | null>(null)
   const [upgrading, setUpgrading] = useState(false)
   const [form, setForm] = useState({ 
@@ -818,34 +819,100 @@ function SettingsPageClient() {
           </div>
 
           <div>
-            <label className="label">
-              Registration URL
-              {settings?.plan === 'basic' && (
-                <span style={{ marginLeft: '6px', fontSize: '10px', color: 'var(--text-muted)', textTransform: 'none', letterSpacing: 0 }}>
-                  (Pro feature — upgrade to customize)
-                </span>
-              )}
-            </label>
-            <div style={{ display: 'flex', alignItems: 'center', border: '0.5px solid var(--border)', borderRadius: '8px', overflow: 'hidden', background: settings?.plan === 'basic' ? 'var(--bg-elevated)' : 'var(--input-bg)', opacity: settings?.plan === 'basic' || !identityUi.canEditSlug ? 0.7 : 1 }}>
-              <span style={{ background: 'var(--bg-elevated)', padding: '9px 12px', fontSize: '13px', color: 'var(--text-muted)', borderRight: '0.5px solid var(--border)', flexShrink: 0 }}>/join/</span>
-              <input type="text" required value={form.slug} readOnly={settings?.plan === 'basic' || !identityUi.canEditSlug}
-                onChange={(e) => {
-                  if (settings?.plan === 'basic' || !identityUi.canEditSlug) return
-                  setForm({ ...form, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })
+            <label className="label">Registration link</label>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                border: '0.5px solid var(--border)',
+                borderRadius: '8px',
+                overflow: 'hidden',
+                background: 'var(--bg-elevated)',
+              }}
+            >
+              <span
+                style={{
+                  padding: '9px 12px',
+                  fontSize: '12px',
+                  color: 'var(--text-muted)',
+                  borderRight: '0.5px solid var(--border)',
+                  flexShrink: 0,
+                  maxWidth: '42%',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
                 }}
-                style={{ flex: 1, padding: '9px 12px', fontSize: '13px', color: 'var(--text-primary)', background: 'transparent', border: 'none', outline: 'none', fontFamily: 'inherit' }} />
-              {(settings?.plan === 'basic' || !identityUi.canEditSlug) && <span style={{ padding: '0 12px', color: 'var(--text-muted)', fontSize: '11px', fontWeight: '700' }}>Locked</span>}
+                title={`${displayHost}/join/`}
+              >
+                {displayHost}/join/
+              </span>
+              <input
+                type="text"
+                required
+                value={form.slug}
+                readOnly
+                aria-readonly="true"
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  padding: '9px 12px',
+                  fontSize: '13px',
+                  color: 'var(--text-primary)',
+                  background: 'transparent',
+                  border: 'none',
+                  outline: 'none',
+                  fontFamily: 'inherit',
+                }}
+              />
+              <span style={{ padding: '0 12px', color: 'var(--text-muted)', fontSize: '11px', fontWeight: '700' }}>Locked</span>
             </div>
-            <button type="button" onClick={() => { navigator.clipboard.writeText(`${fanOrigin}/join/${form.slug}`); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
-              style={{ marginTop: '6px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', color: 'var(--accent)', fontWeight: '600', padding: 0, display: 'flex', alignItems: 'center', gap: '4px' }}>
-              {copied ? 'Copied' : 'Copy registration link'}
-            </button>
-            <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', lineHeight: 1.45 }}>
-              {settings?.plan === 'basic' ? 'Pro and up: pick your own short link for sign-up.' : `Sign-up and drop-ins: ${displayHost}/join/${form.slug}`}
-              <br />
-              Public league page (teams, news):{' '}
-              <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{displayHost}/league/{form.slug}</span>
+            <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '8px', lineHeight: 1.45 }}>
+              Set when you created your league. Season sign-up and drop-ins use this link. Copy and share; it does not change here.
             </p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '8px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  void navigator.clipboard.writeText(`${fanOrigin}/join/${form.slug}`).then(() => {
+                    setCopied(true)
+                    window.setTimeout(() => setCopied(false), 2000)
+                  })
+                }}
+                style={{
+                  padding: '8px 14px',
+                  borderRadius: '8px',
+                  border: '0.5px solid var(--border)',
+                  background: 'var(--bg-elevated)',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  color: 'var(--accent)',
+                  fontWeight: '700',
+                }}
+              >
+                {copied ? 'Copied' : 'Copy registration link'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  void navigator.clipboard.writeText(`${fanOrigin}/league/${form.slug}`).then(() => {
+                    setCopiedLeague(true)
+                    window.setTimeout(() => setCopiedLeague(false), 2000)
+                  })
+                }}
+                style={{
+                  padding: '8px 14px',
+                  borderRadius: '8px',
+                  border: '0.5px solid var(--border)',
+                  background: 'var(--bg-elevated)',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  color: 'var(--accent)',
+                  fontWeight: '700',
+                }}
+              >
+                {copiedLeague ? 'Copied' : 'Copy public league page'}
+              </button>
+            </div>
           </div>
           <div>
             <label className="label">

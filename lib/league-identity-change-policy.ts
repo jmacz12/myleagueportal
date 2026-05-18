@@ -82,15 +82,22 @@ export function evaluateLeagueIdentityChange(params: {
   }
 
   if (plan === 'pro' || plan === 'enterprise') {
+    if (slugChanged) {
+      return {
+        ok: false,
+        error:
+          'Your registration link stays the same so players always know where to sign up. Contact support if it must change.',
+      }
+    }
     const cooldownDays =
       plan === 'enterprise' ? ENTERPRISE_LEAGUE_IDENTITY_COOLDOWN_DAYS : PRO_LEAGUE_IDENTITY_COOLDOWN_DAYS
-    if (lastValid) {
+    if (nameChanged && lastValid) {
       const eligible = new Date(lastValid.getTime() + cooldownDays * MS_PER_DAY)
       if (Date.now() < eligible.getTime()) {
         const tier = plan === 'enterprise' ? 'Enterprise' : 'Pro'
         return {
           ok: false,
-          error: `You can change the league name or signup link again on ${eligible.toLocaleDateString(undefined, { dateStyle: 'medium' })}. (${tier}: ${cooldownDays} days between changes.)`,
+          error: `You can change the league name again on ${eligible.toLocaleDateString(undefined, { dateStyle: 'medium' })}. (${tier}: ${cooldownDays} days between name changes.)`,
           nextEligibleAt: eligible.toISOString(),
         }
       }
@@ -116,7 +123,7 @@ export function evaluateLeagueIdentityChange(params: {
 export type LeagueIdentityUiHint = {
   /** User may edit league name */
   canEditName: boolean
-  /** User may edit registration slug (Pro+ only; Basic never via UI) */
+  /** Registration slug is read-only in Settings (set at signup). */
   canEditSlug: boolean
   helperText: string
 }
@@ -136,13 +143,13 @@ export function leagueIdentityUiHint(params: {
       return {
         canEditName: false,
         canEditSlug: false,
-        helperText: 'You already used your one Basic name change. Upgrade to rename again or change your signup link.',
+        helperText: 'You already used your one Basic name change. Upgrade to rename again.',
       }
     }
     return {
       canEditName: true,
       canEditSlug: false,
-      helperText: 'Basic: one name change. A custom signup link is on Pro and Enterprise.',
+      helperText: 'Basic: one league name change. Your registration link stays fixed.',
     }
   }
 
@@ -156,7 +163,7 @@ export function leagueIdentityUiHint(params: {
         return {
           canEditName: false,
           canEditSlug: false,
-          helperText: `Try again on ${dateStr}. (${cooldownDays} days between changes on ${plan === 'enterprise' ? 'Enterprise' : 'Pro'}.)`,
+          helperText: `Try again on ${dateStr}. (${cooldownDays} days between league name changes on ${plan === 'enterprise' ? 'Enterprise' : 'Pro'}.)`,
         }
       }
     }
@@ -164,14 +171,14 @@ export function leagueIdentityUiHint(params: {
     const cadence = plan === 'enterprise' ? '30 days' : '90 days'
     return {
       canEditName: true,
-      canEditSlug: true,
-      helperText: `${tier}: you can change the league name and signup link once every ${cadence}.`,
+      canEditSlug: false,
+      helperText: `${tier}: change the league name once every ${cadence}. Registration link is locked.`,
     }
   }
 
   return {
     canEditName: count < 1,
     canEditSlug: false,
-    helperText: 'Basic: one name change. Upgrade for a custom link and more name changes.',
+    helperText: 'Basic: one league name change. Registration link is locked.',
   }
 }
