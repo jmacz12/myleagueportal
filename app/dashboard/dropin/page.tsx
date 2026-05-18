@@ -7,8 +7,6 @@ import DropinStandings from './DropinStandings'
 import DropinHistory from './DropinHistory'
 import { DashboardPlanLockedCard } from '@/components/dashboard/DashboardPlanLockedCard'
 import { isBasic, normalizeOrgPlan, type OrgPlanSlug } from '@/lib/org-plan-tier'
-import { PUBLIC_LOCKED_PRO_ENTERPRISE_BADGE } from '@/lib/public-plan-copy'
-
 export default function DropinPage() {
   const [activeTab, setActiveTab] = useState<'sessions' | 'standings' | 'history'>('sessions')
   const [orgPlan, setOrgPlan] = useState<OrgPlanSlug>('basic')
@@ -295,9 +293,7 @@ export default function DropinPage() {
           { id: 'sessions', label: 'Sessions' },
           { id: 'standings', label: 'Standings' },
           { id: 'history', label: 'History' },
-        ].map((tab) => {
-          const locked = tab.id === 'standings' && standingsLocked
-          return (
+        ].map((tab) => (
           <button
             key={tab.id}
             type="button"
@@ -316,21 +312,8 @@ export default function DropinPage() {
             }}
           >
             {tab.label}
-            {locked ? (
-              <span
-                style={{
-                  marginLeft: '6px',
-                  fontSize: '10px',
-                  fontWeight: 700,
-                  opacity: 0.85,
-                }}
-              >
-                {PUBLIC_LOCKED_PRO_ENTERPRISE_BADGE}
-              </span>
-            ) : null}
           </button>
-          )
-        })}
+        ))}
       </div>
 
       {activeTab === 'sessions' && (
@@ -343,7 +326,7 @@ export default function DropinPage() {
       )}
       {activeTab === 'standings' && standingsLocked ? (
         <DashboardPlanLockedCard
-          title={`Drop-in standings — ${PUBLIC_LOCKED_PRO_ENTERPRISE_BADGE}`}
+          title="Drop-in standings"
           body={
             <>
               On <strong>Basic</strong>, you can still run drop-in sessions and check people in. Upgrade to{' '}
