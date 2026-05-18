@@ -15,6 +15,7 @@ interface Player {
   team_id: string | null
   season_id: string
   registered_at: string
+  game_reminders_opt_out?: boolean
 }
 
 interface Team {
@@ -49,6 +50,9 @@ export default function PlayersPage() {
   const [assigningId, setAssigningId] = useState<string | null>(null)
   const [pollHelpOpen, setPollHelpOpen] = useState(false)
   const [orgPlan, setOrgPlan] = useState<'basic' | 'pro' | 'enterprise'>('basic')
+  const [gameRemindersAvailable, setGameRemindersAvailable] = useState(false)
+  const [gameEmailRemindersEnabled, setGameEmailRemindersEnabled] = useState(true)
+  const [reminderToggleId, setReminderToggleId] = useState<string | null>(null)
 
   useEffect(() => {
     void fetchData()
@@ -64,8 +68,10 @@ export default function PlayersPage() {
     setPlayers(pd.players || [])
     setTeams(td.teams || [])
     setOrgSlug(typeof td.org_slug === 'string' ? td.org_slug : '')
-    const pr = String(td.org_plan || 'basic').toLowerCase()
+    const pr = String(pd.org_plan || td.org_plan || 'basic').toLowerCase()
     setOrgPlan(pr === 'enterprise' ? 'enterprise' : pr === 'pro' ? 'pro' : 'basic')
+    setGameRemindersAvailable(pd.game_reminders_available === true)
+    setGameEmailRemindersEnabled(pd.game_email_reminders_enabled !== false)
     setSeasons(sd.seasons || [])
     setLoading(false)
   }
@@ -90,6 +96,22 @@ export default function PlayersPage() {
       body: JSON.stringify({ player_id: playerId, team_id: teamId }),
     })
     setAssigningId(null)
+    void fetchData()
+  }
+
+  async function updateGameReminders(playerId: string, optOut: boolean) {
+    setReminderToggleId(playerId)
+    const res = await fetch('/api/players', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ player_id: playerId, game_reminders_opt_out: optOut }),
+    })
+    const data = await res.json()
+    setReminderToggleId(null)
+    if (!res.ok) {
+      alert(data.error || 'Could not update reminder preference.')
+      return
+    }
     void fetchData()
   }
 
@@ -145,6 +167,19 @@ export default function PlayersPage() {
           <p className="page-subtitle">
             {filteredPlayers.length} player{filteredPlayers.length !== 1 ? 's' : ''}
             {selectedSeason !== 'all' || selectedTeam !== 'all' || q ? ' (filtered)' : ' total'}
+            {gameRemindersAvailable ? (
+              <>
+                {' '}
+                · Game reminder emails:{' '}
+                {gameEmailRemindersEnabled ? (
+                  <span>on for the league</span>
+                ) : (
+                  <Link href="/dashboard/settings?tab=league" style={{ fontWeight: 700, color: 'var(--accent)' }}>
+                    off in Settings
+                  </Link>
+                )}
+              </>
+            ) : null}
           </p>
         </div>
         <button type="button" className="btn-secondary" style={{ fontSize: '12px', fontWeight: 700 }} onClick={() => setPollHelpOpen(true)}>
@@ -274,12 +309,58 @@ export default function PlayersPage() {
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
                           whiteSpace: 'nowrap',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
                         }}
                       >
-                        {player.email}
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{player.email}</span>
+                        {gameRemindersAvailable && player.game_reminders_opt_out ? (
+                          <span
+                            style={{
+                              flexShrink: 0,
+                              fontSize: '10px',
+                              fontWeight: 700,
+                              color: '#92400e',
+                              background: '#fffbeb',
+                              padding: '1px 5px',
+                              borderRadius: '4px',
+                            }}
+                          >
+                            Reminders off
+                          </span>
+                        ) : null}
                       </div>
                     )}
                     {player.phone && <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{player.phone}</div>}
+                    {gameRemindersAvailable && player.email ? (
+                      <label
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          marginTop: '5px',
+                          fontSize: '11px',
+                          color: 'var(--text-muted)',
+                          cursor:
+                            gameEmailRemindersEnabled && reminderToggleId !== player.id ? 'pointer' : 'not-allowed',
+                        }}
+                        title={
+                          !gameEmailRemindersEnabled
+                            ? 'Turn on game reminder emails under Dashboard → Settings → League & appearance'
+                            : 'Send automated email ~24 hours before scheduled league games'
+                        }
+                      >
+                        <input
+                          type="checkbox"
+                          checked={player.game_reminders_opt_out !== true}
+                          disabled={!gameEmailRemindersEnabled || reminderToggleId === player.id}
+                          onChange={(e) => void updateGameReminders(player.id, !e.target.checked)}
+                          style={{ margin: 0, accentColor: 'var(--accent)' }}
+                        />
+                        <span>Game reminder emails</span>
+                      </label>
+                    ) : null}
                     {!player.email && !player.phone && <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>—</span>}
                   </div>
 

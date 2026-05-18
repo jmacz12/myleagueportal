@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { auth } from '@clerk/nextjs/server'
 import { getOrgAccessForClerkUser } from '@/lib/org-access'
+import { isProOrEnterprise, normalizeOrgPlan } from '@/lib/org-plan-tier'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -17,13 +18,30 @@ export async function GET() {
 
   const org = { id: access.organization.id }
 
-  const { data: players } = await supabaseAdmin
-    .from('players')
-    .select('*')
-    .eq('organization_id', org.id)
-    .order('registered_at', { ascending: false })
+  const [{ data: players }, { data: orgRow }] = await Promise.all([
+    supabaseAdmin
+      .from('players')
+      .select('*')
+      .eq('organization_id', org.id)
+      .order('registered_at', { ascending: false }),
+    supabaseAdmin
+      .from('organizations')
+      .select('plan, game_email_reminders_enabled')
+      .eq('id', org.id)
+      .single(),
+  ])
 
-  return NextResponse.json({ players: players || [] })
+  const orgPlan = normalizeOrgPlan(orgRow?.plan)
+  const gameEmailRemindersEnabled =
+    (orgRow as { game_email_reminders_enabled?: boolean } | null)?.game_email_reminders_enabled !==
+    false
+
+  return NextResponse.json({
+    players: players || [],
+    org_plan: orgPlan,
+    game_email_reminders_enabled: gameEmailRemindersEnabled,
+    game_reminders_available: isProOrEnterprise(orgPlan),
+  })
 }
 
 export async function PATCH(req: Request) {
@@ -35,7 +53,7 @@ export async function PATCH(req: Request) {
 
   const org = { id: access.organization.id }
 
-  const { player_id, team_id, jersey_number } = await req.json()
+  const { player_id, team_id, jersey_number, game_reminders_opt_out } = await req.json()
   if (!player_id) return NextResponse.json({ error: 'player_id is required' }, { status: 400 })
 
   const { data: player } = await supabaseAdmin
@@ -80,6 +98,10 @@ export async function PATCH(req: Request) {
       }
     }
     update.jersey_number = n
+  }
+
+  if (game_reminders_opt_out !== undefined) {
+    update.game_reminders_opt_out = game_reminders_opt_out === true
   }
 
   if (Object.keys(update).length === 0) {
